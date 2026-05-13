@@ -36,7 +36,9 @@ Current templates:
 - `financial_investment_due_diligence`: finance/investment-focused flow.
 - `market_entry_due_diligence`: market and competitor-focused flow.
 
-At run time, the backend sends an immutable workflow snapshot to the Agent service. The snapshot includes the workflow graph, agent templates, Anthropic-style skill packages, executable tools, resource configs, and AgentScope ReAct parameters used by that run.
+At run time, the backend sends an immutable **workflow snapshot** to the agent service. The snapshot includes the workflow graph, agent templates, Anthropic-style skill packages, executable tools, resource configs, and AgentScope ReAct parameters used by that run.
+
+The agent service writes a **session JSON** for each `POST /runs` (on by default): `agent_service/sessions/<project_id>/<run_id>.json` (override root with `DD_SESSION_HISTORY_DIR`). The file includes `company_config`, `workflow_meta`, `agents_ordered`, an **events** timeline, and on completion the full **`result`** (same data as the HTTP response). Set `DD_SESSION_HISTORY_ENABLED=false` to turn this off. Read-only HTTP: `GET /sessions`, `GET /sessions/{project_id}`, `GET /sessions/{project_id}/{run_id}`.
 
 Each agent template can bind:
 
@@ -69,6 +71,8 @@ Default model config:
 }
 ```
 
+When the workflow graph comes from the snapshot rather than YAML defaults alone, coordinator, research agents, verifier, and reporter identifiers may differ while the **overall stage order** (plan, research, analysis, verify, report) stays the same.
+
 ```mermaid
 flowchart TD
   ProjectConfig[Project_Config] --> WorkflowTemplate[Workflow_Template]
@@ -86,6 +90,16 @@ flowchart TD
   EvidenceVerifier --> ReportWriter[ReportWriterAgent]
   ReportWriter --> Report[Structured_Report]
 ```
+
+## Run observability across services
+
+Runs are intentionally **split across HTTP hops** so the platform API does not block for the duration of LLM-heavy work.
+
+1. **Backend** allocates `run_{random}` (`create_pending_agent_run`), returns **`AgentRunRead`** immediately with **`running`** status.
+2. **Agent_service** **`POST /runs`** accepts **`run_id`** in the JSON body when the backend allocates it in advance so the **`RunResult.run_id`** matches the pending row before persistence.
+3. **Incremental progress**: after each logical step transitions to **`running`** and again after that step completes the workflow calls **`notify_run_progress`**, which **`POST`**s to **`{PLATFORM_CALLBACK_BASE_URL}/internal/agent-runs/{run_id}/progress`** with header **`X-Agent-Callback-Secret`** (**must equal** **`AGENT_CALLBACK_SECRET`** on the backend). Callback failures are logged only—they **do not abort** the diligence run.
+
+The **frontend workbench polls** the run (`GET /runs/{id}`) and refreshes project evidence while status is `running`, so users see steps and evidence grow when callbacks are enabled.
 
 ## Tool Groups
 

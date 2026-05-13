@@ -7,3 +7,5 @@ dist/
 .env
 *.db
 coverage/
+
+agent_service/sessions/

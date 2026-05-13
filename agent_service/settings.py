@@ -21,6 +21,16 @@ class AgentSettings(BaseSettings):
         validation_alias="AGENT_CALLBACK_SECRET",
         description="Must match backend AGENT_CALLBACK_SECRET for /internal/agent-runs callbacks.",
     )
+    session_history_enabled: bool = Field(
+        default=True,
+        validation_alias="DD_SESSION_HISTORY_ENABLED",
+        description="Persist each POST /runs execution as agent_service/sessions/<project>/<run>.json",
+    )
+    session_history_dir: str = Field(
+        default="",
+        validation_alias="DD_SESSION_HISTORY_DIR",
+        description="Optional absolute path for session JSON files (default: <agent_service>/sessions).",
+    )
 
 
 @lru_cache

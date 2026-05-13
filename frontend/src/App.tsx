@@ -3,17 +3,15 @@ import { Navigate, Route, BrowserRouter as Router, Routes, useLocation } from "r
 
 import { getMe } from "./api/client";
 import { AppLayout } from "./components/AppLayout";
-import { AgentTemplatesPage } from "./pages/AgentTemplatesPage";
 import { LoginPage } from "./pages/LoginPage";
 import { NewProjectPage } from "./pages/NewProjectPage";
 import { ProjectDetailPage } from "./pages/ProjectDetailPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { ResourceConfigsPage } from "./pages/ResourceConfigsPage";
 import { RunHistoryPage } from "./pages/RunHistoryPage";
-import { ScenariosPage } from "./pages/ScenariosPage";
 import { SkillsPage } from "./pages/SkillsPage";
 import { ToolConfigsPage } from "./pages/ToolConfigsPage";
-import { WorkflowTemplatesPage } from "./pages/WorkflowTemplatesPage";
+import { WorkflowsHubPage } from "./pages/WorkflowsHubPage";
 import type { AuthSession, User } from "./types/domain";
 
 function Protected({ user, children }: { user: User | null; children: ReactNode }) {
@@ -64,10 +62,11 @@ export function App() {
             <Protected user={user}>
               <AppLayout user={user as User} onLogout={handleLogout}>
                 <Routes>
-                  <Route path="/" element={<Navigate to="/scenarios" replace />} />
-                  <Route path="/scenarios" element={<ScenariosPage />} />
-                  <Route path="/workflow-templates" element={<WorkflowTemplatesPage />} />
-                  <Route path="/agent-templates" element={<AgentTemplatesPage />} />
+                  <Route path="/" element={<Navigate to="/workflows" replace />} />
+                  <Route path="/workflows" element={<WorkflowsHubPage />} />
+                  <Route path="/scenarios" element={<Navigate to="/workflows" replace />} />
+                  <Route path="/workflow-templates" element={<Navigate to="/workflows" replace />} />
+                  <Route path="/agent-templates" element={<Navigate to={{ pathname: "/workflows", search: "?tab=agents" }} replace />} />
                   <Route path="/skills" element={<SkillsPage />} />
                   <Route path="/tools" element={<ToolConfigsPage />} />
                   <Route path="/resource-configs" element={<ResourceConfigsPage />} />

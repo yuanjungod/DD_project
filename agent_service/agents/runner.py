@@ -37,7 +37,13 @@ class ConfiguredAgentRunner:
             tool_executor=self._execute_react_tool,
         )
 
-    def run(self, company_config: CompanyConfig, previous_results: list[AgentResult]) -> AgentResult:
+    def run(
+        self,
+        company_config: CompanyConfig,
+        previous_results: list[AgentResult],
+        *,
+        continuation_context: dict[str, Any] | None = None,
+    ) -> AgentResult:
         try:
             self.current_company_config = company_config
             agent_name = self.definition.name
@@ -47,6 +53,7 @@ class ConfiguredAgentRunner:
                 previous_results=previous_results,
                 evidence=evidence,
                 structured_model=ModelAgentOutput,
+                continuation_context=continuation_context,
             )
             evidence = self._agent_evidence(agent_name)
             findings = self._normalize_findings(model_output.findings, evidence)
@@ -56,6 +63,32 @@ class ConfiguredAgentRunner:
                 summary=model_output.summary,
                 findings=findings,
                 evidence=evidence,
+            )
+        finally:
+            self.current_company_config = None
+            self.react_runtime.close()
+
+    def run_step_review_chat(
+        self,
+        company_config: CompanyConfig,
+        previous_results: list[AgentResult],
+        *,
+        current_step_summary: str,
+        current_findings: list[dict[str, Any]],
+        chat_messages: list[dict[str, str]],
+        user_message: str,
+    ) -> str:
+        try:
+            self.current_company_config = company_config
+            evidence = self._collect_evidence(company_config)
+            return self.react_runtime.run_step_review_chat(
+                company_config,
+                previous_results,
+                evidence,
+                current_step_summary=current_step_summary,
+                current_findings=current_findings,
+                chat_messages=chat_messages,
+                user_message=user_message,
             )
         finally:
             self.current_company_config = None

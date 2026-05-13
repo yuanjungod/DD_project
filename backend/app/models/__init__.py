@@ -1,7 +1,6 @@
 from app.models.entities import (
     AgentRun,
     AgentStep,
-    AgentTemplate,
     Evidence,
     Project,
     ProjectAccess,
@@ -12,13 +11,11 @@ from app.models.entities import (
     SkillPackage,
     ToolConfig,
     User,
-    WorkflowTemplate,
 )
 
 __all__ = [
     "AgentRun",
     "AgentStep",
-    "AgentTemplate",
     "Evidence",
     "Project",
     "ProjectAccess",
@@ -29,5 +26,4 @@ __all__ = [
     "SkillPackage",
     "ToolConfig",
     "User",
-    "WorkflowTemplate",
 ]

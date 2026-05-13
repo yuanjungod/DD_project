@@ -1,6 +1,6 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
-import { createSkill, debugSkillDraft, getSkill, listSkills, updateSkill } from "../api/client";
+import { createSkill, debugSkillDraft, getSkill, importSkillZip, listSkills, updateSkill } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
 import type { SkillDebugResult, SkillPackage } from "../types/domain";
 
@@ -23,6 +23,9 @@ const defaultManifest = JSON.stringify(
 );
 
 export function SkillsPage() {
+  const zipInputRef = useRef<HTMLInputElement>(null);
+  const [zipDirOverride, setZipDirOverride] = useState("");
+  const [zipUploading, setZipUploading] = useState(false);
   const [skills, setSkills] = useState<SkillPackage[]>([]);
   const [selectedSkillId, setSelectedSkillId] = useState("");
   const [view, setView] = useState<"list" | "editor">("list");
@@ -195,7 +198,12 @@ export function SkillsPage() {
       <header className="page-hero">
         <p className="eyebrow">Skill Registry</p>
         <h1>Skills 配置管理</h1>
-        <p>查看、修改和调试 Anthropic/Cursor 风格的 Skill 包：每个 Skill 固定同步到 `agent_service/skills/&lt;directory&gt;/`，核心内容是 `SKILL.md`，可附带 references、scripts、assets 等资源。</p>
+        <p>
+          查看、修改和调试 Anthropic/Cursor 风格的 Skill 包：每个 Skill 固定同步到{" "}
+          <code>agent_service/skills/&lt;directory&gt;/</code>，核心内容是 <code>SKILL.md</code>
+          ，可附带 references、scripts、assets；也可<strong>上传 .zip</strong>
+          （单顶层目录包住 <code>SKILL.md</code> 与同包资源）一键入库。
+        </p>
       </header>
       {error ? <div className="error">{error}</div> : null}
       {notice ? <div className="notice">{notice}</div> : null}
@@ -204,9 +212,56 @@ export function SkillsPage() {
           <div className="skill-list-header">
             <div>
               <strong>{skills.length} 个 Skill 包</strong>
-              <p>选择一个 Skill 进入独立的查看、修改和调试页面。</p>
+              <p>选择一个 Skill 进入独立的查看、修改和调试页面；或直接上传 Cursor/Anthropic 导出的 Skill 压缩包。</p>
             </div>
-            <button type="button" onClick={handleNewSkill}>新增 Skill</button>
+            <div className="skill-upload-toolbar">
+              <input
+                ref={zipInputRef}
+                type="file"
+                accept=".zip,application/zip"
+                hidden
+                aria-hidden
+                onChange={async (event) => {
+                  const picked = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!picked) return;
+                  setError("");
+                  setNotice("");
+                  setZipUploading(true);
+                  try {
+                    const saved = await importSkillZip(picked, zipDirOverride.trim() ? zipDirOverride : undefined);
+                    setNotice(`已从 ZIP 创建 Skill「${saved.name}」(${saved.directory_name})`);
+                    setZipDirOverride("");
+                    await refresh();
+                    await handleSelect(saved.id);
+                  } catch (err: unknown) {
+                    setError(String(err));
+                  } finally {
+                    setZipUploading(false);
+                  }
+                }}
+              />
+              <label className="skill-zip-dir-label">
+                目录名（可选）
+                <input
+                  className="skill-zip-dir-input"
+                  placeholder="覆盖 SKILL 目录名（英文短横杠）"
+                  value={zipDirOverride}
+                  onChange={(e) => setZipDirOverride(e.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={zipUploading}
+                onClick={() => zipInputRef.current?.click()}
+              >
+                {zipUploading ? "上传中…" : "上传 ZIP 压缩包"}
+              </button>
+              <button type="button" disabled={zipUploading} onClick={handleNewSkill}>
+                新增 Skill
+              </button>
+            </div>
           </div>
           <ul className="skill-card-list">
             {skills.map((skill) => (

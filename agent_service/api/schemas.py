@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-RunStatus = Literal["pending", "running", "completed", "failed"]
+RunStatus = Literal["pending", "running", "completed", "failed", "paused"]
 RiskLevel = Literal["low", "medium", "high", "unknown"]
 
 
@@ -35,9 +35,8 @@ class Resources(BaseModel):
     trusted_sources: list[str] = Field(default_factory=list)
     blocked_sources: list[str] = Field(default_factory=list)
     competitors: list[str] = Field(default_factory=list)
-
-
-class CompanyConfig(BaseModel):
+    metrics: list[dict[str, Any]] = Field(default_factory=list)
+    external_clues: list[dict[str, Any]] = Field(default_factory=list)
     target_company: TargetCompany
     scope: Scope = Field(default_factory=Scope)
     resources: Resources = Field(default_factory=Resources)
@@ -101,6 +100,26 @@ class RunRequest(BaseModel):
         default=None,
         description="Optional id to correlate with backend-persisted AgentRun.",
     )
+    diligence_session_id: str | None = Field(
+        default=None,
+        description="Product diligence session container (pairs with backend DiligenceSession).",
+    )
+    attempt_index: int | None = Field(default=None, description="1-based attempt number within diligence_session_id.")
+    continuation_context: dict[str, Any] | None = Field(
+        default=None,
+        description="Digest from the previous attempt in this session; injected into the first agent prompt.",
+    )
+    pause_after_each_step: bool = Field(
+        default=False,
+        description="If true, return status=paused after each agent except the last (human review + chat).",
+    )
+    resume_from_step_index: int = Field(
+        default=0,
+        ge=0,
+        description="Skip the first N agents; pass completed_steps/evidence of length N when resuming.",
+    )
+    completed_steps: list[AgentStep] = Field(default_factory=list)
+    completed_evidence: list[Evidence] = Field(default_factory=list)
 
 
 class RunResult(BaseModel):
@@ -110,3 +129,21 @@ class RunResult(BaseModel):
     steps: list[AgentStep] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)
     report: DueDiligenceReport | None = None
+
+
+class StepReviewChatRequest(BaseModel):
+    project_id: str
+    company_config: CompanyConfig
+    workflow_snapshot: dict[str, Any] | None = None
+    agent_name: str
+    previous_results: list[AgentResult] = Field(default_factory=list)
+    current_step: AgentStep
+    chat_messages: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="Prior turns [{role: user|assistant, content: str}]",
+    )
+    user_message: str
+
+
+class StepReviewChatResponse(BaseModel):
+    reply: str

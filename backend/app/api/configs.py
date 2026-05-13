@@ -3,14 +3,14 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from agentscope.tool import Toolkit
 import frontmatter
 
 from app.core.auth import require_roles
 from app.core.database import get_db
-from app.models.entities import AgentTemplate, ResourceConfig, SkillPackage, ToolConfig, User, WorkflowTemplate, new_id
+from app.models.entities import ResourceConfig, SkillPackage, ToolConfig, User
 from app.schemas import (
     AgentTemplateCreate,
     AgentTemplateRead,
@@ -29,7 +29,16 @@ from app.schemas import (
     WorkflowTemplateRead,
     WorkflowTemplateUpdate,
 )
+from app.services.workflow_template_files import clone_workflow_template as clone_workflow_on_disk
+from app.services.workflow_template_files import create_agent as create_agent_on_disk
+from app.services.workflow_template_files import create_workflow_template as create_workflow_on_disk
+from app.services.workflow_template_files import list_union_agent_reads as list_agent_template_reads_from_disk
+from app.services.workflow_template_files import list_workflow_reads_for_api as list_workflow_reads_from_disk
+from app.services.workflow_template_files import publish_workflow_template as publish_workflow_on_disk
+from app.services.workflow_template_files import update_agent as update_agent_on_disk
+from app.services.workflow_template_files import update_workflow_template as update_workflow_on_disk
 from app.services.skill_files import skill_package_disk_path, sync_skill_package_to_disk
+from app.services.skill_zip_import import skill_package_create_from_zip
 
 
 router = APIRouter(tags=["configuration"])
@@ -57,6 +66,30 @@ def debug_skill_draft(
         package_files=payload.package_files,
         resources_manifest=payload.resources_manifest,
     )
+
+
+@router.post("/skills/import-zip", response_model=SkillPackageRead)
+async def import_skill_zip(
+    file: UploadFile = File(...),
+    directory_name: str | None = Form(None),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles("admin")),
+) -> SkillPackage:
+    fname = file.filename or ""
+    if not fname.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="请上传扩展名为 .zip 的 Skill 压缩包（单包内含 SKILL.md）")
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="上传文件为空")
+    override = directory_name.strip() if directory_name and directory_name.strip() else None
+    payload = skill_package_create_from_zip(raw, directory_name_override=override)
+    payload = _ensure_unique_skill_catalog_fields(db, payload)
+    item = SkillPackage(**_create_payload(payload))
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    sync_skill_package_to_disk(item)
+    return item
 
 
 @router.get("/skills/{skill_id}", response_model=SkillPackageRead)
@@ -191,121 +224,91 @@ def update_resource_config(
 
 @router.get("/agent-templates", response_model=list[AgentTemplateRead])
 def list_agent_templates(
-    db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
-) -> list[AgentTemplate]:
-    query = db.query(AgentTemplate)
-    if user.role != "admin":
-        query = query.filter(AgentTemplate.enabled.is_(True))
-    return query.order_by(AgentTemplate.name).all()
+) -> list[AgentTemplateRead]:
+    return list_agent_template_reads_from_disk(only_enabled_non_admin=user.role != "admin")
 
 
 @router.post("/agent-templates", response_model=AgentTemplateRead)
 def create_agent_template(
     payload: AgentTemplateCreate,
-    db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
-) -> AgentTemplate:
-    item = AgentTemplate(**_create_payload(payload))
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return item
+) -> AgentTemplateRead:
+    return create_agent_on_disk(payload)
 
 
 @router.patch("/agent-templates/{agent_id}", response_model=AgentTemplateRead)
 def update_agent_template(
     agent_id: str,
     payload: AgentTemplateUpdate,
-    db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
-) -> AgentTemplate:
-    item = _get_or_404(db, AgentTemplate, agent_id, "Agent template")
-    _apply_updates(item, payload)
-    db.commit()
-    db.refresh(item)
-    return item
+) -> AgentTemplateRead:
+    return update_agent_on_disk(agent_id, payload)
 
 
 @router.get("/workflow-templates", response_model=list[WorkflowTemplateRead])
 def list_workflow_templates(
-    db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
-) -> list[WorkflowTemplate]:
-    query = db.query(WorkflowTemplate)
-    if user.role != "admin":
-        query = query.filter(WorkflowTemplate.status == "published")
-    return query.order_by(WorkflowTemplate.updated_at.desc()).all()
+) -> list[WorkflowTemplateRead]:
+    return list_workflow_reads_from_disk(include_drafts=user.role == "admin")
 
 
 @router.post("/workflow-templates", response_model=WorkflowTemplateRead)
 def create_workflow_template(
     payload: WorkflowTemplateCreate,
-    db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
-) -> WorkflowTemplate:
-    data = _create_payload(payload)
-    data["status"] = data.get("status") or "draft"
-    item = WorkflowTemplate(**data)
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return item
+) -> WorkflowTemplateRead:
+    return create_workflow_on_disk(payload)
 
 
 @router.patch("/workflow-templates/{workflow_id}", response_model=WorkflowTemplateRead)
 def update_workflow_template(
     workflow_id: str,
     payload: WorkflowTemplateUpdate,
-    db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
-) -> WorkflowTemplate:
-    item = _get_or_404(db, WorkflowTemplate, workflow_id, "Workflow template")
-    _apply_updates(item, payload)
-    db.commit()
-    db.refresh(item)
-    return item
+) -> WorkflowTemplateRead:
+    return update_workflow_on_disk(workflow_id, payload)
 
 
 @router.post("/workflow-templates/{workflow_id}/publish", response_model=WorkflowTemplateRead)
 def publish_workflow_template(
     workflow_id: str,
-    db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
-) -> WorkflowTemplate:
-    item = _get_or_404(db, WorkflowTemplate, workflow_id, "Workflow template")
-    item.status = "published"
-    item.version += 1
-    db.commit()
-    db.refresh(item)
-    return item
+) -> WorkflowTemplateRead:
+    return publish_workflow_on_disk(workflow_id)
 
 
 @router.post("/workflow-templates/{workflow_id}/clone", response_model=WorkflowTemplateRead)
 def clone_workflow_template(
     workflow_id: str,
-    db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
-) -> WorkflowTemplate:
-    source = _get_or_404(db, WorkflowTemplate, workflow_id, "Workflow template")
-    clone = WorkflowTemplate(
-        id=new_id("workflow_tpl"),
-        name=f"{source.name} Copy",
-        description=source.description,
-        scenario=source.scenario,
-        graph=source.graph,
-        status="draft",
-        version=1,
-    )
-    db.add(clone)
-    db.commit()
-    db.refresh(clone)
-    return clone
+) -> WorkflowTemplateRead:
+    return clone_workflow_on_disk(workflow_id)
 
 
 def _create_payload(payload):
     data = payload.model_dump(exclude_none=True)
     return data
+
+
+def _ensure_unique_skill_catalog_fields(db: Session, payload: SkillPackageCreate) -> SkillPackageCreate:
+    name = payload.name
+    base_name = name
+    suffix = 2
+    while db.query(SkillPackage.id).filter(SkillPackage.name == name).limit(1).first():
+        name = f"{base_name}-{suffix}"
+        suffix += 1
+
+    dname = payload.directory_name
+    base_d = dname
+    suffix = 2
+    while db.query(SkillPackage.id).filter(SkillPackage.directory_name == dname).limit(1).first():
+        dname = f"{base_d}-{suffix}"
+        suffix += 1
+
+    if name == payload.name and dname == payload.directory_name:
+        return payload
+    return payload.model_copy(update={"name": name, "directory_name": dname})
 
 
 def _apply_updates(item, payload) -> None:

@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { createAgentTemplate, listAgentTemplates, listResourceConfigs, listSkills, listToolConfigs } from "../api/client";
-import { SectionCard } from "../components/SectionCard";
+import { SectionCard } from "./SectionCard";
 import type { AgentTemplate, ResourceConfig, SkillPackage, ToolConfig } from "../types/domain";
 
 function splitList(value: string): string[] {
@@ -33,7 +33,12 @@ const defaultReActConfig = JSON.stringify(
   2,
 );
 
-export function AgentTemplatesPage() {
+type AgentTemplatesPanelProps = {
+  /** 新建或更新 Agent 后通知父级（例如在「流程管理」中刷新可选 Agent 列表） */
+  onAgentsChanged?: () => void;
+};
+
+export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProps) {
   const [agents, setAgents] = useState<AgentTemplate[]>([]);
   const [skills, setSkills] = useState<SkillPackage[]>([]);
   const [tools, setTools] = useState<ToolConfig[]>([]);
@@ -97,18 +102,14 @@ export function AgentTemplatesPage() {
         output_schema: "agent_result",
       });
       await refresh();
+      onAgentsChanged?.();
     } catch (err) {
       setError(String(err));
     }
   }
 
   return (
-    <div className="page-stack">
-      <header className="page-hero">
-        <p className="eyebrow">Agent Templates</p>
-        <h1>Agent 配置管理</h1>
-        <p>配置每个 agent 的角色、提示词、Anthropic Skill 包、可调用工具、数据资源和输出 schema，再组合进流程模板。</p>
-      </header>
+    <>
       {error ? <div className="error">{error}</div> : null}
       <div className="grid two">
         <SectionCard title="新增 Agent 模板">
@@ -151,16 +152,13 @@ export function AgentTemplatesPage() {
             </label>
             <label>
               AgentScope ReAct 配置 JSON
-              <textarea
-                value={form.react_config}
-                onChange={(event) => setForm({ ...form, react_config: event.target.value })}
-              />
+              <textarea value={form.react_config} onChange={(event) => setForm({ ...form, react_config: event.target.value })} />
             </label>
             <label>
               提示词
               <textarea value={form.prompt} onChange={(event) => setForm({ ...form, prompt: event.target.value })} />
             </label>
-            <button>保存 Agent 模板</button>
+            <button type="submit">保存 Agent 模板</button>
           </form>
         </SectionCard>
         <SectionCard title="Agent 模板列表">
@@ -178,6 +176,6 @@ export function AgentTemplatesPage() {
           </ul>
         </SectionCard>
       </div>
-    </div>
+    </>
   );
 }

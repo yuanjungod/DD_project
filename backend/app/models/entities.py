@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Float, ForeignKey, JSON, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -26,6 +26,24 @@ class Project(Base):
     runs: Mapped[list["AgentRun"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     reports: Mapped[list["Report"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     access_entries: Mapped[list["ProjectAccess"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    diligence_sessions: Mapped[list["DiligenceSession"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
+
+
+class DiligenceSession(Base):
+    """One product-level diligence session: may contain multiple run attempts (AgentRun)."""
+
+    __tablename__ = "diligence_sessions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("sess"))
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project: Mapped["Project"] = relationship(back_populates="diligence_sessions")
+    runs: Mapped[list["AgentRun"]] = relationship(back_populates="diligence_session")
 
 
 class User(Base):
@@ -113,38 +131,6 @@ class ResourceConfig(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
-class AgentTemplate(Base):
-    __tablename__ = "agent_templates"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("agent_tpl"))
-    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
-    role: Mapped[str] = mapped_column(String, nullable=False)
-    prompt: Mapped[str] = mapped_column(Text, nullable=False)
-    skill_package_ids: Mapped[list] = mapped_column(JSON, default=list)
-    tool_ids: Mapped[list] = mapped_column(JSON, default=list)
-    skill_ids: Mapped[list] = mapped_column(JSON, default=list)
-    resource_ids: Mapped[list] = mapped_column(JSON, default=list)
-    react_config: Mapped[dict] = mapped_column(JSON, default=dict)
-    output_schema: Mapped[str] = mapped_column(String, nullable=False, default="agent_result")
-    enabled: Mapped[bool] = mapped_column(default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-
-class WorkflowTemplate(Base):
-    __tablename__ = "workflow_templates"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("workflow_tpl"))
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    description: Mapped[str] = mapped_column(Text, default="")
-    scenario: Mapped[str] = mapped_column(String, nullable=False, default="standard")
-    graph: Mapped[dict] = mapped_column(JSON, nullable=False)
-    status: Mapped[str] = mapped_column(String, nullable=False, default="draft")
-    version: Mapped[int] = mapped_column(default=1)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-
 class Resource(Base):
     __tablename__ = "resources"
 
@@ -163,12 +149,17 @@ class AgentRun(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    session_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("diligence_sessions.id"), nullable=True
+    )
+    attempt_index: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     raw_result: Mapped[dict] = mapped_column(JSON, default=dict)
 
     project: Mapped[Project] = relationship(back_populates="runs")
+    diligence_session: Mapped["DiligenceSession | None"] = relationship(back_populates="runs")
     steps: Mapped[list["AgentStep"]] = relationship(back_populates="run", cascade="all, delete-orphan")
     evidence: Mapped[list["Evidence"]] = relationship(back_populates="run", cascade="all, delete-orphan")
     report: Mapped["Report | None"] = relationship(back_populates="run", cascade="all, delete-orphan")
@@ -185,6 +176,21 @@ class AgentStep(Base):
     result: Mapped[dict] = mapped_column(JSON, default=dict)
 
     run: Mapped[AgentRun] = relationship(back_populates="steps")
+    chat_messages: Mapped[list["AgentStepChatMessage"]] = relationship(
+        back_populates="step", cascade="all, delete-orphan"
+    )
+
+
+class AgentStepChatMessage(Base):
+    __tablename__ = "agent_step_chat_messages"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("stch"))
+    step_id: Mapped[str] = mapped_column(ForeignKey("agent_steps.id"), nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    step: Mapped["AgentStep"] = relationship(back_populates="chat_messages")
 
 
 class Evidence(Base):

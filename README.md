@@ -10,11 +10,17 @@ An MVP due diligence platform with:
 
 ```text
 backend/        FastAPI application
-agent_service/  AgentScope workflow service
+agent_service/  AgentScope workflow service (+ configs/, prompts/, workflow_templates/*.yaml bundles)
 frontend/       React + Vite workbench
 shared/         Shared JSON schemas and example payloads
-docs/           Architecture and configuration documentation
+docs/           Architecture, agent flow, configuration schema
 ```
+
+## Documentation
+
+- **[docs/architecture.md](docs/architecture.md)** — services, async run lifecycle, incremental callbacks, ports, Vite `/api` proxy.
+- **[docs/agent_flow.md](docs/agent_flow.md)** — agents, workflow snapshots, `run_id` handoff, observability.
+- **[docs/config_schema.md](docs/config_schema.md)** — JSON shapes, environment variables, UTC timestamps for runs.
 
 ## Local Development
 

@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { createProject, listWorkflowTemplates } from "../api/client";
+import { ProjectResourcesPanel } from "../components/ProjectResourcesPanel";
+import type { DraftResourceRow } from "../components/ProjectResourcesPanel";
 import { SectionCard } from "../components/SectionCard";
 import { workflowOptions } from "../data/workflows";
 import type { CompanyConfig, WorkflowTemplate } from "../types/domain";
@@ -35,9 +37,11 @@ function defaultConfig(workflowId: string): CompanyConfig {
     },
     resources: {
       uploaded_files: [],
-      trusted_sources: ["公司官网", "交易所公告", "工商登记信息"],
+      trusted_sources: [],
       blocked_sources: [],
-      competitors: ["Peer Robotics", "Warehouse AI"],
+      competitors: [],
+      metrics: [],
+      external_clues: [],
     },
   };
 }
@@ -48,6 +52,7 @@ export function NewProjectPage() {
   const initialWorkflow = searchParams.get("workflow") ?? "standard_due_diligence";
   const [form, setForm] = useState<CompanyConfig>(() => defaultConfig(initialWorkflow));
   const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([]);
+  const [draftResources, setDraftResources] = useState<DraftResourceRow[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const selectedWorkflow = useMemo(
@@ -86,6 +91,11 @@ export function NewProjectPage() {
       const project = await createProject({
         name: `${form.target_company.name} - ${selectedWorkflow?.name ?? "尽调应用"}`,
         company_config: form,
+        initial_resources: draftResources.map(({ type, value, metadata_json }) => ({
+          type,
+          value,
+          metadata_json,
+        })),
       });
       navigate(`/projects/${project.id}`);
     } catch (err) {
@@ -103,6 +113,12 @@ export function NewProjectPage() {
         <p>选择一个可复用尽调场景，再填入具体公司、资源和关注范围。</p>
       </header>
       {error ? <div className="error">{error}</div> : null}
+      <SectionCard
+        title="公司相关资源（可选）"
+        description="按具体标的补充可信来源、屏蔽站点、竞品、文件 ID、访谈线索或关键指标口径。创建时一并写入本条应用，Run 时会自动并入 Agent 可用的 company_config。"
+      >
+        <ProjectResourcesPanel variant="draft" draftRows={draftResources} onDraftRowsChange={setDraftResources} disabled={loading} />
+      </SectionCard>
       <SectionCard title="创建公司尽调应用" description={`当前流程：${selectedWorkflow?.name ?? "未选择"}`}>
         <form className="form split-form" onSubmit={handleCreate}>
           <label>

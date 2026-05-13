@@ -3,55 +3,52 @@ from __future__ import annotations
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.entities import AgentTemplate, ResourceConfig, SkillPackage, ToolConfig, WorkflowTemplate
+from app.models.entities import ResourceConfig, SkillPackage, ToolConfig
+from app.services.workflow_template_files import get_published_workflow_bundle, resolve_agents_for_snapshot
 
 
 def build_workflow_snapshot(db: Session, company_config: dict) -> dict:
     scope = company_config.get("scope", {})
     workflow_id = scope.get("workflow_template_id") or scope.get("workflow_id") or "standard_due_diligence"
-    workflow = db.get(WorkflowTemplate, workflow_id)
-    if not workflow:
-        raise HTTPException(status_code=404, detail=f"Workflow template not found: {workflow_id}")
-    if workflow.status != "published":
-        raise HTTPException(status_code=400, detail="Workflow template must be published before running")
+    bundle = get_published_workflow_bundle(workflow_id)
+    workflow_section = bundle["workflow"]
 
-    agent_ids = [node.get("agent_template_id", "") for node in workflow.graph.get("nodes", [])]
-    agents = db.query(AgentTemplate).filter(AgentTemplate.id.in_(agent_ids), AgentTemplate.enabled.is_(True)).all()
-    agent_by_id = {agent.id: agent for agent in agents}
-    missing_agents = [agent_id for agent_id in agent_ids if agent_id not in agent_by_id]
+    agent_ids = [node.get("agent_template_id", "") for node in workflow_section["graph"].get("nodes", [])]
+    agents, missing_agents = resolve_agents_for_snapshot(bundle, agent_ids)
     if missing_agents:
         raise HTTPException(status_code=400, detail=f"Workflow has missing or disabled agents: {missing_agents}")
 
-    skill_package_ids = sorted({skill_id for agent in agents for skill_id in (agent.skill_package_ids or [])})
-    tool_ids = sorted({tool_id for agent in agents for tool_id in (agent.tool_ids or agent.skill_ids or [])})
-    resource_ids = sorted({resource_id for agent in agents for resource_id in agent.resource_ids})
+    skill_package_ids = sorted({skill_id for agent in agents for skill_id in (agent.get("skill_package_ids") or [])})
+    tool_ids = sorted({tool_id for agent in agents for tool_id in (agent.get("tool_ids") or agent.get("skill_ids") or [])})
+    resource_ids = sorted({resource_id for agent in agents for resource_id in (agent.get("resource_ids") or [])})
     skill_packages = db.query(SkillPackage).filter(SkillPackage.id.in_(skill_package_ids), SkillPackage.enabled.is_(True)).all()
     tools = db.query(ToolConfig).filter(ToolConfig.id.in_(tool_ids), ToolConfig.enabled.is_(True)).all()
     resources = db.query(ResourceConfig).filter(ResourceConfig.id.in_(resource_ids), ResourceConfig.enabled.is_(True)).all()
 
     return {
         "workflow": {
-            "id": workflow.id,
-            "name": workflow.name,
-            "description": workflow.description,
-            "scenario": workflow.scenario,
-            "version": workflow.version,
-            "graph": workflow.graph,
+            "id": workflow_section["id"],
+            "name": workflow_section["name"],
+            "description": workflow_section.get("description", ""),
+            "scenario": workflow_section.get("scenario", "standard"),
+            "version": workflow_section.get("version", 1),
+            "graph": workflow_section["graph"],
         },
         "agent_templates": [
             {
-                "id": agent.id,
-                "name": agent.name,
-                "role": agent.role,
-                "prompt": agent.prompt,
-                "skill_package_ids": agent.skill_package_ids or [],
-                "tool_ids": agent.tool_ids or agent.skill_ids or [],
-                "skill_ids": agent.tool_ids or agent.skill_ids or [],
-                "resource_ids": agent.resource_ids,
-                "react_config": agent.react_config or {"max_iters": 6, "parallel_tool_calls": False},
-                "output_schema": agent.output_schema,
+                "id": agent["id"],
+                "name": agent["name"],
+                "role": agent["role"],
+                "prompt": agent["prompt"],
+                "skill_package_ids": agent.get("skill_package_ids") or [],
+                "tool_ids": agent.get("tool_ids") or agent.get("skill_ids") or [],
+                "skill_ids": agent.get("tool_ids") or agent.get("skill_ids") or [],
+                "resource_ids": agent.get("resource_ids") or [],
+                "react_config": agent.get("react_config")
+                or {"max_iters": 6, "parallel_tool_calls": False},
+                "output_schema": agent.get("output_schema") or "agent_result",
             }
-            for agent in sorted(agents, key=lambda item: agent_ids.index(item.id))
+            for agent in sorted(agents, key=lambda row: agent_ids.index(row["id"]))
         ],
         "skill_packages": [
             {

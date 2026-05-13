@@ -21,6 +21,8 @@ export type CompanyConfig = {
     trusted_sources: string[];
     blocked_sources: string[];
     competitors: string[];
+    metrics?: Record<string, unknown>[];
+    external_clues?: Record<string, unknown>[];
   };
 };
 
@@ -80,9 +82,24 @@ export type Report = {
   created_at: string;
 };
 
+export type StepReviewChatTurn = {
+  id: string;
+  step_id: string;
+  role: string;
+  content: string;
+  created_at: string;
+};
+
+export type StepReviewChatApiResponse = {
+  reply: string;
+  turns: StepReviewChatTurn[];
+};
+
 export type AgentRun = {
   id: string;
   project_id: string;
+  session_id?: string | null;
+  attempt_index?: number | null;
   status: string;
   started_at: string;
   completed_at?: string | null;
@@ -90,6 +107,24 @@ export type AgentRun = {
   steps: AgentStep[];
   evidence: Evidence[];
   report?: Report | null;
+};
+
+export type AgentRunBrief = {
+  id: string;
+  project_id: string;
+  status: string;
+  attempt_index?: number | null;
+  session_id?: string | null;
+  started_at: string;
+};
+
+export type DiligenceSessionModel = {
+  id: string;
+  project_id: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  runs: AgentRunBrief[];
 };
 
 export type User = {

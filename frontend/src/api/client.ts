@@ -3,6 +3,7 @@ import type {
   AgentTemplate,
   AuthSession,
   CompanyConfig,
+  DiligenceSessionModel,
   Evidence,
   Project,
   Report,
@@ -11,6 +12,8 @@ import type {
   Scenario,
   SkillDebugResult,
   SkillPackage,
+  StepReviewChatApiResponse,
+  StepReviewChatTurn,
   ToolConfig,
   User,
   WorkflowTemplate,
@@ -73,26 +76,112 @@ export function listProjects(): Promise<Project[]> {
   return request<Project[]>("/projects");
 }
 
-export function createProject(payload: { name: string; company_config: CompanyConfig }): Promise<Project> {
+export function createProject(payload: {
+  name: string;
+  company_config: CompanyConfig;
+  initial_resources?: Array<{ type: string; value: string; metadata_json?: Record<string, unknown> }>;
+}): Promise<Project> {
   return request<Project>("/projects", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
+export async function deleteProject(projectId: string): Promise<void> {
+  const token = localStorage.getItem("dd_access_token");
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/projects/${encodeURIComponent(projectId)}`, {
+      method: "DELETE",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === "Failed to fetch" || msg.includes("NetworkError")) {
+      throw new Error(
+        `无法连接 API（当前基址：${API_BASE_URL}）。请确认 Backend 已在 127.0.0.1:8010 运行，并使用 npm run dev 开发服务器（带 /api 代理）。`,
+      );
+    }
+    throw err;
+  }
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `删除失败（${response.status}）`);
+  }
+}
+
 export function listResources(projectId: string): Promise<Resource[]> {
   return request<Resource[]>(`/projects/${projectId}/resources`);
 }
 
-export function createResource(projectId: string, payload: { type: string; value: string }): Promise<Resource> {
-  return request<Resource>(`/projects/${projectId}/resources`, {
+export function createResource(
+  projectId: string,
+  payload: { type: string; value: string; metadata_json?: Record<string, unknown> },
+): Promise<Resource> {
+  return request<Resource>(`/projects/${encodeURIComponent(projectId)}/resources`, {
     method: "POST",
-    body: JSON.stringify({ ...payload, metadata_json: {} }),
+    body: JSON.stringify({
+      type: payload.type,
+      value: payload.value,
+      metadata_json: payload.metadata_json ?? {},
+    }),
   });
 }
 
-export function startRun(projectId: string): Promise<AgentRun> {
-  return request<AgentRun>(`/projects/${projectId}/runs`, { method: "POST" });
+export async function deleteResource(projectId: string, resourceId: string): Promise<void> {
+  const token = localStorage.getItem("dd_access_token");
+  const response = await fetch(
+    `${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/resources/${encodeURIComponent(resourceId)}`,
+    {
+      method: "DELETE",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `删除失败（${response.status}）`);
+  }
+}
+
+export function listDiligenceSessions(projectId: string): Promise<DiligenceSessionModel[]> {
+  return request<DiligenceSessionModel[]>(`/projects/${encodeURIComponent(projectId)}/diligence-sessions`);
+}
+
+export function startRun(
+  projectId: string,
+  body: {
+    session_mode?: "new" | "continue";
+    diligence_session_id?: string | null;
+    interaction_mode?: "batch" | "step_gated";
+  } = {},
+): Promise<AgentRun> {
+  return request<AgentRun>(`/projects/${encodeURIComponent(projectId)}/runs`, {
+    method: "POST",
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function continueStepGated(runId: string): Promise<AgentRun> {
+  return request<AgentRun>(`/runs/${encodeURIComponent(runId)}/continue-step-gated`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export function postStepReviewChat(runId: string, stepId: string, message: string): Promise<StepReviewChatApiResponse> {
+  return request<StepReviewChatApiResponse>(
+    `/runs/${encodeURIComponent(runId)}/steps/${encodeURIComponent(stepId)}/review-chat`,
+    {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    },
+  );
+}
+
+export function listStepReviewChatTurns(runId: string, stepId: string): Promise<StepReviewChatTurn[]> {
+  return request<StepReviewChatTurn[]>(
+    `/runs/${encodeURIComponent(runId)}/steps/${encodeURIComponent(stepId)}/review-chat-turns`,
+  );
 }
 
 export function getRun(runId: string): Promise<AgentRun> {
@@ -117,6 +206,36 @@ export function listProjectRuns(projectId: string): Promise<AgentRun[]> {
 
 export function listSkills(): Promise<SkillPackage[]> {
   return request<SkillPackage[]>("/skills");
+}
+
+export async function importSkillZip(file: File, directoryName?: string): Promise<SkillPackage> {
+  const token = localStorage.getItem("dd_access_token");
+  const formData = new FormData();
+  formData.append("file", file);
+  if (directoryName?.trim()) {
+    formData.append("directory_name", directoryName.trim());
+  }
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/skills/import-zip`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === "Failed to fetch" || msg.includes("NetworkError")) {
+      throw new Error(
+        `无法连接 API（当前基址：${API_BASE_URL}）。请确认 Backend 已在 127.0.0.1:8010 运行，并使用 npm run dev 开发服务器（带 /api 代理）。`,
+      );
+    }
+    throw err;
+  }
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `上传失败（${response.status}）`);
+  }
+  return response.json() as Promise<SkillPackage>;
 }
 
 export function getSkill(skillId: string): Promise<SkillPackage> {

@@ -180,6 +180,101 @@ label {
   gap: 20px;
 }
 
+.action-hero--align-start {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 28px;
+}
+
+.hero-run-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: min(100%, 320px);
+  max-width: 560px;
+  flex: 1 1 320px;
+}
+
+.hero-run-controls__primary-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 14px;
+}
+
+.hero-run-controls__session-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 220px;
+  min-width: min(260px, 100%);
+}
+
+.hero-run-controls__caption {
+  display: block;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.hero-run-controls__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.hero-run-controls__buttons button {
+  white-space: nowrap;
+}
+
+.hero-run-controls__stepgate {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  cursor: pointer;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+  padding: 10px 12px;
+}
+
+.hero-run-controls__stepgate:focus-within {
+  box-shadow:
+    inset 0 0 0 1px rgba(29, 78, 216, 0.35),
+    0 0 0 3px rgba(29, 78, 216, 0.12);
+}
+
+.hero-run-controls__stepgate input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: #1d4ed8;
+}
+
+.hero-run-controls__stepgate-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hero-run-controls__stepgate-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  line-height: 1.3;
+}
+
+.hero-run-controls__stepgate-desc {
+  display: block;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .login-stage {
   display: grid;
   min-height: 100vh;
@@ -383,6 +478,30 @@ label {
   border-radius: 18px;
   background: #eff6ff;
   padding: 16px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.skill-upload-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.skill-zip-dir-label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #475569;
+  margin: 0;
+}
+
+.skill-zip-dir-input {
+  min-width: 200px;
+  max-width: 280px;
 }
 
 .skill-list-header p,
@@ -580,6 +699,8 @@ label {
   background: #fef2f2;
   color: #991b1b;
   padding: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .notice {
@@ -619,6 +740,33 @@ label {
   background: #fef2f2;
 }
 
+.hub-tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.hub-tab {
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.7);
+  color: #334155;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.hub-tab:hover {
+  border-color: rgba(29, 78, 216, 0.35);
+  color: #1d4ed8;
+}
+
+.hub-tab[aria-current="page"] {
+  background: #1d4ed8;
+  color: #f8fafc;
+  border-color: #1d4ed8;
+}
+
 @media (max-width: 1000px) {
   .grid.two,
   .grid.three {
@@ -654,4 +802,85 @@ label {
   .history-table {
     grid-template-columns: 1fr;
   }
+}
+
+/* Step review chat (diligence gated runs) */
+.review-chat-turns {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.review-chat-msg {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #d7deea;
+}
+
+.review-chat-msg.user {
+  border-left: 4px solid #1d4ed8;
+}
+
+.review-chat-msg.assistant {
+  border-left: 4px solid #0d9488;
+}
+
+.review-chat-msg .muted {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+/* Project resource library + platform resource registry */
+.resource-type-pill {
+  display: inline-block;
+  align-self: start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: #e0e7ef;
+  color: #334155;
+}
+
+.resource-library-list li,
+.resource-registry-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px 14px;
+  align-items: start;
+}
+
+.resource-library-list strong {
+  font-size: 14px;
+}
+
+.resource-delete-btn {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.project-resources-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.project-resources-form button[type="submit"] {
+  width: fit-content;
+}
+
+.resource-registry-fields {
+  display: grid;
+  gap: 12px;
+  padding: 12px 0 4px;
+  border-top: 1px dashed #e2e8f0;
+  margin-top: 4px;
 }

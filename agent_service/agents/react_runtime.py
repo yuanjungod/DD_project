@@ -18,6 +18,11 @@ from pydantic import BaseModel
 from agent_service.api.schemas import AgentResult, CompanyConfig, Evidence
 from agent_service.workflows.config_loader import AgentDefinition
 
+
+class StepReviewChatModel(BaseModel):
+    reply: str
+
+
 ToolExecutor = Callable[[str, dict[str, Any]], dict[str, Any]]
 
 
@@ -68,9 +73,17 @@ class AgentScopeReActRuntime:
         previous_results: list[AgentResult],
         evidence: list[Evidence],
         structured_model: Type[BaseModel],
+        *,
+        continuation_context: dict[str, Any] | None = None,
     ) -> BaseModel:
         return asyncio.run(
-            self._run_model_async(company_config, previous_results, evidence, structured_model)
+            self._run_model_async(
+                company_config,
+                previous_results,
+                evidence,
+                structured_model,
+                continuation_context=continuation_context,
+            )
         )
 
     async def _run_model_async(
@@ -79,12 +92,16 @@ class AgentScopeReActRuntime:
         previous_results: list[AgentResult],
         evidence: list[Evidence],
         structured_model: Type[BaseModel],
+        *,
+        continuation_context: dict[str, Any] | None = None,
     ) -> BaseModel:
         agent = self._build_agent()
         reply = await agent.reply(
             Msg(
                 name="user",
-                content=self._build_task_message(company_config, previous_results, evidence),
+                content=self._build_task_message(
+                    company_config, previous_results, evidence, continuation_context=continuation_context
+                ),
                 role="user",
             ),
             structured_model=structured_model,
@@ -157,8 +174,10 @@ class AgentScopeReActRuntime:
         company_config: CompanyConfig,
         previous_results: list[AgentResult],
         evidence: list[Evidence],
+        *,
+        continuation_context: dict[str, Any] | None = None,
     ) -> str:
-        payload = {
+        payload: dict[str, Any] = {
             "target_company": company_config.target_company.model_dump(mode="json"),
             "scope": company_config.scope.model_dump(mode="json"),
             "project_resources": company_config.resources.model_dump(mode="json"),
@@ -172,6 +191,8 @@ class AgentScopeReActRuntime:
                 for result in previous_results
             ],
         }
+        if continuation_context:
+            payload["continuation_from_previous_session_attempt"] = continuation_context
         return (
             "Run this due diligence agent with the configured AgentScope ReAct tools, "
             "skills, and resources. Use tools if you need more evidence. "
@@ -180,6 +201,75 @@ class AgentScopeReActRuntime:
             "Use evidence IDs from available_evidence whenever possible.\n\n"
             f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
         )
+
+    def run_step_review_chat(
+        self,
+        company_config: CompanyConfig,
+        previous_results: list[AgentResult],
+        evidence: list[Evidence],
+        *,
+        current_step_summary: str,
+        current_findings: list[dict[str, Any]],
+        chat_messages: list[dict[str, str]],
+        user_message: str,
+    ) -> str:
+        return asyncio.run(
+            self._run_step_review_chat_async(
+                company_config,
+                previous_results,
+                evidence,
+                current_step_summary=current_step_summary,
+                current_findings=current_findings,
+                chat_messages=chat_messages,
+                user_message=user_message,
+            )
+        )
+
+    async def _run_step_review_chat_async(
+        self,
+        company_config: CompanyConfig,
+        previous_results: list[AgentResult],
+        evidence: list[Evidence],
+        *,
+        current_step_summary: str,
+        current_findings: list[dict[str, Any]],
+        chat_messages: list[dict[str, str]],
+        user_message: str,
+    ) -> str:
+        agent = self._build_agent()
+        payload: dict[str, Any] = {
+            "review_chat": True,
+            "instruction_zh": (
+                "尽调复核对话：用户对当前这一步 Agent 的输出进行校验或要求修订。"
+                "用清晰中文回复（除非用户用其他语言）。可指出逻辑/证据缺口、建议如何改写 summary/findings，不要编造证据 ID。"
+            ),
+            "target_company": company_config.target_company.model_dump(mode="json"),
+            "scope": company_config.scope.model_dump(mode="json"),
+            "available_evidence": [item.model_dump(mode="json") for item in evidence],
+            "previous_agent_results": [
+                {
+                    "agent": result.agent,
+                    "summary": result.summary,
+                    "findings": [finding.model_dump(mode="json") for finding in result.findings],
+                }
+                for result in previous_results
+            ],
+            "current_agent_step_summary": current_step_summary,
+            "current_agent_step_findings": current_findings,
+            "prior_turns": chat_messages,
+            "user_message": user_message,
+        }
+        reply = await agent.reply(
+            Msg(
+                name="user",
+                content=json.dumps(payload, ensure_ascii=False, indent=2),
+                role="user",
+            ),
+            structured_model=StepReviewChatModel,
+        )
+        if not reply.metadata:
+            raise RuntimeError(f"{self.definition.name} did not return structured review chat output")
+        return StepReviewChatModel.model_validate(reply.metadata).reply
 
     def _build_config(self) -> dict[str, Any]:
         return {

@@ -8,6 +8,10 @@ class EvidenceStoreTool:
         self.id_prefix = id_prefix
         self._evidence: list[Evidence] = []
 
+    def seed(self, items: list[Evidence]) -> None:
+        """Restore evidence from a prior slice (e.g. resuming a gated run). Keeps existing IDs."""
+        self._evidence = list(items)
+
     def add(self, evidence: Evidence) -> Evidence:
         if not evidence.id:
             prefix = f"{self.id_prefix}_" if self.id_prefix else ""

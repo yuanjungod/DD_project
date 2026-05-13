@@ -22,7 +22,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     try {
       const session = await login({ email, password });
       onLogin(session);
-      navigate("/scenarios");
+      navigate("/workflows");
     } catch (err) {
       setError(String(err));
     } finally {

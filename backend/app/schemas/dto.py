@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
+
+from app.services.company_config_merge import PROJECT_RESOURCE_TYPES
 
 
 class TargetCompany(BaseModel):
@@ -32,6 +34,9 @@ class Resources(BaseModel):
     trusted_sources: list[str] = Field(default_factory=list)
     blocked_sources: list[str] = Field(default_factory=list)
     competitors: list[str] = Field(default_factory=list)
+    # Optional structured entries merged from project Resource library at run time / stored in config.
+    metrics: list[dict[str, Any]] = Field(default_factory=list)
+    external_clues: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class CompanyConfig(BaseModel):
@@ -43,6 +48,7 @@ class CompanyConfig(BaseModel):
 class ProjectCreate(BaseModel):
     name: str
     company_config: CompanyConfig
+    initial_resources: list["ResourceCreate"] = Field(default_factory=list)
 
 
 class ProjectUpdate(BaseModel):
@@ -292,6 +298,16 @@ class ResourceCreate(BaseModel):
     value: str
     metadata_json: dict[str, Any] = Field(default_factory=dict)
 
+    @model_validator(mode="after")
+    def validate_project_resource_type(self) -> ResourceCreate:
+        if self.type not in PROJECT_RESOURCE_TYPES:
+            raise ValueError(
+                "type must be one of: " + ", ".join(sorted(PROJECT_RESOURCE_TYPES))
+            )
+        if not (self.value or "").strip():
+            raise ValueError("value must be non-empty")
+        return self
+
 
 class ResourceRead(BaseModel):
     id: str
@@ -351,9 +367,82 @@ def utc_datetime_to_iso_z(v: datetime) -> str:
     return aware.strftime("%Y-%m-%dT%H:%M:%S") + f".{frac}Z"
 
 
+class StartAgentRunBody(BaseModel):
+    """Start a full-chain agent run attached to a diligence session."""
+
+    session_mode: Literal["new", "continue"] = "new"
+    diligence_session_id: str | None = Field(
+        default=None,
+        description="Existing session id; required when session_mode is continue",
+    )
+    interaction_mode: Literal["batch", "step_gated"] = Field(
+        default="batch",
+        description="step_gated pauses after each agent for human chat + continue",
+    )
+
+
+class StepReviewChatTurnRead(BaseModel):
+    id: str
+    step_id: str
+    role: str
+    content: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("created_at", when_used="json")
+    def _serialize_created_at(self, v: datetime) -> str:
+        return utc_datetime_to_iso_z(v)
+
+
+class StepReviewChatIn(BaseModel):
+    message: str
+
+
+class StepReviewChatOut(BaseModel):
+    reply: str
+    turns: list[StepReviewChatTurnRead] = Field(default_factory=list)
+
+
+class AgentRunBriefRead(BaseModel):
+    id: str
+    project_id: str
+    status: str
+    attempt_index: int | None = None
+    session_id: str | None = None
+    started_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("started_at", when_used="json")
+    def _serialize_started_at(self, v: datetime) -> str:
+        return utc_datetime_to_iso_z(v)
+
+
+class DiligenceSessionRead(BaseModel):
+    id: str
+    project_id: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    runs: list[AgentRunBriefRead] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("created_at", when_used="json")
+    def _serialize_created_at(self, v: datetime) -> str:
+        return utc_datetime_to_iso_z(v)
+
+    @field_serializer("updated_at", when_used="json")
+    def _serialize_updated_at(self, v: datetime) -> str:
+        return utc_datetime_to_iso_z(v)
+
+
 class AgentRunRead(BaseModel):
     id: str
     project_id: str
+    session_id: str | None = None
+    attempt_index: int | None = None
     status: str
     started_at: datetime
     completed_at: datetime | None

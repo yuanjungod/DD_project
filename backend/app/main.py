@@ -7,11 +7,12 @@ from app.api import auth, configs, evidence, internal_agent, projects, reports, 
 from app.core.auth import seed_default_users
 from app.core.config import settings
 from app.core.config_seed import seed_configuration_catalog
-from app.core.database import Base, SessionLocal, engine
+from app.core.database import Base, SessionLocal, engine, ensure_schema_patches
 
 
 def create_app() -> FastAPI:
     Base.metadata.create_all(bind=engine)
+    ensure_schema_patches(engine)
     with SessionLocal() as db:
         seed_default_users(db)
         seed_configuration_catalog(db)

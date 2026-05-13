@@ -1,6 +1,23 @@
 # Configuration Schema
 
-This document describes the configuration contract shared by the frontend, backend, and agent service.
+This document describes the configuration contract shared by the frontend, backend, and agent service, plus **local runtime environment** defaults that override easily in development.
+
+## Local runtime environment
+
+| Variable | Service | Role |
+| --- | --- | --- |
+| `DATABASE_URL` | backend | SQLAlchemy URL (defaults to SQLite under the backend working directory if unset). |
+| `AGENT_SERVICE_URL` | backend | Base URL for **`POST /runs`** (default `http://127.0.0.1:8011`). |
+| `AGENT_CALLBACK_SECRET` | backend + agent | Shared secret for **`X-Agent-Callback-Secret`** on **`POST /internal/agent-runs/.../progress`**. |
+| `PLATFORM_CALLBACK_BASE_URL` | agent | Backend base URL for incremental progress (default `http://127.0.0.1:8010`). Set empty or unreachable to disable callbacks (UI then only updates after finalization). |
+| `VITE_API_BASE_URL` | frontend | When set, all `fetch` calls use this absolute base (skips the dev proxy). |
+| `VITE_DEV_PROXY_TARGET` | frontend (Vite config only) | Override proxy target for **`/api` → backend** during `npm run dev` (default `http://127.0.0.1:8010`). |
+
+Conventions in README: **backend listening on `8010`**, **agent_service on `8011`**, **Vite on `5173`**. In development, the UI defaults to relative **`/api`**, which Vite proxies to the backend so the browser does not open cross-origin requests to `8010`.
+
+## Agent templates on disk
+
+Authoritative agent definitions: **`agent_service/configs/agent_templates.yaml`**. On first backend startup, if the file is missing, it is generated from **`agent_service/configs/agents.yaml`** (tool lists) plus prompt bodies under **`agent_service/prompts/`**. Older SQLite files may still contain an unused **`agent_templates`** table; the application no longer reads or writes agent definitions there.
 
 ## Company Configuration
 
@@ -16,6 +33,8 @@ This document describes the configuration contract shared by the frontend, backe
   },
   "scope": {
     "workflow_id": "standard_due_diligence",
+    "workflow_template_id": null,
+    "workflow_template_version": null,
     "scenario": "standard",
     "time_range": "last 5 years",
     "focus_areas": ["business", "financial", "legal", "ownership", "public_opinion", "compliance"],
@@ -30,21 +49,11 @@ This document describes the configuration contract shared by the frontend, backe
 }
 ```
 
-`workflow_id` points to a reusable workflow template in `agent_service/configs/workflows.yaml`. The same workflow template can run against many different company configurations.
+`workflow_id` still points at a reusable workflow key in `agent_service/configs/workflows.yaml` for legacy paths. **Published company projects** should set **`workflow_template_id`** (and version when applicable) so the backend snapshot drives the graph.
 
 ## Evidence
 
-## Configuration Catalog
-
-Reusable workflows are now managed through the backend configuration catalog:
-
-- `SkillPackage`: Anthropic/Cursor-style skill package with `SKILL.md`, directory name, editable package files, and optional bundled resources such as references, scripts, and assets. Skill packages are synchronized to `agent_service/skills/<directory_name>/`.
-- `ToolConfig`: executable capability such as search, web fetch, file reading, vector retrieval, evidence storage, or report storage.
-- `ResourceConfig`: data resource available to agents, such as public web, uploaded files, vector stores, databases, or external APIs.
-- `AgentTemplate`: agent role, prompt, Anthropic skill packages, tools, resources, AgentScope ReAct configuration, and output schema.
-- `WorkflowTemplate`: ordered agent graph, scenario, status, and version.
-
-Only `published` workflow templates should be selected by downstream company projects. When a run starts, the backend creates a workflow snapshot so historical runs remain auditable even if the template changes later. The snapshot includes `skill_packages`, including `package_files`, executable `tools`, `resources`, and each agent's `react_config`. By default, `react_config.model` uses the local Anthropic Messages-compatible `kimi-code` provider at `http://127.0.0.1:8081/v1`.
+Example evidence item as returned by the agent and stored on the backend (metadata column in the database is **`metadata_json`**):
 
 ```json
 {
@@ -60,6 +69,22 @@ Only `published` workflow templates should be selected by downstream company pro
   }
 }
 ```
+
+## Configuration Catalog
+
+Reusable workflows are managed through the backend configuration catalog:
+
+- `SkillPackage`: Anthropic/Cursor-style skill package with `SKILL.md`, directory name, editable package files, and optional bundled resources such as references, scripts, and assets. Skill packages are synchronized to `agent_service/skills/<directory_name>/`. Admins may **`POST /skills/import-zip`** (`multipart/form-data`: **`file`** = single-skill `.zip` with one top-level folder containing `SKILL.md`; optional **`directory_name`** form field overrides the disk directory slug).
+- `ToolConfig`: executable capability such as search, web fetch, file reading, vector retrieval, evidence storage, or report storage.
+- `ResourceConfig`: data resource available to agents, such as public web, uploaded files, vector stores, databases, or external APIs.
+- `AgentTemplate` (file-backed): **definitions** are embedded in each workflow bundle (`workflow_templates/<id>.yaml`) and optionally in **`workflow_templates/_shared_agents.yaml`**. Each record has `id`, `name`, `role`, inline `prompt`, `skill_package_ids`, `tool_ids`, `skill_ids`, `resource_ids`, `react_config`, `output_schema`, and `enabled`. Workflow graphs reference agents by **`id`**. The Admin UI uses **`GET/POST/PATCH /agent-templates`**; **`GET`** returns the union across bundles + shared file, **`POST`** appends to **`_shared_agents.yaml`**, and **`PATCH`** updates every file that contains that agent id.
+- `WorkflowTemplate` (file-backed): one bundle per workflow under **`agent_service/configs/workflow_templates/{workflow_id}.yaml`**. Each file has a `workflow` object (ordered `graph`, `scenario`, `status`, `version`, etc.) plus the `agents` array used for that graph. **`GET/POST/PATCH /workflow-templates`** and publish/clone operate on these files; only **`published`** templates are listed for non-admin callers and for run snapshots.
+
+Only **`published`** workflow templates should be selected by downstream company projects. When a run starts, the backend creates a **workflow snapshot** so historical runs remain auditable even if the template changes later. The snapshot includes `skill_packages` (with `package_files`), executable `tools`, `resources`, and each agent's `react_config`. By default, `react_config.model` uses the local Anthropic Messages-compatible `kimi-code` provider at `http://127.0.0.1:8081/v1`.
+
+## Run and time fields
+
+- **`AgentRun.started_at` / `completed_at`** are persisted as **UTC** in the database. JSON responses serialize these fields as **RFC 3339 UTC strings ending with `Z`** (`AgentRunRead`) so browsers interpret offsets correctly.
 
 ## Agent Result
 

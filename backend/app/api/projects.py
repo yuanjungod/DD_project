@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.auth import accessible_project_ids, ensure_project_access, require_roles
 from app.core.database import get_db
-from app.models.entities import Project, ProjectAccess, User
+from app.models.entities import Project, ProjectAccess, Resource, User
 from app.schemas import ProjectCreate, ProjectRead, ProjectUpdate
 
 
@@ -22,6 +22,15 @@ def create_project(
     db.add(project)
     db.flush()
     db.add(ProjectAccess(project_id=project.id, user_id=user.id, access_role="owner"))
+    for resource in payload.initial_resources:
+        db.add(
+            Resource(
+                project_id=project.id,
+                type=resource.type,
+                value=resource.value,
+                metadata_json=resource.metadata_json,
+            )
+        )
     db.commit()
     db.refresh(project)
     return project
@@ -63,3 +72,14 @@ def update_project(
     db.commit()
     db.refresh(project)
     return project
+
+
+@router.delete("/{project_id}", status_code=204)
+def delete_project(
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("admin", "analyst")),
+) -> None:
+    project = ensure_project_access(db, user, project_id)
+    db.delete(project)
+    db.commit()

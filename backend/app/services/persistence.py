@@ -4,7 +4,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.models.entities import AgentRun, AgentStep, Evidence, Report
+from app.models.entities import AgentRun, AgentStep, AgentStepChatMessage, Evidence, Report
 
 
 def _attach_run_children(db: Session, project_id: str, run: AgentRun, result: dict) -> None:
@@ -64,6 +64,8 @@ def persist_run_result(db: Session, project_id: str, result: dict) -> AgentRun:
     run = AgentRun(
         id=result["run_id"],
         project_id=project_id,
+        session_id=None,
+        attempt_index=1,
         status=result["status"],
         completed_at=datetime.utcnow() if result["status"] == "completed" else None,
         raw_result=result,
@@ -77,10 +79,19 @@ def persist_run_result(db: Session, project_id: str, result: dict) -> AgentRun:
     return run
 
 
-def create_pending_agent_run(db: Session, project_id: str, run_id: str) -> AgentRun:
+def create_pending_agent_run(
+    db: Session,
+    project_id: str,
+    run_id: str,
+    *,
+    session_id: str | None = None,
+    attempt_index: int = 1,
+) -> AgentRun:
     run = AgentRun(
         id=run_id,
         project_id=project_id,
+        session_id=session_id,
+        attempt_index=attempt_index,
         status="running",
         raw_result={},
     )
@@ -173,6 +184,14 @@ def upsert_incremental_run_progress(
             )
 
     db.commit()
+
+
+def append_agent_step_chat_message(db: Session, *, step_id: str, role: str, content: str) -> AgentStepChatMessage:
+    row = AgentStepChatMessage(step_id=step_id, role=role, content=content)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
 
 
 def mark_agent_run_failed(db: Session, run_id: str, message: str) -> AgentRun | None:
