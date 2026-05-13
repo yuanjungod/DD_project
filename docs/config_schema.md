@@ -15,6 +15,8 @@ This document describes the configuration contract shared by the frontend, backe
     "keywords": ["warehouse automation", "robot arm"]
   },
   "scope": {
+    "workflow_id": "standard_due_diligence",
+    "scenario": "standard",
     "time_range": "last 5 years",
     "focus_areas": ["business", "financial", "legal", "ownership", "public_opinion", "compliance"],
     "report_language": "zh-CN"
@@ -28,7 +30,20 @@ This document describes the configuration contract shared by the frontend, backe
 }
 ```
 
+`workflow_id` points to a reusable workflow template in `agent_service/configs/workflows.yaml`. The same workflow template can run against many different company configurations.
+
 ## Evidence
+
+## Configuration Catalog
+
+Reusable workflows are now managed through the backend configuration catalog:
+
+- `SkillConfig`: reusable capability such as search, web fetch, file reading, vector retrieval, evidence storage, or report storage.
+- `ResourceConfig`: data resource available to agents, such as public web, uploaded files, vector stores, databases, or external APIs.
+- `AgentTemplate`: agent role, prompt, skills, resources, and output schema.
+- `WorkflowTemplate`: ordered agent graph, scenario, status, and version.
+
+Only `published` workflow templates should be selected by downstream company projects. When a run starts, the backend creates a workflow snapshot so historical runs remain auditable even if the template changes later.
 
 ```json
 {

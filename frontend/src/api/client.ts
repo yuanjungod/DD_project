@@ -1,11 +1,27 @@
-import type { AgentRun, Evidence, Project, Report, Resource, CompanyConfig } from "../types/domain";
+import type {
+  AgentRun,
+  AgentTemplate,
+  AuthSession,
+  CompanyConfig,
+  Evidence,
+  Project,
+  Report,
+  Resource,
+  ResourceConfig,
+  Scenario,
+  SkillConfig,
+  User,
+  WorkflowTemplate,
+} from "../types/domain";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = localStorage.getItem("dd_access_token");
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options?.headers ?? {}),
     },
     ...options,
@@ -17,6 +33,21 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+export function login(payload: { email: string; password: string }): Promise<AuthSession> {
+  return request<AuthSession>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getMe(): Promise<User> {
+  return request<User>("/auth/me");
+}
+
+export function listScenarios(): Promise<Scenario[]> {
+  return request<Scenario[]>("/scenarios");
 }
 
 export function listProjects(): Promise<Project[]> {
@@ -55,4 +86,52 @@ export function listEvidence(projectId: string): Promise<Evidence[]> {
 
 export function listReports(projectId: string): Promise<Report[]> {
   return request<Report[]>(`/projects/${projectId}/reports`);
+}
+
+export function listRuns(): Promise<AgentRun[]> {
+  return request<AgentRun[]>("/runs");
+}
+
+export function listProjectRuns(projectId: string): Promise<AgentRun[]> {
+  return request<AgentRun[]>(`/projects/${projectId}/runs`);
+}
+
+export function listSkills(): Promise<SkillConfig[]> {
+  return request<SkillConfig[]>("/skills");
+}
+
+export function createSkill(payload: Partial<SkillConfig>): Promise<SkillConfig> {
+  return request<SkillConfig>("/skills", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function listResourceConfigs(): Promise<ResourceConfig[]> {
+  return request<ResourceConfig[]>("/resources/configs");
+}
+
+export function createResourceConfig(payload: Partial<ResourceConfig>): Promise<ResourceConfig> {
+  return request<ResourceConfig>("/resources/configs", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function listAgentTemplates(): Promise<AgentTemplate[]> {
+  return request<AgentTemplate[]>("/agent-templates");
+}
+
+export function createAgentTemplate(payload: Partial<AgentTemplate>): Promise<AgentTemplate> {
+  return request<AgentTemplate>("/agent-templates", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function listWorkflowTemplates(): Promise<WorkflowTemplate[]> {
+  return request<WorkflowTemplate[]>("/workflow-templates");
+}
+
+export function createWorkflowTemplate(payload: Partial<WorkflowTemplate>): Promise<WorkflowTemplate> {
+  return request<WorkflowTemplate>("/workflow-templates", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function publishWorkflowTemplate(workflowId: string): Promise<WorkflowTemplate> {
+  return request<WorkflowTemplate>(`/workflow-templates/${workflowId}/publish`, { method: "POST" });
+}
+
+export function cloneWorkflowTemplate(workflowId: string): Promise<WorkflowTemplate> {
+  return request<WorkflowTemplate>(`/workflow-templates/${workflowId}/clone`, { method: "POST" });
 }

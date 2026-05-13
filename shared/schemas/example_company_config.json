@@ -8,6 +8,10 @@
     "keywords": ["仓储自动化", "机器人"]
   },
   "scope": {
+    "workflow_id": "standard_due_diligence",
+    "workflow_template_id": "standard_due_diligence",
+    "workflow_template_version": 1,
+    "scenario": "standard",
     "time_range": "近5年",
     "focus_areas": ["业务", "财务", "法律", "股权", "舆情", "合规"],
     "report_language": "zh-CN"

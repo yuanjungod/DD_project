@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Float, ForeignKey, JSON, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -25,6 +25,91 @@ class Project(Base):
     resources: Mapped[list["Resource"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     runs: Mapped[list["AgentRun"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     reports: Mapped[list["Report"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    access_entries: Mapped[list["ProjectAccess"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("user"))
+    email: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False, default="analyst")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    project_access: Mapped[list["ProjectAccess"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+
+class ProjectAccess(Base):
+    __tablename__ = "project_access"
+    __table_args__ = (UniqueConstraint("project_id", "user_id", name="uq_project_user_access"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("access"))
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    access_role: Mapped[str] = mapped_column(String, nullable=False, default="owner")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    project: Mapped[Project] = relationship(back_populates="access_entries")
+    user: Mapped[User] = relationship(back_populates="project_access")
+
+
+class SkillConfig(Base):
+    __tablename__ = "skill_configs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("skill"))
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    implementation: Mapped[str] = mapped_column(String, nullable=False)
+    input_schema: Mapped[dict] = mapped_column(JSON, default=dict)
+    output_schema: Mapped[dict] = mapped_column(JSON, default=dict)
+    requires_api_key: Mapped[bool] = mapped_column(default=False)
+    enabled: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ResourceConfig(Base):
+    __tablename__ = "resource_configs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("resource_cfg"))
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    type: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    connection_config: Mapped[dict] = mapped_column(JSON, default=dict)
+    enabled: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AgentTemplate(Base):
+    __tablename__ = "agent_templates"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("agent_tpl"))
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    role: Mapped[str] = mapped_column(String, nullable=False)
+    prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    skill_ids: Mapped[list] = mapped_column(JSON, default=list)
+    resource_ids: Mapped[list] = mapped_column(JSON, default=list)
+    output_schema: Mapped[str] = mapped_column(String, nullable=False, default="agent_result")
+    enabled: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class WorkflowTemplate(Base):
+    __tablename__ = "workflow_templates"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("workflow_tpl"))
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    scenario: Mapped[str] = mapped_column(String, nullable=False, default="standard")
+    graph: Mapped[dict] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="draft")
+    version: Mapped[int] = mapped_column(default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class Resource(Base):

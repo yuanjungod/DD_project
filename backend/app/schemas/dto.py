@@ -16,6 +16,10 @@ class TargetCompany(BaseModel):
 
 
 class Scope(BaseModel):
+    workflow_id: str = "standard_due_diligence"
+    workflow_template_id: str | None = None
+    workflow_template_version: int | None = None
+    scenario: str = "standard"
     time_range: str = "近5年"
     focus_areas: list[str] = Field(
         default_factory=lambda: ["业务", "财务", "法律", "股权", "舆情", "合规"]
@@ -50,6 +54,164 @@ class ProjectRead(BaseModel):
     id: str
     name: str
     company_config: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: "UserRead"
+
+
+class UserCreate(BaseModel):
+    email: str
+    name: str
+    password: str
+    role: str = "analyst"
+
+
+class UserRead(BaseModel):
+    id: str
+    email: str
+    name: str
+    role: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ScenarioRead(BaseModel):
+    id: str
+    name: str
+    description: str
+    scenario: str
+    agents: list[str]
+
+
+class SkillConfigBase(BaseModel):
+    name: str
+    description: str = ""
+    implementation: str
+    input_schema: dict[str, Any] = Field(default_factory=dict)
+    output_schema: dict[str, Any] = Field(default_factory=dict)
+    requires_api_key: bool = False
+    enabled: bool = True
+
+
+class SkillConfigCreate(SkillConfigBase):
+    id: str | None = None
+
+
+class SkillConfigUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    implementation: str | None = None
+    input_schema: dict[str, Any] | None = None
+    output_schema: dict[str, Any] | None = None
+    requires_api_key: bool | None = None
+    enabled: bool | None = None
+
+
+class SkillConfigRead(SkillConfigBase):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ResourceConfigBase(BaseModel):
+    name: str
+    type: str
+    description: str = ""
+    connection_config: dict[str, Any] = Field(default_factory=dict)
+    enabled: bool = True
+
+
+class ResourceConfigCreate(ResourceConfigBase):
+    id: str | None = None
+
+
+class ResourceConfigUpdate(BaseModel):
+    name: str | None = None
+    type: str | None = None
+    description: str | None = None
+    connection_config: dict[str, Any] | None = None
+    enabled: bool | None = None
+
+
+class ResourceConfigRead(ResourceConfigBase):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AgentTemplateBase(BaseModel):
+    name: str
+    role: str
+    prompt: str
+    skill_ids: list[str] = Field(default_factory=list)
+    resource_ids: list[str] = Field(default_factory=list)
+    output_schema: str = "agent_result"
+    enabled: bool = True
+
+
+class AgentTemplateCreate(AgentTemplateBase):
+    id: str | None = None
+
+
+class AgentTemplateUpdate(BaseModel):
+    name: str | None = None
+    role: str | None = None
+    prompt: str | None = None
+    skill_ids: list[str] | None = None
+    resource_ids: list[str] | None = None
+    output_schema: str | None = None
+    enabled: bool | None = None
+
+
+class AgentTemplateRead(AgentTemplateBase):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WorkflowTemplateBase(BaseModel):
+    name: str
+    description: str = ""
+    scenario: str = "standard"
+    graph: dict[str, Any]
+    status: str = "draft"
+    version: int = 1
+
+
+class WorkflowTemplateCreate(WorkflowTemplateBase):
+    id: str | None = None
+
+
+class WorkflowTemplateUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    scenario: str | None = None
+    graph: dict[str, Any] | None = None
+    status: str | None = None
+    version: int | None = None
+
+
+class WorkflowTemplateRead(WorkflowTemplateBase):
+    id: str
     created_at: datetime
     updated_at: datetime
 
@@ -125,3 +287,7 @@ class AgentRunRead(BaseModel):
     report: ReportRead | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+AgentRunRead.model_rebuild()
+TokenResponse.model_rebuild()

@@ -13,6 +13,33 @@ import {
 import { SectionCard } from "../components/SectionCard";
 import type { AgentRun, CompanyConfig, Evidence, Project, Report, Resource } from "../types/domain";
 
+const workflowOptions = [
+  {
+    id: "standard_due_diligence",
+    scenario: "standard",
+    name: "标准完整尽调",
+    focusAreas: ["业务", "财务", "法律", "股权", "舆情", "合规"],
+  },
+  {
+    id: "legal_compliance_due_diligence",
+    scenario: "legal_compliance",
+    name: "法律合规重点尽调",
+    focusAreas: ["法律", "合规", "诉讼", "行政处罚", "知识产权", "监管"],
+  },
+  {
+    id: "financial_investment_due_diligence",
+    scenario: "financial_investment",
+    name: "财务投资重点尽调",
+    focusAreas: ["财务", "融资", "经营质量", "商业模式", "行业位置"],
+  },
+  {
+    id: "market_entry_due_diligence",
+    scenario: "market_entry",
+    name: "市场进入尽调",
+    focusAreas: ["行业", "竞品", "产品", "市场声誉", "合作风险"],
+  },
+];
+
 const defaultCompanyConfig: CompanyConfig = {
   target_company: {
     name: "Example Robotics",
@@ -23,6 +50,8 @@ const defaultCompanyConfig: CompanyConfig = {
     keywords: ["仓储自动化", "机器人"],
   },
   scope: {
+    workflow_id: "standard_due_diligence",
+    scenario: "standard",
     time_range: "近5年",
     focus_areas: ["业务", "财务", "法律", "股权", "舆情", "合规"],
     report_language: "zh-CN",
@@ -40,6 +69,10 @@ function splitList(value: string): string[] {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function workflowName(workflowId?: string): string {
+  return workflowOptions.find((workflow) => workflow.id === workflowId)?.name ?? "未配置流程";
 }
 
 export function Workbench() {
@@ -155,6 +188,31 @@ export function Workbench() {
         <SectionCard title="新建尽调项目" description="填写目标公司和本次尽调范围。">
           <form className="form" onSubmit={handleCreateProject}>
             <label>
+              尽调流程模板
+              <select
+                value={form.scope.workflow_id}
+                onChange={(event) => {
+                  const workflow = workflowOptions.find((item) => item.id === event.target.value);
+                  if (!workflow) return;
+                  setForm({
+                    ...form,
+                    scope: {
+                      ...form.scope,
+                      workflow_id: workflow.id,
+                      scenario: workflow.scenario,
+                      focus_areas: workflow.focusAreas,
+                    },
+                  });
+                }}
+              >
+                {workflowOptions.map((workflow) => (
+                  <option key={workflow.id} value={workflow.id}>
+                    {workflow.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
               公司名称
               <input
                 value={form.target_company.name}
@@ -220,7 +278,7 @@ export function Workbench() {
           {selectedProject ? (
             <div className="summary-box">
               <strong>{selectedProject.company_config.target_company.name}</strong>
-              <span>{selectedProject.company_config.target_company.industry || "未配置行业"}</span>
+              <span>{workflowName(selectedProject.company_config.scope.workflow_id)}</span>
             </div>
           ) : null}
           <div className="inline-form">

@@ -14,7 +14,7 @@ from agent_service.workflows.config_loader import AgentDefinition, load_prompt
 class ConfiguredAgentRunner:
     def __init__(self, definition: AgentDefinition, evidence_store: EvidenceStoreTool) -> None:
         self.definition = definition
-        self.prompt = load_prompt(definition.prompt)
+        self.prompt = definition.prompt_text or load_prompt(definition.prompt)
         self.evidence_store = evidence_store
         self.search = MockSearchTool()
         self.web_fetch = MockWebFetchTool()

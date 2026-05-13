@@ -4,12 +4,14 @@ from agent_service.api.schemas import DueDiligenceReport, Evidence
 
 
 class EvidenceStoreTool:
-    def __init__(self) -> None:
+    def __init__(self, id_prefix: str = "") -> None:
+        self.id_prefix = id_prefix
         self._evidence: list[Evidence] = []
 
     def add(self, evidence: Evidence) -> Evidence:
         if not evidence.id:
-            evidence.id = f"ev_{len(self._evidence) + 1:03d}"
+            prefix = f"{self.id_prefix}_" if self.id_prefix else ""
+            evidence.id = f"{prefix}ev_{len(self._evidence) + 1:03d}"
         self._evidence.append(evidence)
         return evidence
 

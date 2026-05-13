@@ -43,8 +43,18 @@ The backend defaults to SQLite at `backend/dd_platform.db`. Set `DATABASE_URL` t
 
 ## MVP Flow
 
-1. Create a project in the frontend.
-2. Add company scope and resources.
-3. Start a due diligence run.
-4. Watch agent steps complete.
-5. Review evidence and the generated report.
+Default users are created on backend startup:
+
+- Admin: `admin@example.com` / `admin123`
+- Analyst: `analyst@example.com` / `analyst123`
+- Viewer: `viewer@example.com` / `viewer123`
+
+MVP flow:
+
+1. Log in.
+2. Configure skills, data resources, agent templates, and workflow templates as an admin.
+3. Publish a workflow template.
+4. Apply a published scenario to a specific company.
+5. Add project resources.
+6. Start a due diligence run from the project detail page.
+7. Review agent steps, evidence, report, workflow snapshot, and run history.

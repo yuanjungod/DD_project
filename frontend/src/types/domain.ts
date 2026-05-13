@@ -8,6 +8,10 @@ export type CompanyConfig = {
     keywords: string[];
   };
   scope: {
+    workflow_id: string;
+    workflow_template_id?: string | null;
+    workflow_template_version?: number | null;
+    scenario: string;
     time_range: string;
     focus_areas: string[];
     report_language: string;
@@ -86,4 +90,82 @@ export type AgentRun = {
   steps: AgentStep[];
   evidence: Evidence[];
   report?: Report | null;
+};
+
+export type User = {
+  id: string;
+  email: string;
+  name: string;
+  role: "admin" | "analyst" | "viewer";
+  created_at: string;
+};
+
+export type AuthSession = {
+  access_token: string;
+  token_type: "bearer";
+  user: User;
+};
+
+export type Scenario = {
+  id: string;
+  name: string;
+  description: string;
+  scenario: string;
+  agents: string[];
+};
+
+export type SkillConfig = {
+  id: string;
+  name: string;
+  description: string;
+  implementation: string;
+  input_schema: Record<string, unknown>;
+  output_schema: Record<string, unknown>;
+  requires_api_key: boolean;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ResourceConfig = {
+  id: string;
+  name: string;
+  type: string;
+  description: string;
+  connection_config: Record<string, unknown>;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AgentTemplate = {
+  id: string;
+  name: string;
+  role: string;
+  prompt: string;
+  skill_ids: string[];
+  resource_ids: string[];
+  output_schema: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkflowGraph = {
+  nodes: Array<{ id: string; agent_template_id: string; stage?: string }>;
+  edges: Array<{ from: string; to: string }>;
+  entry_node: string;
+  report_node: string;
+};
+
+export type WorkflowTemplate = {
+  id: string;
+  name: string;
+  description: string;
+  scenario: string;
+  graph: WorkflowGraph;
+  status: "draft" | "published";
+  version: number;
+  created_at: string;
+  updated_at: string;
 };

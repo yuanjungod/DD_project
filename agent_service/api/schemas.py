@@ -19,6 +19,10 @@ class TargetCompany(BaseModel):
 
 
 class Scope(BaseModel):
+    workflow_id: str = "standard_due_diligence"
+    workflow_template_id: str | None = None
+    workflow_template_version: int | None = None
+    scenario: str = "standard"
     time_range: str = "近5年"
     focus_areas: list[str] = Field(
         default_factory=lambda: ["业务", "财务", "法律", "股权", "舆情", "合规"]
@@ -92,6 +96,7 @@ class AgentStep(BaseModel):
 class RunRequest(BaseModel):
     project_id: str
     company_config: CompanyConfig
+    workflow_snapshot: dict[str, Any] | None = None
 
 
 class RunResult(BaseModel):

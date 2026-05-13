@@ -12,25 +12,33 @@ from agent_service.api.schemas import (
     RunResult,
 )
 from agent_service.tools.stores import EvidenceStoreTool, ReportStoreTool
-from agent_service.workflows.config_loader import load_agent_config
+from agent_service.workflows.config_loader import AgentDefinition, WorkflowDefinition, load_agent_config, load_workflow_config
 
 
 class DueDiligenceWorkflow:
     def __init__(self) -> None:
-        self.config = load_agent_config()
+        self.agent_config = load_agent_config()
+        self.workflow_config = load_workflow_config()
 
-    def run(self, project_id: str, company_config: CompanyConfig) -> RunResult:
+    def run(
+        self,
+        project_id: str,
+        company_config: CompanyConfig,
+        workflow_snapshot: dict | None = None,
+    ) -> RunResult:
         run_id = f"run_{uuid4().hex[:12]}"
-        evidence_store = EvidenceStoreTool()
+        workflow = self._workflow_from_snapshot(workflow_snapshot) if workflow_snapshot else self.workflow_config.get_workflow(company_config.scope.workflow_id)
+        agent_definitions = self._agent_definitions_from_snapshot(workflow_snapshot)
+        evidence_store = EvidenceStoreTool(id_prefix=run_id)
         report_store = ReportStoreTool()
         steps: list[AgentStep] = []
         results: list[AgentResult] = []
 
-        ordered_agents = self._ordered_agents()
+        ordered_agents = self._ordered_agents(workflow)
         for agent_name in ordered_agents:
-            definition = self.config.get_agent(agent_name)
+            definition = agent_definitions.get(agent_name) if agent_definitions else self.agent_config.get_agent(agent_name)
             runner = ConfiguredAgentRunner(definition, evidence_store)
-            step = AgentStep(id=f"step_{len(steps) + 1:03d}", agent=agent_name, status="running")
+            step = AgentStep(id=f"{run_id}_step_{len(steps) + 1:03d}", agent=agent_name, status="running")
             steps.append(step)
             result = runner.run(company_config, results)
             step.status = result.status
@@ -38,7 +46,7 @@ class DueDiligenceWorkflow:
             step.result = result
             results.append(result)
 
-        report = self._build_report(company_config, results)
+        report = self._build_report(company_config, results, workflow)
         report_store.save(report)
 
         return RunResult(
@@ -50,8 +58,7 @@ class DueDiligenceWorkflow:
             report=report_store.get(),
         )
 
-    def _ordered_agents(self) -> list[str]:
-        workflow = self.config.workflow
+    def _ordered_agents(self, workflow: WorkflowDefinition) -> list[str]:
         return [
             workflow.coordinator,
             *workflow.research_agents,
@@ -64,12 +71,13 @@ class DueDiligenceWorkflow:
         self,
         company_config: CompanyConfig,
         results: list[AgentResult],
+        workflow: WorkflowDefinition,
     ) -> DueDiligenceReport:
         company = company_config.target_company
         sections: list[ReportSection] = []
 
         for result in results:
-            if result.agent == self.config.workflow.reporter:
+            if result.agent == workflow.reporter:
                 continue
             evidence_ids = [evidence.id for evidence in result.evidence]
             risk_level = self._highest_risk([finding.risk_level for finding in result.findings])
@@ -86,7 +94,7 @@ class DueDiligenceWorkflow:
         return DueDiligenceReport(
             title=f"{company.name} 尽调报告",
             executive_summary=(
-                f"本报告基于配置化 AgentScope 尽调流程生成，覆盖 "
+                f"本报告基于「{workflow.name}」AgentScope 尽调流程生成，覆盖 "
                 f"{', '.join(company_config.scope.focus_areas)}。MVP 使用可替换的本地工具，"
                 "生产使用前应接入真实数据源并进行人工复核。"
             ),
@@ -99,3 +107,38 @@ class DueDiligenceWorkflow:
         if not risk_levels:
             return "unknown"
         return max(risk_levels, key=lambda risk: rank.get(risk, 0))
+
+    def _workflow_from_snapshot(self, snapshot: dict | None) -> WorkflowDefinition:
+        if not snapshot:
+            raise ValueError("Missing workflow snapshot")
+        workflow = snapshot["workflow"]
+        graph = workflow["graph"]
+        agent_ids = [node["agent_template_id"] for node in graph.get("nodes", [])]
+        if len(agent_ids) < 3:
+            raise ValueError("Workflow snapshot must include at least coordinator, verifier, and reporter")
+        return WorkflowDefinition(
+            id=workflow["id"],
+            name=workflow["name"],
+            description=workflow.get("description", ""),
+            scenario=workflow.get("scenario", "standard"),
+            coordinator=agent_ids[0],
+            research_agents=agent_ids[1:-3],
+            analysis_agents=agent_ids[-3:-2],
+            verifier=agent_ids[-2],
+            reporter=agent_ids[-1],
+        )
+
+    def _agent_definitions_from_snapshot(self, snapshot: dict | None) -> dict[str, AgentDefinition]:
+        if not snapshot:
+            return {}
+        definitions: dict[str, AgentDefinition] = {}
+        for agent in snapshot.get("agent_templates", []):
+            definitions[agent["id"]] = AgentDefinition(
+                name=agent["id"],
+                role=agent.get("role", ""),
+                prompt="",
+                prompt_text=agent.get("prompt", ""),
+                tools=agent.get("skill_ids", []),
+                output_schema=agent.get("output_schema", "agent_result"),
+            )
+        return definitions

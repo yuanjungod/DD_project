@@ -27,9 +27,21 @@ Every agent must follow these rules:
 
 ## Workflow
 
+Workflow templates are seeded from `agent_service/configs/workflows.yaml` and then managed in the backend configuration catalog. A company project selects one published template through `scope.workflow_template_id`, so the same agent flow can be reused for many companies while different scenarios can choose different agent sequences.
+
+Current templates:
+
+- `standard_due_diligence`: full company, web, financial, legal, industry, verification, and report flow.
+- `legal_compliance_due_diligence`: legal/compliance-focused flow.
+- `financial_investment_due_diligence`: finance/investment-focused flow.
+- `market_entry_due_diligence`: market and competitor-focused flow.
+
+At run time, the backend sends an immutable workflow snapshot to the Agent service. The snapshot includes the workflow graph, agent templates, skills, and resource configs used by that run.
+
 ```mermaid
 flowchart TD
-  ProjectConfig[Project_Config] --> Coordinator[CoordinatorAgent]
+  ProjectConfig[Project_Config] --> WorkflowTemplate[Workflow_Template]
+  WorkflowTemplate --> Coordinator[CoordinatorAgent]
   Coordinator --> CompanyProfile[CompanyProfileAgent]
   Coordinator --> WebResearch[WebResearchAgent]
   Coordinator --> Financial[FinancialAnalysisAgent]

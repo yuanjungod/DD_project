@@ -20,6 +20,26 @@
     "scope": {
       "type": "object",
       "properties": {
+        "workflow_id": {
+          "type": "string",
+          "default": "standard_due_diligence",
+          "description": "Reusable workflow template selected for this company project."
+        },
+        "workflow_template_id": {
+          "type": "string",
+          "default": "standard_due_diligence",
+          "description": "Published workflow template id used by downstream runs."
+        },
+        "workflow_template_version": {
+          "type": "integer",
+          "default": 1,
+          "description": "Published workflow template version selected for this project."
+        },
+        "scenario": {
+          "type": "string",
+          "default": "standard",
+          "description": "Due diligence scenario category used for UI and reporting context."
+        },
         "time_range": { "type": "string", "default": "近5年" },
         "focus_areas": {
           "type": "array",

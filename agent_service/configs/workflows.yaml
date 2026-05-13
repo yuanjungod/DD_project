@@ -1,0 +1,59 @@
+default_workflow_id: standard_due_diligence
+
+workflows:
+  - id: standard_due_diligence
+    name: 标准完整尽调
+    description: 覆盖公司画像、公开信息、财务、法律合规、行业竞争、证据校验和报告生成。
+    scenario: standard
+    coordinator: CoordinatorAgent
+    research_agents:
+      - CompanyProfileAgent
+      - WebResearchAgent
+    analysis_agents:
+      - FinancialAnalysisAgent
+      - LegalRiskAgent
+      - IndustryAnalysisAgent
+    verifier: EvidenceVerifierAgent
+    reporter: ReportWriterAgent
+
+  - id: legal_compliance_due_diligence
+    name: 法律合规重点尽调
+    description: 适用于合规、诉讼、处罚、制裁、知识产权和监管风险优先的场景。
+    scenario: legal_compliance
+    coordinator: CoordinatorAgent
+    research_agents:
+      - CompanyProfileAgent
+      - WebResearchAgent
+    analysis_agents:
+      - LegalRiskAgent
+      - IndustryAnalysisAgent
+    verifier: EvidenceVerifierAgent
+    reporter: ReportWriterAgent
+
+  - id: financial_investment_due_diligence
+    name: 财务投资重点尽调
+    description: 适用于投资前评估，重点关注融资、经营质量、财务信号和行业位置。
+    scenario: financial_investment
+    coordinator: CoordinatorAgent
+    research_agents:
+      - CompanyProfileAgent
+      - WebResearchAgent
+    analysis_agents:
+      - FinancialAnalysisAgent
+      - IndustryAnalysisAgent
+    verifier: EvidenceVerifierAgent
+    reporter: ReportWriterAgent
+
+  - id: market_entry_due_diligence
+    name: 市场进入尽调
+    description: 适用于进入新市场或寻找合作标的，重点关注行业、竞品、产品和公开声誉。
+    scenario: market_entry
+    coordinator: CoordinatorAgent
+    research_agents:
+      - CompanyProfileAgent
+      - WebResearchAgent
+    analysis_agents:
+      - IndustryAnalysisAgent
+      - LegalRiskAgent
+    verifier: EvidenceVerifierAgent
+    reporter: ReportWriterAgent

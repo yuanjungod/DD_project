@@ -15,11 +15,16 @@ class AgentDefinition(BaseModel):
     name: str
     role: str
     prompt: str
+    prompt_text: str | None = None
     tools: list[str]
     output_schema: str
 
 
 class WorkflowDefinition(BaseModel):
+    id: str = "standard_due_diligence"
+    name: str = "标准完整尽调"
+    description: str = ""
+    scenario: str = "standard"
     coordinator: str
     research_agents: list[str]
     analysis_agents: list[str]
@@ -29,13 +34,24 @@ class WorkflowDefinition(BaseModel):
 
 class AgentConfig(BaseModel):
     agents: list[AgentDefinition]
-    workflow: WorkflowDefinition
 
     def get_agent(self, name: str) -> AgentDefinition:
         for agent in self.agents:
             if agent.name == name:
                 return agent
         raise KeyError(f"Unknown agent: {name}")
+
+
+class WorkflowConfig(BaseModel):
+    default_workflow_id: str
+    workflows: list[WorkflowDefinition]
+
+    def get_workflow(self, workflow_id: str | None = None) -> WorkflowDefinition:
+        selected_id = workflow_id or self.default_workflow_id
+        for workflow in self.workflows:
+            if workflow.id == selected_id:
+                return workflow
+        raise KeyError(f"Unknown workflow template: {selected_id}")
 
 
 class ToolDefinition(BaseModel):
@@ -52,6 +68,12 @@ class ToolConfig(BaseModel):
 def load_agent_config() -> AgentConfig:
     data = _load_yaml(ROOT / "configs" / "agents.yaml")
     return AgentConfig.model_validate(data)
+
+
+@lru_cache
+def load_workflow_config() -> WorkflowConfig:
+    data = _load_yaml(ROOT / "configs" / "workflows.yaml")
+    return WorkflowConfig.model_validate(data)
 
 
 @lru_cache
