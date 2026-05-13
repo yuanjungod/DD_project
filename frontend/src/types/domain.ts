@@ -120,6 +120,7 @@ export type SkillPackage = {
   description: string;
   directory_name: string;
   skill_md: string;
+  package_files: Record<string, string>;
   resources_manifest: Record<string, unknown>;
   enabled: boolean;
   created_at: string;

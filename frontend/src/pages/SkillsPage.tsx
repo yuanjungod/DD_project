@@ -7,11 +7,27 @@ import type { SkillDebugResult, SkillPackage } from "../types/domain";
 const defaultSkillMd =
   "---\nname: due-diligence-example\ndescription: Guides a due diligence workflow. Use when this agent needs domain-specific diligence instructions.\n---\n\n# Due Diligence Example\n\nUse evidence-backed findings and preserve uncertainty.\n";
 
-const defaultManifest = JSON.stringify({ files: ["SKILL.md"], references: [], scripts: [], assets: [] }, null, 2);
+const defaultPackageFiles = {
+  "references/source-guidance.md": "# Source Guidance\n\nAdd reference notes for this skill here.\n",
+};
+
+const defaultManifest = JSON.stringify(
+  {
+    files: ["SKILL.md", ...Object.keys(defaultPackageFiles)],
+    references: ["references/source-guidance.md"],
+    scripts: [],
+    assets: [],
+  },
+  null,
+  2,
+);
 
 export function SkillsPage() {
   const [skills, setSkills] = useState<SkillPackage[]>([]);
   const [selectedSkillId, setSelectedSkillId] = useState("");
+  const [view, setView] = useState<"list" | "editor">("list");
+  const [selectedFilePath, setSelectedFilePath] = useState("SKILL.md");
+  const [newFilePath, setNewFilePath] = useState("");
   const [debugResult, setDebugResult] = useState<SkillDebugResult | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -21,6 +37,7 @@ export function SkillsPage() {
     description: "",
     directory_name: "",
     skill_md: defaultSkillMd,
+    package_files: defaultPackageFiles as Record<string, string>,
     resources_manifest: defaultManifest,
     enabled: true,
   });
@@ -43,6 +60,7 @@ export function SkillsPage() {
         description: form.description,
         directory_name: form.directory_name,
         skill_md: form.skill_md,
+        package_files: form.package_files,
         resources_manifest: JSON.parse(form.resources_manifest) as Record<string, unknown>,
         enabled: form.enabled,
       };
@@ -65,15 +83,18 @@ export function SkillsPage() {
     try {
       const skill = await getSkill(skillId);
       setSelectedSkillId(skill.id);
+      setView("editor");
       setForm({
         id: skill.id,
         name: skill.name,
         description: skill.description,
         directory_name: skill.directory_name,
         skill_md: skill.skill_md,
+        package_files: skill.package_files ?? {},
         resources_manifest: JSON.stringify(skill.resources_manifest ?? {}, null, 2),
         enabled: skill.enabled,
       });
+      setSelectedFilePath("SKILL.md");
     } catch (err) {
       setError(String(err));
     }
@@ -89,6 +110,7 @@ export function SkillsPage() {
         description: form.description,
         directory_name: form.directory_name,
         skill_md: form.skill_md,
+        package_files: form.package_files,
         resources_manifest: JSON.parse(form.resources_manifest) as Record<string, unknown>,
         enabled: form.enabled,
       });
@@ -110,9 +132,62 @@ export function SkillsPage() {
       description: "",
       directory_name: "",
       skill_md: defaultSkillMd,
+      package_files: defaultPackageFiles,
       resources_manifest: defaultManifest,
       enabled: true,
     });
+    setSelectedFilePath("SKILL.md");
+    setView("editor");
+  }
+
+  function filePaths(): string[] {
+    return ["SKILL.md", ...Object.keys(form.package_files).sort()];
+  }
+
+  function selectedFileContent(): string {
+    return selectedFilePath === "SKILL.md" ? form.skill_md : form.package_files[selectedFilePath] ?? "";
+  }
+
+  function updateSelectedFileContent(content: string) {
+    if (selectedFilePath === "SKILL.md") {
+      setForm({ ...form, skill_md: content });
+      return;
+    }
+    setForm({
+      ...form,
+      package_files: { ...form.package_files, [selectedFilePath]: content },
+    });
+  }
+
+  function handleAddFile() {
+    const filePath = newFilePath.trim();
+    if (!filePath || filePath === "SKILL.md") {
+      return;
+    }
+    setForm({
+      ...form,
+      package_files: {
+        ...form.package_files,
+        [filePath]: form.package_files[filePath] ?? "",
+      },
+      resources_manifest: addFileToManifest(form.resources_manifest, filePath),
+    });
+    setSelectedFilePath(filePath);
+    setNewFilePath("");
+  }
+
+  function handleDeleteSelectedFile() {
+    if (selectedFilePath === "SKILL.md") {
+      return;
+    }
+    const nextFiles = { ...form.package_files };
+    delete nextFiles[selectedFilePath];
+    setForm({
+      ...form,
+      package_files: nextFiles,
+      resources_manifest: removeFileFromManifest(form.resources_manifest, selectedFilePath),
+    });
+    setSelectedFilePath("SKILL.md");
   }
 
   return (
@@ -120,111 +195,184 @@ export function SkillsPage() {
       <header className="page-hero">
         <p className="eyebrow">Skill Registry</p>
         <h1>Skills 配置管理</h1>
-        <p>查看、修改和调试 Anthropic/Cursor 风格的 Skill 包：每个 Skill 都是一个目录，核心内容是 `SKILL.md`，可附带 references、scripts、assets 等资源。</p>
+        <p>查看、修改和调试 Anthropic/Cursor 风格的 Skill 包：每个 Skill 固定同步到 `agent_service/skills/&lt;directory&gt;/`，核心内容是 `SKILL.md`，可附带 references、scripts、assets 等资源。</p>
       </header>
       {error ? <div className="error">{error}</div> : null}
       {notice ? <div className="notice">{notice}</div> : null}
-      <div className="grid two">
+      {view === "list" ? (
         <SectionCard title="可用 Skills">
-          <div className="row-actions">
+          <div className="skill-list-header">
+            <div>
+              <strong>{skills.length} 个 Skill 包</strong>
+              <p>选择一个 Skill 进入独立的查看、修改和调试页面。</p>
+            </div>
             <button type="button" onClick={handleNewSkill}>新增 Skill</button>
           </div>
-          <ul className="list">
+          <ul className="skill-card-list">
             {skills.map((skill) => (
-              <li className={skill.id === selectedSkillId ? "selected-list-item" : ""} key={skill.id}>
-                <span>{skill.enabled ? "enabled" : "disabled"}</span>
-                <strong>{skill.name}</strong>
-                <p>{skill.description}</p>
-                <small>{skill.directory_name}/SKILL.md</small>
-                <div className="row-actions">
-                  <button type="button" className="secondary-button" onClick={() => handleSelect(skill.id)}>
-                    查看/编辑
-                  </button>
+              <li key={skill.id}>
+                <div>
+                  <span>{skill.enabled ? "enabled" : "disabled"}</span>
+                  <strong>{skill.name}</strong>
+                  <p>{skill.description}</p>
+                  <small>agent_service/skills/{skill.directory_name}/</small>
                 </div>
+                <button type="button" className="secondary-button" onClick={() => handleSelect(skill.id)}>
+                  进入配置
+                </button>
               </li>
             ))}
           </ul>
         </SectionCard>
-        <SectionCard title={selectedSkillId ? "查看 / 修改 / 调试 Skill" : "新增 / 调试 Skill"}>
-          <form className="form" onSubmit={handleSubmit}>
-            <label>
-              ID
-              <input
-                disabled={Boolean(selectedSkillId)}
-                value={form.id}
-                onChange={(event) => setForm({ ...form, id: event.target.value })}
-              />
-            </label>
-            <label>
-              名称
-              <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-            </label>
-            <label>
-              目录名
-              <input value={form.directory_name} onChange={(event) => setForm({ ...form, directory_name: event.target.value })} />
-            </label>
-            <label>
-              描述
-              <input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
-            </label>
-            <label>
-              启用
-              <select
-                value={String(form.enabled)}
-                onChange={(event) => setForm({ ...form, enabled: event.target.value === "true" })}
-              >
-                <option value="true">enabled</option>
-                <option value="false">disabled</option>
-              </select>
-            </label>
-            <label>
-              SKILL.md
-              <textarea
-                className="code-editor"
-                value={form.skill_md}
-                onChange={(event) => setForm({ ...form, skill_md: event.target.value })}
-              />
-            </label>
-            <label>
-              resources_manifest JSON
-              <textarea
-                className="code-editor small"
-                value={form.resources_manifest}
-                onChange={(event) => setForm({ ...form, resources_manifest: event.target.value })}
-              />
-            </label>
-            <div className="row-actions">
-              <button type="submit">{selectedSkillId ? "保存修改" : "保存 Skill"}</button>
-              <button type="button" className="secondary-button" onClick={handleDebug}>
-                调试当前内容
-              </button>
+      ) : (
+        <div className="skill-editor-stack">
+          <div className="detail-toolbar">
+            <button type="button" className="secondary-button" onClick={() => setView("list")}>
+              返回 Skills 列表
+            </button>
+            <div>
+              <span>{selectedSkillId ? "编辑 Skill" : "新增 Skill"}</span>
+              <strong>{form.name || form.id || "未命名 Skill"}</strong>
+              <small>agent_service/skills/{form.directory_name || "<directory>"}/</small>
             </div>
-          </form>
-          {debugResult ? (
-            <div className={debugResult.valid ? "debug-panel valid" : "debug-panel invalid"}>
-              <strong>{debugResult.valid ? "调试通过" : "调试未通过"}</strong>
-              <div>
-                <p>Checks</p>
-                <ul>
-                  {debugResult.checks.map((check) => <li key={check}>{check}</li>)}
-                </ul>
+          </div>
+          <SectionCard title="基础信息">
+            <form className="form" onSubmit={handleSubmit}>
+              <div className="grid two">
+                <label>
+                  ID
+                  <input
+                    disabled={Boolean(selectedSkillId)}
+                    value={form.id}
+                    onChange={(event) => setForm({ ...form, id: event.target.value })}
+                  />
+                </label>
+                <label>
+                  名称
+                  <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+                </label>
+                <label>
+                  目录名
+                  <input value={form.directory_name} onChange={(event) => setForm({ ...form, directory_name: event.target.value })} />
+                </label>
+                <label>
+                  启用
+                  <select
+                    value={String(form.enabled)}
+                    onChange={(event) => setForm({ ...form, enabled: event.target.value === "true" })}
+                  >
+                    <option value="true">enabled</option>
+                    <option value="false">disabled</option>
+                  </select>
+                </label>
               </div>
-              {debugResult.errors.length ? (
+              <label>
+                描述
+                <input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+              </label>
+              <div className="skill-file-workspace">
+                <div className="skill-file-sidebar">
+                  <strong>Skill 文件</strong>
+                  <div className="skill-file-list">
+                    {filePaths().map((filePath) => (
+                      <button
+                        type="button"
+                        className={filePath === selectedFilePath ? "skill-file-tab active" : "skill-file-tab"}
+                        key={filePath}
+                        onClick={() => setSelectedFilePath(filePath)}
+                      >
+                        {filePath}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="file-create-row">
+                    <input
+                      placeholder="references/checklist.md"
+                      value={newFilePath}
+                      onChange={(event) => setNewFilePath(event.target.value)}
+                    />
+                    <button type="button" className="secondary-button" onClick={handleAddFile}>
+                      添加文件
+                    </button>
+                  </div>
+                </div>
+                <label className="skill-file-editor">
+                  {selectedFilePath}
+                  <textarea
+                    className="code-editor"
+                    value={selectedFileContent()}
+                    onChange={(event) => updateSelectedFileContent(event.target.value)}
+                  />
+                  {selectedFilePath !== "SKILL.md" ? (
+                    <button type="button" className="secondary-button" onClick={handleDeleteSelectedFile}>
+                      删除当前文件
+                    </button>
+                  ) : null}
+                </label>
+              </div>
+              <label>
+                resources_manifest JSON
+                <textarea
+                  className="code-editor small"
+                  value={form.resources_manifest}
+                  onChange={(event) => setForm({ ...form, resources_manifest: event.target.value })}
+                />
+              </label>
+              <div className="row-actions">
+                <button type="submit">{selectedSkillId ? "保存修改" : "保存 Skill"}</button>
+                <button type="button" className="secondary-button" onClick={handleDebug}>
+                  调试当前内容
+                </button>
+              </div>
+            </form>
+          </SectionCard>
+          {debugResult ? (
+            <SectionCard title="调试结果">
+              <div className={debugResult.valid ? "debug-panel valid" : "debug-panel invalid"}>
+                <strong>{debugResult.valid ? "调试通过" : "调试未通过"}</strong>
                 <div>
-                  <p>Errors</p>
+                  <p>Checks</p>
                   <ul>
-                    {debugResult.errors.map((item) => <li key={item}>{item}</li>)}
+                    {debugResult.checks.map((check) => <li key={check}>{check}</li>)}
                   </ul>
                 </div>
-              ) : null}
-              <label>
-                AgentScope Skill Prompt Preview
-                <textarea readOnly className="code-editor small" value={debugResult.agent_skill_prompt ?? ""} />
-              </label>
-            </div>
+                {debugResult.errors.length ? (
+                  <div>
+                    <p>Errors</p>
+                    <ul>
+                      {debugResult.errors.map((item) => <li key={item}>{item}</li>)}
+                    </ul>
+                  </div>
+                ) : null}
+                <label>
+                  AgentScope Skill Prompt Preview
+                  <textarea readOnly className="code-editor small" value={debugResult.agent_skill_prompt ?? ""} />
+                </label>
+              </div>
+            </SectionCard>
           ) : null}
-        </SectionCard>
-      </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function addFileToManifest(manifestJson: string, filePath: string): string {
+  try {
+    const manifest = JSON.parse(manifestJson) as { files?: unknown };
+    const files = Array.isArray(manifest.files) ? manifest.files.filter((item): item is string => typeof item === "string") : [];
+    return JSON.stringify({ ...manifest, files: Array.from(new Set([...files, filePath])) }, null, 2);
+  } catch {
+    return manifestJson;
+  }
+}
+
+function removeFileFromManifest(manifestJson: string, filePath: string): string {
+  try {
+    const manifest = JSON.parse(manifestJson) as { files?: unknown };
+    const files = Array.isArray(manifest.files) ? manifest.files.filter((item) => item !== filePath) : manifest.files;
+    return JSON.stringify({ ...manifest, files }, null, 2);
+  } catch {
+    return manifestJson;
+  }
 }

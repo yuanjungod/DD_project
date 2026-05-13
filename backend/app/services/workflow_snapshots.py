@@ -60,6 +60,7 @@ def build_workflow_snapshot(db: Session, company_config: dict) -> dict:
                 "description": skill_package.description,
                 "directory_name": skill_package.directory_name,
                 "skill_md": skill_package.skill_md,
+                "package_files": skill_package.package_files or {},
                 "resources_manifest": skill_package.resources_manifest,
             }
             for skill_package in skill_packages

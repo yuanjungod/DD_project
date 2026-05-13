@@ -101,6 +101,7 @@ class SkillPackageBase(BaseModel):
     description: str = ""
     directory_name: str
     skill_md: str
+    package_files: dict[str, str] = Field(default_factory=dict)
     resources_manifest: dict[str, Any] = Field(default_factory=dict)
     enabled: bool = True
 
@@ -114,6 +115,7 @@ class SkillPackageUpdate(BaseModel):
     description: str | None = None
     directory_name: str | None = None
     skill_md: str | None = None
+    package_files: dict[str, str] | None = None
     resources_manifest: dict[str, Any] | None = None
     enabled: bool | None = None
 

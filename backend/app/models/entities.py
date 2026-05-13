@@ -78,6 +78,7 @@ class SkillPackage(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     directory_name: Mapped[str] = mapped_column(String, nullable=False)
     skill_md: Mapped[str] = mapped_column(Text, nullable=False)
+    package_files: Mapped[dict] = mapped_column(JSON, default=dict)
     resources_manifest: Mapped[dict] = mapped_column(JSON, default=dict)
     enabled: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -29,6 +29,7 @@ from app.schemas import (
     WorkflowTemplateRead,
     WorkflowTemplateUpdate,
 )
+from app.services.skill_files import skill_package_disk_path, sync_skill_package_to_disk
 
 
 router = APIRouter(tags=["configuration"])
@@ -53,6 +54,7 @@ def debug_skill_draft(
     return _debug_skill_package(
         directory_name=payload.directory_name,
         skill_md=payload.skill_md,
+        package_files=payload.package_files,
         resources_manifest=payload.resources_manifest,
     )
 
@@ -76,6 +78,7 @@ def create_skill(
     db.add(item)
     db.commit()
     db.refresh(item)
+    sync_skill_package_to_disk(item)
     return item
 
 
@@ -87,9 +90,11 @@ def update_skill(
     _: User = Depends(require_roles("admin")),
 ) -> SkillPackage:
     item = _get_or_404(db, SkillPackage, skill_id, "Skill package")
+    previous_directory_name = item.directory_name
     _apply_updates(item, payload)
     db.commit()
     db.refresh(item)
+    sync_skill_package_to_disk(item, previous_directory_name=previous_directory_name)
     return item
 
 
@@ -103,6 +108,7 @@ def debug_skill(
     return _debug_skill_package(
         directory_name=item.directory_name,
         skill_md=item.skill_md,
+        package_files=item.package_files or {},
         resources_manifest=item.resources_manifest,
     )
 
@@ -317,12 +323,14 @@ def _get_or_404(db: Session, model, item_id: str, label: str):
 def _debug_skill_package(
     directory_name: str,
     skill_md: str,
+    package_files: dict[str, str],
     resources_manifest: dict,
 ) -> SkillDebugRead:
     checks: list[str] = []
     errors: list[str] = []
     metadata: dict = {}
     agent_skill_prompt: str | None = None
+    checks.append(f"Fixed project directory: {skill_package_disk_path(directory_name)}")
 
     try:
         post = frontmatter.loads(skill_md)
@@ -344,11 +352,12 @@ def _debug_skill_package(
             skill_dir = Path(temp_dir) / directory_name
             skill_dir.mkdir(parents=True, exist_ok=True)
             (skill_dir / "SKILL.md").write_text(skill_md, encoding="utf-8")
-            for file_name in resources_manifest.get("files", []):
+            for file_name, content in package_files.items():
                 if file_name != "SKILL.md":
-                    target = skill_dir / str(file_name)
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    target.write_text("", encoding="utf-8")
+                    _write_skill_file(skill_dir, file_name, content)
+            for file_name in resources_manifest.get("files", []):
+                if file_name not in {"SKILL.md", *package_files.keys()}:
+                    _write_skill_file(skill_dir, str(file_name), "")
             toolkit = Toolkit()
             toolkit.register_agent_skill(str(skill_dir))
             agent_skill_prompt = toolkit.get_agent_skill_prompt()
@@ -363,3 +372,11 @@ def _debug_skill_package(
         agent_skill_prompt=agent_skill_prompt,
         errors=errors,
     )
+
+
+def _write_skill_file(skill_dir: Path, file_name: str, content: str) -> None:
+    target = (skill_dir / file_name).resolve()
+    if not target.is_relative_to(skill_dir.resolve()):
+        raise ValueError(f"Skill file path escapes skill directory: {file_name}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")

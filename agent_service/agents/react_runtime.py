@@ -102,6 +102,9 @@ class AgentScopeReActRuntime:
             skill_dir = root / safe_name
             skill_dir.mkdir(parents=True, exist_ok=True)
             (skill_dir / "SKILL.md").write_text(package.get("skill_md", ""), encoding="utf-8")
+            for file_name, content in package.get("package_files", {}).items():
+                if file_name != "SKILL.md":
+                    _write_skill_file(skill_dir, file_name, content)
             skill_dirs.append(str(skill_dir))
         return skill_dirs
 
@@ -293,6 +296,14 @@ def _safe_dir_name(value: str) -> str:
     digest = hashlib.sha1(value.encode("utf-8")).hexdigest()[:8]
     safe = "".join(char if char.isalnum() or char in "-_" else "-" for char in value.lower())
     return f"{safe}-{digest}"
+
+
+def _write_skill_file(skill_dir: Path, file_name: str, content: str) -> None:
+    target = (skill_dir / file_name).resolve()
+    if not target.is_relative_to(skill_dir.resolve()):
+        raise ValueError(f"Skill file path escapes skill directory: {file_name}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(str(content), encoding="utf-8")
 
 
 def _normalize_model_config(raw_config: dict[str, Any]) -> dict[str, Any]:

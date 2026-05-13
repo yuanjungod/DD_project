@@ -369,6 +369,110 @@ label {
   gap: 14px;
 }
 
+.skill-list-header,
+.detail-toolbar,
+.skill-card-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.skill-list-header {
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: #eff6ff;
+  padding: 16px;
+}
+
+.skill-list-header p,
+.detail-toolbar span,
+.skill-card-list p {
+  color: #64748b;
+}
+
+.skill-card-list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skill-card-list li {
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: white;
+  padding: 16px;
+}
+
+.skill-card-list span {
+  display: inline-block;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.skill-card-list strong,
+.detail-toolbar strong {
+  display: block;
+}
+
+.skill-editor-stack {
+  display: grid;
+  gap: 20px;
+}
+
+.skill-file-workspace {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.skill-file-sidebar {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #f8fafc;
+  padding: 14px;
+}
+
+.skill-file-list {
+  display: grid;
+  gap: 8px;
+}
+
+.skill-file-tab {
+  justify-content: flex-start;
+  overflow-wrap: anywhere;
+  border: 1px solid #dbe3ef;
+  background: white;
+  color: #334155;
+  text-align: left;
+}
+
+.skill-file-tab.active {
+  border-color: #1d4ed8;
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+
+.file-create-row,
+.skill-file-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.detail-toolbar {
+  border: 1px solid #e2e8f0;
+  border-radius: 22px;
+  background: #f8fafc;
+  padding: 18px;
+}
+
 .workflow-row {
   display: grid;
   grid-template-columns: 1fr 260px auto;
@@ -524,6 +628,17 @@ label {
   .hero {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .skill-list-header,
+  .detail-toolbar,
+  .skill-card-list li {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .skill-file-workspace {
+    grid-template-columns: 1fr;
   }
 
   .console-layout {

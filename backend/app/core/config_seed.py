@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.entities import AgentTemplate, ResourceConfig, SkillPackage, ToolConfig, WorkflowTemplate
+from app.services.skill_files import sync_all_skill_packages_to_disk
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -118,6 +119,7 @@ def seed_configuration_catalog(db: Session) -> None:
             )
 
     db.commit()
+    sync_all_skill_packages_to_disk(db.query(SkillPackage).all())
 
 
 def ensure_configuration_schema(db: Session) -> None:
@@ -129,6 +131,9 @@ def ensure_configuration_schema(db: Session) -> None:
     if columns and "react_config" not in columns:
         default_value = json.dumps(_default_react_config())
         db.execute(text(f"ALTER TABLE agent_templates ADD COLUMN react_config JSON DEFAULT '{default_value}'"))
+    skill_columns = _table_columns(db, "skill_packages")
+    if skill_columns and "package_files" not in skill_columns:
+        db.execute(text("ALTER TABLE skill_packages ADD COLUMN package_files JSON DEFAULT '{}'"))
     db.commit()
 
 
@@ -224,6 +229,7 @@ def _default_skill_packages() -> list[SkillPackage]:
             description=description,
             directory_name=directory_name,
             skill_md=_skill_md(directory_name, description, body),
+            package_files={},
             resources_manifest={"files": ["SKILL.md"], "references": [], "scripts": [], "assets": []},
             enabled=True,
         )
