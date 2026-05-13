@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class TargetCompany(BaseModel):
@@ -344,6 +344,13 @@ class ReportRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+def utc_datetime_to_iso_z(v: datetime) -> str:
+    """Persisted datetimes are naive UTC; expose as RFC 3339 with Z so clients parse as UTC."""
+    aware = v.replace(tzinfo=timezone.utc) if v.tzinfo is None else v.astimezone(timezone.utc)
+    frac = aware.strftime("%f")[:3]
+    return aware.strftime("%Y-%m-%dT%H:%M:%S") + f".{frac}Z"
+
+
 class AgentRunRead(BaseModel):
     id: str
     project_id: str
@@ -356,6 +363,16 @@ class AgentRunRead(BaseModel):
     report: ReportRead | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("started_at", when_used="json")
+    def _serialize_started_at(self, v: datetime) -> str:
+        return utc_datetime_to_iso_z(v)
+
+    @field_serializer("completed_at", when_used="json")
+    def _serialize_completed_at(self, v: datetime | None) -> str | None:
+        if v is None:
+            return None
+        return utc_datetime_to_iso_z(v)
 
 
 AgentRunRead.model_rebuild()

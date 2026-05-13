@@ -41,4 +41,5 @@ def run_due_diligence(request: RunRequest) -> RunResult:
         project_id=request.project_id,
         company_config=request.company_config,
         workflow_snapshot=request.workflow_snapshot,
+        run_id_override=request.run_id,
     )

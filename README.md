@@ -24,13 +24,13 @@ Start the services in separate terminals:
 python -m venv .venv
 source .venv/bin/activate
 pip install -r agent_service/requirements.txt
-uvicorn agent_service.api.main:app --reload --port 8001
+uvicorn agent_service.api.main:app --reload --port 8011
 ```
 
 ```bash
 cd backend
 ../.venv/bin/pip install -r requirements.txt
-../.venv/bin/uvicorn app.main:app --reload --port 8000
+../.venv/bin/uvicorn app.main:app --reload --port 8010
 ```
 
 ```bash
@@ -38,6 +38,8 @@ cd frontend
 npm install
 npm run dev
 ```
+
+开发模式下请求默认走 **`http://127.0.0.1:5173/api/*`**，由 Vite **代理到** `http://127.0.0.1:8010`，避免浏览器直连跨域端口失败。若要改后端地址，可在启动前设置 **`VITE_DEV_PROXY_TARGET`**（仅 dev 代理目标），或设置 **`VITE_API_BASE_URL`** 为完整后端 URL（将跳过 `/api` 代理）。
 
 The backend defaults to SQLite at `backend/dd_platform.db`. Set `DATABASE_URL` to use PostgreSQL.
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, configs, evidence, projects, reports, resources, runs, scenarios
+from app.api import auth, configs, evidence, internal_agent, projects, reports, resources, runs, scenarios
 from app.core.auth import seed_default_users
 from app.core.config import settings
 from app.core.config_seed import seed_configuration_catalog
@@ -31,6 +31,7 @@ def create_app() -> FastAPI:
     app.include_router(evidence.router)
     app.include_router(reports.router)
     app.include_router(scenarios.router)
+    app.include_router(internal_agent.router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

@@ -18,13 +18,17 @@ class AgentServiceClient:
         project_id: str,
         company_config: dict,
         workflow_snapshot: dict | None = None,
+        *,
+        client_run_id: str | None = None,
     ) -> dict:
-        payload = {
+        payload: dict = {
             "project_id": project_id,
             "company_config": company_config,
             "workflow_snapshot": workflow_snapshot,
         }
-        async with httpx.AsyncClient(timeout=120) as client:
+        if client_run_id:
+            payload["run_id"] = client_run_id
+        async with httpx.AsyncClient(timeout=3600) as client:
             try:
                 response = await client.post(f"{self.base_url}/runs", json=payload)
                 response.raise_for_status()

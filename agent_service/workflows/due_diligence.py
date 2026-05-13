@@ -11,6 +11,7 @@ from agent_service.api.schemas import (
     ReportSection,
     RunResult,
 )
+from agent_service.callback_client import notify_run_progress
 from agent_service.tools.stores import EvidenceStoreTool, ReportStoreTool
 from agent_service.workflows.config_loader import AgentDefinition, WorkflowDefinition, load_agent_config, load_workflow_config
 
@@ -25,8 +26,9 @@ class DueDiligenceWorkflow:
         project_id: str,
         company_config: CompanyConfig,
         workflow_snapshot: dict | None = None,
+        run_id_override: str | None = None,
     ) -> RunResult:
-        run_id = f"run_{uuid4().hex[:12]}"
+        run_id = run_id_override or f"run_{uuid4().hex[:12]}"
         workflow = self._workflow_from_snapshot(workflow_snapshot) if workflow_snapshot else self.workflow_config.get_workflow(company_config.scope.workflow_id)
         agent_definitions = self._agent_definitions_from_snapshot(workflow_snapshot)
         evidence_store = EvidenceStoreTool(id_prefix=run_id)
@@ -40,11 +42,13 @@ class DueDiligenceWorkflow:
             runner = ConfiguredAgentRunner(definition, evidence_store)
             step = AgentStep(id=f"{run_id}_step_{len(steps) + 1:03d}", agent=agent_name, status="running")
             steps.append(step)
+            notify_run_progress(project_id, run_id, step, evidence_delta=[])
             result = runner.run(company_config, results)
             step.status = result.status
             step.summary = result.summary
             step.result = result
             results.append(result)
+            notify_run_progress(project_id, run_id, step, evidence_delta=list(result.evidence))
 
         report = self._build_report(company_config, results, workflow)
         report_store.save(report)

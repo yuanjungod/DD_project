@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { listRuns } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
 import type { AgentRun } from "../types/domain";
+import { formatApiDateTimeLocal } from "../utils/apiTime";
 
 export function RunHistoryPage() {
   const [runs, setRuns] = useState<AgentRun[]>([]);
@@ -42,7 +43,7 @@ export function RunHistoryPage() {
               </span>
               <span>{run.steps.length}</span>
               <span>{run.evidence.length}</span>
-              <span>{new Date(run.started_at).toLocaleString()}</span>
+              <span>{formatApiDateTimeLocal(run.started_at)}</span>
             </Fragment>
           ))}
         </div>

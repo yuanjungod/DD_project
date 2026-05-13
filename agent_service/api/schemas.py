@@ -97,6 +97,10 @@ class RunRequest(BaseModel):
     project_id: str
     company_config: CompanyConfig
     workflow_snapshot: dict[str, Any] | None = None
+    run_id: str | None = Field(
+        default=None,
+        description="Optional id to correlate with backend-persisted AgentRun.",
+    )
 
 
 class RunResult(BaseModel):
