@@ -1,0 +1,76 @@
+agents:
+  - name: CoordinatorAgent
+    role: due_diligence_coordinator
+    prompt: coordinator.md
+    tools:
+      - evidence_store
+    output_schema: agent_result
+  - name: CompanyProfileAgent
+    role: company_profile_researcher
+    prompt: company_profile.md
+    tools:
+      - search
+      - web_fetch
+      - file_reader
+      - evidence_store
+    output_schema: agent_result
+  - name: WebResearchAgent
+    role: public_researcher
+    prompt: web_research.md
+    tools:
+      - search
+      - web_fetch
+      - evidence_store
+    output_schema: agent_result
+  - name: FinancialAnalysisAgent
+    role: financial_analyst
+    prompt: financial_analysis.md
+    tools:
+      - search
+      - file_reader
+      - vector_retrieval
+      - evidence_store
+    output_schema: agent_result
+  - name: LegalRiskAgent
+    role: legal_risk_analyst
+    prompt: legal_risk.md
+    tools:
+      - search
+      - web_fetch
+      - vector_retrieval
+      - evidence_store
+    output_schema: agent_result
+  - name: IndustryAnalysisAgent
+    role: industry_analyst
+    prompt: industry_analysis.md
+    tools:
+      - search
+      - web_fetch
+      - vector_retrieval
+      - evidence_store
+    output_schema: agent_result
+  - name: EvidenceVerifierAgent
+    role: evidence_verifier
+    prompt: evidence_verifier.md
+    tools:
+      - evidence_store
+    output_schema: agent_result
+  - name: ReportWriterAgent
+    role: report_writer
+    prompt: report_writer.md
+    tools:
+      - report_store
+      - evidence_store
+    output_schema: report
+
+workflow:
+  coordinator: CoordinatorAgent
+  research_agents:
+    - CompanyProfileAgent
+    - WebResearchAgent
+  analysis_agents:
+    - FinancialAnalysisAgent
+    - LegalRiskAgent
+    - IndustryAnalysisAgent
+  verifier: EvidenceVerifierAgent
+  reporter: ReportWriterAgent

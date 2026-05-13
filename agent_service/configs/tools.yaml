@@ -1,0 +1,25 @@
+tools:
+  search:
+    description: Search public and configured trusted sources.
+    implementation: agent_service.tools.research.MockSearchTool
+    requires_api_key: false
+  web_fetch:
+    description: Fetch and normalize webpage content.
+    implementation: agent_service.tools.research.MockWebFetchTool
+    requires_api_key: false
+  file_reader:
+    description: Extract content from uploaded project files.
+    implementation: agent_service.tools.research.MockFileReaderTool
+    requires_api_key: false
+  vector_retrieval:
+    description: Retrieve relevant chunks from indexed project resources.
+    implementation: agent_service.tools.research.MockVectorRetrievalTool
+    requires_api_key: false
+  evidence_store:
+    description: Create and reference evidence records.
+    implementation: agent_service.tools.stores.EvidenceStoreTool
+    requires_api_key: false
+  report_store:
+    description: Persist report sections and final report payloads.
+    implementation: agent_service.tools.stores.ReportStoreTool
+    requires_api_key: false

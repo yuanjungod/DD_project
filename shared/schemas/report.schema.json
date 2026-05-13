@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dd-platform.local/schemas/report.schema.json",
+  "title": "DueDiligenceReport",
+  "type": "object",
+  "required": ["title", "executive_summary", "sections", "overall_risk"],
+  "properties": {
+    "title": { "type": "string" },
+    "executive_summary": { "type": "string" },
+    "overall_risk": { "type": "string", "enum": ["low", "medium", "high", "unknown"] },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "summary", "risk_level", "evidence_ids"],
+        "properties": {
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "risk_level": { "type": "string", "enum": ["low", "medium", "high", "unknown"] },
+          "evidence_ids": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

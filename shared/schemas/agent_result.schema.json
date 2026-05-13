@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dd-platform.local/schemas/agent_result.schema.json",
+  "title": "AgentResult",
+  "type": "object",
+  "required": ["agent", "status", "summary", "findings", "evidence"],
+  "properties": {
+    "agent": { "type": "string" },
+    "status": { "type": "string", "enum": ["pending", "running", "completed", "failed"] },
+    "summary": { "type": "string" },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "description", "risk_level", "confidence", "evidence_ids"],
+        "properties": {
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "risk_level": { "type": "string", "enum": ["low", "medium", "high", "unknown"] },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "evidence_ids": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "$ref": "./evidence.schema.json" }
+    }
+  }
+}

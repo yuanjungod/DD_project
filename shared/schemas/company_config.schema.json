@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dd-platform.local/schemas/company_config.schema.json",
+  "title": "CompanyConfig",
+  "type": "object",
+  "required": ["target_company", "scope", "resources"],
+  "properties": {
+    "target_company": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "aliases": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "website": { "type": "string", "default": "" },
+        "jurisdiction": { "type": "string", "default": "" },
+        "industry": { "type": "string", "default": "" },
+        "keywords": { "type": "array", "items": { "type": "string" }, "default": [] }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "time_range": { "type": "string", "default": "近5年" },
+        "focus_areas": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["业务", "财务", "法律", "股权", "舆情", "合规"]
+        },
+        "report_language": { "type": "string", "default": "zh-CN" }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "uploaded_files": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "trusted_sources": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "blocked_sources": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "competitors": { "type": "array", "items": { "type": "string" }, "default": [] }
+      }
+    }
+  }
+}
