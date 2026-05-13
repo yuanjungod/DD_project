@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from agentscope.tool import Toolkit
+import frontmatter
 
 from app.core.auth import require_roles
 from app.core.database import get_db
@@ -13,6 +18,7 @@ from app.schemas import (
     ResourceConfigCreate,
     ResourceConfigRead,
     ResourceConfigUpdate,
+    SkillDebugRead,
     SkillPackageCreate,
     SkillPackageRead,
     SkillPackageUpdate,
@@ -37,6 +43,27 @@ def list_skills(
     if user.role != "admin":
         query = query.filter(SkillPackage.enabled.is_(True))
     return query.order_by(SkillPackage.name).all()
+
+
+@router.post("/skills/debug", response_model=SkillDebugRead)
+def debug_skill_draft(
+    payload: SkillPackageCreate,
+    _: User = Depends(require_roles("admin")),
+) -> SkillDebugRead:
+    return _debug_skill_package(
+        directory_name=payload.directory_name,
+        skill_md=payload.skill_md,
+        resources_manifest=payload.resources_manifest,
+    )
+
+
+@router.get("/skills/{skill_id}", response_model=SkillPackageRead)
+def get_skill(
+    skill_id: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles("admin", "analyst", "viewer")),
+) -> SkillPackage:
+    return _get_or_404(db, SkillPackage, skill_id, "Skill package")
 
 
 @router.post("/skills", response_model=SkillPackageRead)
@@ -64,6 +91,20 @@ def update_skill(
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.post("/skills/{skill_id}/debug", response_model=SkillDebugRead)
+def debug_skill(
+    skill_id: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles("admin")),
+) -> SkillDebugRead:
+    item = _get_or_404(db, SkillPackage, skill_id, "Skill package")
+    return _debug_skill_package(
+        directory_name=item.directory_name,
+        skill_md=item.skill_md,
+        resources_manifest=item.resources_manifest,
+    )
 
 
 @router.get("/tools/configs", response_model=list[ToolConfigRead])
@@ -271,3 +312,54 @@ def _get_or_404(db: Session, model, item_id: str, label: str):
     if not item:
         raise HTTPException(status_code=404, detail=f"{label} not found")
     return item
+
+
+def _debug_skill_package(
+    directory_name: str,
+    skill_md: str,
+    resources_manifest: dict,
+) -> SkillDebugRead:
+    checks: list[str] = []
+    errors: list[str] = []
+    metadata: dict = {}
+    agent_skill_prompt: str | None = None
+
+    try:
+        post = frontmatter.loads(skill_md)
+        metadata = dict(post.metadata)
+        checks.append("SKILL.md frontmatter parsed")
+        if metadata.get("name"):
+            checks.append("frontmatter.name present")
+        else:
+            errors.append("SKILL.md frontmatter must include name")
+        if metadata.get("description"):
+            checks.append("frontmatter.description present")
+        else:
+            errors.append("SKILL.md frontmatter must include description")
+    except Exception as exc:
+        errors.append(f"Failed to parse SKILL.md frontmatter: {exc}")
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="skill_debug_") as temp_dir:
+            skill_dir = Path(temp_dir) / directory_name
+            skill_dir.mkdir(parents=True, exist_ok=True)
+            (skill_dir / "SKILL.md").write_text(skill_md, encoding="utf-8")
+            for file_name in resources_manifest.get("files", []):
+                if file_name != "SKILL.md":
+                    target = skill_dir / str(file_name)
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_text("", encoding="utf-8")
+            toolkit = Toolkit()
+            toolkit.register_agent_skill(str(skill_dir))
+            agent_skill_prompt = toolkit.get_agent_skill_prompt()
+            checks.append("AgentScope Toolkit registered skill")
+    except Exception as exc:
+        errors.append(f"AgentScope skill registration failed: {exc}")
+
+    return SkillDebugRead(
+        valid=not errors,
+        checks=checks,
+        metadata=metadata,
+        agent_skill_prompt=agent_skill_prompt,
+        errors=errors,
+    )

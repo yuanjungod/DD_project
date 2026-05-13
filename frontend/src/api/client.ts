@@ -9,6 +9,7 @@ import type {
   Resource,
   ResourceConfig,
   Scenario,
+  SkillDebugResult,
   SkillPackage,
   ToolConfig,
   User,
@@ -101,8 +102,24 @@ export function listSkills(): Promise<SkillPackage[]> {
   return request<SkillPackage[]>("/skills");
 }
 
+export function getSkill(skillId: string): Promise<SkillPackage> {
+  return request<SkillPackage>(`/skills/${skillId}`);
+}
+
 export function createSkill(payload: Partial<SkillPackage>): Promise<SkillPackage> {
   return request<SkillPackage>("/skills", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function updateSkill(skillId: string, payload: Partial<SkillPackage>): Promise<SkillPackage> {
+  return request<SkillPackage>(`/skills/${skillId}`, { method: "PATCH", body: JSON.stringify(payload) });
+}
+
+export function debugSkillDraft(payload: Partial<SkillPackage>): Promise<SkillDebugResult> {
+  return request<SkillDebugResult>("/skills/debug", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function debugSkill(skillId: string): Promise<SkillDebugResult> {
+  return request<SkillDebugResult>(`/skills/${skillId}/debug`, { method: "POST" });
 }
 
 export function listToolConfigs(): Promise<ToolConfig[]> {

@@ -126,6 +126,14 @@ class SkillPackageRead(SkillPackageBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class SkillDebugRead(BaseModel):
+    valid: bool
+    checks: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    agent_skill_prompt: str | None = None
+    errors: list[str] = Field(default_factory=list)
+
+
 class ToolConfigBase(BaseModel):
     name: str
     description: str = ""

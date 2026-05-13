@@ -385,6 +385,7 @@ label {
 
 .row-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -416,6 +417,11 @@ label {
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   padding: 12px;
+}
+
+.selected-list-item {
+  border-color: #1d4ed8 !important;
+  background: #eff6ff;
 }
 
 .list span,
@@ -470,6 +476,43 @@ label {
   background: #fef2f2;
   color: #991b1b;
   padding: 14px;
+}
+
+.notice {
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  padding: 14px;
+}
+
+.code-editor {
+  min-height: 320px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.code-editor.small {
+  min-height: 120px;
+}
+
+.debug-panel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.debug-panel.valid {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.debug-panel.invalid {
+  border-color: #fecaca;
+  background: #fef2f2;
 }
 
 @media (max-width: 1000px) {

@@ -126,6 +126,14 @@ export type SkillPackage = {
   updated_at: string;
 };
 
+export type SkillDebugResult = {
+  valid: boolean;
+  checks: string[];
+  metadata: Record<string, unknown>;
+  agent_skill_prompt?: string | null;
+  errors: string[];
+};
+
 export type ToolConfig = {
   id: string;
   name: string;
