@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+from typing import Any
+
+from pydantic import BaseModel, Field
+
 from agent_service.api.schemas import AgentResult, CompanyConfig, Evidence, Finding
+from agent_service.agents.react_runtime import AgentScopeReActRuntime, build_react_system_prompt
 from agent_service.tools.research import (
     MockFileReaderTool,
     MockSearchTool,
@@ -9,6 +14,11 @@ from agent_service.tools.research import (
 )
 from agent_service.tools.stores import EvidenceStoreTool
 from agent_service.workflows.config_loader import AgentDefinition, load_prompt
+
+
+class ModelAgentOutput(BaseModel):
+    summary: str
+    findings: list[Finding] = Field(default_factory=list)
 
 
 class ConfiguredAgentRunner:
@@ -20,19 +30,64 @@ class ConfiguredAgentRunner:
         self.web_fetch = MockWebFetchTool()
         self.file_reader = MockFileReaderTool()
         self.vector_retrieval = MockVectorRetrievalTool()
+        self.current_company_config: CompanyConfig | None = None
+        self.react_runtime = AgentScopeReActRuntime(
+            definition,
+            sys_prompt=build_react_system_prompt(definition, self.prompt),
+            tool_executor=self._execute_react_tool,
+        )
 
     def run(self, company_config: CompanyConfig, previous_results: list[AgentResult]) -> AgentResult:
+        try:
+            self.current_company_config = company_config
+            agent_name = self.definition.name
+            evidence = self._collect_evidence(company_config)
+            model_output = self.react_runtime.run_model(
+                company_config=company_config,
+                previous_results=previous_results,
+                evidence=evidence,
+                structured_model=ModelAgentOutput,
+            )
+            evidence = self._agent_evidence(agent_name)
+            findings = self._normalize_findings(model_output.findings, evidence)
+            return AgentResult(
+                agent=agent_name,
+                status="completed",
+                summary=model_output.summary,
+                findings=findings,
+                evidence=evidence,
+            )
+        finally:
+            self.current_company_config = None
+            self.react_runtime.close()
+
+    def _execute_react_tool(self, tool_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        company_config = self.current_company_config
+        if company_config is None:
+            raise RuntimeError("Tool execution requires an active company config")
+
         agent_name = self.definition.name
-        evidence = self._collect_evidence(company_config)
-        findings = self._build_findings(company_config, evidence, previous_results)
-        summary = self._build_summary(company_config, findings)
-        return AgentResult(
-            agent=agent_name,
-            status="completed",
-            summary=summary,
-            findings=findings,
-            evidence=evidence,
-        )
+        if tool_id == "search":
+            query = payload.get("query") or f"{company_config.target_company.name} {self.definition.role}"
+            evidence = self.evidence_store.add(self.search.run(str(query), company_config, agent_name))
+            return {"evidence": evidence.model_dump(mode="json")}
+        if tool_id == "web_fetch":
+            url = payload.get("url") or company_config.target_company.website
+            evidence = self.evidence_store.add(self.web_fetch.run(str(url), company_config, agent_name))
+            return {"evidence": evidence.model_dump(mode="json")}
+        if tool_id == "file_reader":
+            file_id = payload.get("file_id") or next(iter(company_config.resources.uploaded_files), "")
+            evidence = self.evidence_store.add(self.file_reader.run(str(file_id), company_config, agent_name))
+            return {"evidence": evidence.model_dump(mode="json")}
+        if tool_id == "vector_retrieval":
+            query = payload.get("query") or f"{company_config.target_company.name} {' '.join(company_config.scope.focus_areas)}"
+            evidence = self.evidence_store.add(self.vector_retrieval.run(str(query), company_config, agent_name))
+            return {"evidence": evidence.model_dump(mode="json")}
+        if tool_id == "evidence_store":
+            return {"stored_evidence_count": len(self.evidence_store.all())}
+        if tool_id == "report_store":
+            return {"message": "Report store is used after all agents finish."}
+        return {"message": f"Tool {tool_id} is configured but has no local executor yet."}
 
     def _collect_evidence(self, company_config: CompanyConfig) -> list[Evidence]:
         company = company_config.target_company
@@ -62,11 +117,26 @@ class ConfiguredAgentRunner:
                 excerpt=f"{agent_name} processed the configured due diligence scope.",
                 confidence=0.6,
                 collected_by=agent_name,
-                metadata={"prompt_excerpt": self.prompt[:120]},
+                metadata={
+                    "prompt_excerpt": self.prompt[:120],
+                    "agentscope_react": self.react_runtime.config,
+                },
             )
             evidence.append(self.evidence_store.add(fallback))
 
         return evidence
+
+    def _normalize_findings(self, findings: list[Finding], evidence: list[Evidence]) -> list[Finding]:
+        evidence_ids = [item.id for item in evidence]
+        normalized: list[Finding] = []
+        for finding in findings:
+            if not finding.evidence_ids and evidence_ids:
+                finding.evidence_ids = evidence_ids[:3]
+            normalized.append(finding)
+        return normalized
+
+    def _agent_evidence(self, agent_name: str) -> list[Evidence]:
+        return [item for item in self.evidence_store.all() if item.collected_by == agent_name]
 
     def _build_findings(
         self,
@@ -118,4 +188,7 @@ class ConfiguredAgentRunner:
     def _build_summary(self, company_config: CompanyConfig, findings: list[Finding]) -> str:
         company = company_config.target_company
         risk_levels = ", ".join({finding.risk_level for finding in findings})
-        return f"{self.definition.name} completed for {company.name}. Risk signal: {risk_levels}."
+        return (
+            f"{self.definition.name} completed for {company.name} with AgentScope ReAct config. "
+            f"Risk signal: {risk_levels}."
+        )

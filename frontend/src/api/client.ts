@@ -9,7 +9,8 @@ import type {
   Resource,
   ResourceConfig,
   Scenario,
-  SkillConfig,
+  SkillPackage,
+  ToolConfig,
   User,
   WorkflowTemplate,
 } from "../types/domain";
@@ -96,12 +97,20 @@ export function listProjectRuns(projectId: string): Promise<AgentRun[]> {
   return request<AgentRun[]>(`/projects/${projectId}/runs`);
 }
 
-export function listSkills(): Promise<SkillConfig[]> {
-  return request<SkillConfig[]>("/skills");
+export function listSkills(): Promise<SkillPackage[]> {
+  return request<SkillPackage[]>("/skills");
 }
 
-export function createSkill(payload: Partial<SkillConfig>): Promise<SkillConfig> {
-  return request<SkillConfig>("/skills", { method: "POST", body: JSON.stringify(payload) });
+export function createSkill(payload: Partial<SkillPackage>): Promise<SkillPackage> {
+  return request<SkillPackage>("/skills", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function listToolConfigs(): Promise<ToolConfig[]> {
+  return request<ToolConfig[]>("/tools/configs");
+}
+
+export function createToolConfig(payload: Partial<ToolConfig>): Promise<ToolConfig> {
+  return request<ToolConfig>("/tools/configs", { method: "POST", body: JSON.stringify(payload) });
 }
 
 export function listResourceConfigs(): Promise<ResourceConfig[]> {

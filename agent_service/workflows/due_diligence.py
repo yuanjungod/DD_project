@@ -132,13 +132,52 @@ class DueDiligenceWorkflow:
         if not snapshot:
             return {}
         definitions: dict[str, AgentDefinition] = {}
+        skill_packages = {
+            skill_package["id"]: skill_package
+            for skill_package in snapshot.get("skill_packages", [])
+        }
+        tool_configs = {
+            tool["id"]: tool
+            for tool in snapshot.get("tools", [])
+        }
+        resource_configs = {
+            resource["id"]: resource
+            for resource in snapshot.get("resources", [])
+        }
         for agent in snapshot.get("agent_templates", []):
+            agent_skill_packages = [
+                skill_packages[skill_id]
+                for skill_id in agent.get("skill_package_ids", [])
+                if skill_id in skill_packages
+            ]
+            agent_tool_configs = [
+                tool_configs[tool_id]
+                for tool_id in agent.get("tool_ids", []) or agent.get("skill_ids", [])
+                if tool_id in tool_configs
+            ]
+            agent_resource_configs = [
+                resource_configs[resource_id]
+                for resource_id in agent.get("resource_ids", [])
+                if resource_id in resource_configs
+            ]
+            package_instructions = "\n\n".join(
+                skill_package["skill_md"]
+                for skill_package in agent_skill_packages
+            )
+            prompt_text = "\n\n".join(part for part in [package_instructions, agent.get("prompt", "")] if part)
             definitions[agent["id"]] = AgentDefinition(
                 name=agent["id"],
                 role=agent.get("role", ""),
                 prompt="",
-                prompt_text=agent.get("prompt", ""),
-                tools=agent.get("skill_ids", []),
+                prompt_text=prompt_text,
+                tools=agent.get("tool_ids") or agent.get("skill_ids", []),
+                skill_package_ids=agent.get("skill_package_ids", []),
+                tool_ids=agent.get("tool_ids") or agent.get("skill_ids", []),
+                resource_ids=agent.get("resource_ids", []),
+                skill_packages=agent_skill_packages,
+                tool_configs=agent_tool_configs,
+                resource_configs=agent_resource_configs,
+                react_config=agent.get("react_config", {}),
                 output_schema=agent.get("output_schema", "agent_result"),
             )
         return definitions

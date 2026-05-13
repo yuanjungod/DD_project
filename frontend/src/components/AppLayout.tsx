@@ -31,6 +31,7 @@ export function AppLayout({ user, onLogout, children }: AppLayoutProps) {
           <NavLink to="/workflow-templates">流程模板</NavLink>
           <NavLink to="/agent-templates">Agent 配置</NavLink>
           <NavLink to="/skills">Skills 管理</NavLink>
+          <NavLink to="/tools">工具管理</NavLink>
           <NavLink to="/resource-configs">资源管理</NavLink>
           <NavLink to="/projects/new">创建应用</NavLink>
           <NavLink to="/projects">场景应用</NavLink>

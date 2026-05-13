@@ -96,21 +96,51 @@ class ScenarioRead(BaseModel):
     agents: list[str]
 
 
-class SkillConfigBase(BaseModel):
+class SkillPackageBase(BaseModel):
+    name: str
+    description: str = ""
+    directory_name: str
+    skill_md: str
+    resources_manifest: dict[str, Any] = Field(default_factory=dict)
+    enabled: bool = True
+
+
+class SkillPackageCreate(SkillPackageBase):
+    id: str | None = None
+
+
+class SkillPackageUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    directory_name: str | None = None
+    skill_md: str | None = None
+    resources_manifest: dict[str, Any] | None = None
+    enabled: bool | None = None
+
+
+class SkillPackageRead(SkillPackageBase):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ToolConfigBase(BaseModel):
     name: str
     description: str = ""
     implementation: str
-    input_schema: dict[str, Any] = Field(default_factory=dict)
-    output_schema: dict[str, Any] = Field(default_factory=dict)
+    input_schema: dict[str, Any] | None = None
+    output_schema: dict[str, Any] | None = None
     requires_api_key: bool = False
     enabled: bool = True
 
 
-class SkillConfigCreate(SkillConfigBase):
+class ToolConfigCreate(ToolConfigBase):
     id: str | None = None
 
 
-class SkillConfigUpdate(BaseModel):
+class ToolConfigUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     implementation: str | None = None
@@ -120,7 +150,7 @@ class SkillConfigUpdate(BaseModel):
     enabled: bool | None = None
 
 
-class SkillConfigRead(SkillConfigBase):
+class ToolConfigRead(ToolConfigBase):
     id: str
     created_at: datetime
     updated_at: datetime
@@ -156,12 +186,38 @@ class ResourceConfigRead(ResourceConfigBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+def _default_react_config() -> dict[str, Any]:
+    return {
+        "max_iters": 6,
+        "parallel_tool_calls": False,
+        "model": {
+            "baseUrl": "http://127.0.0.1:8081/v1",
+            "apiKey": "yuanjun",
+            "api": "anthropic-messages",
+            "models": [
+                {
+                    "id": "kimi-code",
+                    "name": "kimi-code(Custom Provider)",
+                    "reasoning": True,
+                    "input": ["text", "image"],
+                    "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
+                    "contextWindow": 128000,
+                    "maxTokens": 4096,
+                }
+            ],
+        },
+    }
+
+
 class AgentTemplateBase(BaseModel):
     name: str
     role: str
     prompt: str
+    skill_package_ids: list[str] = Field(default_factory=list)
+    tool_ids: list[str] = Field(default_factory=list)
     skill_ids: list[str] = Field(default_factory=list)
     resource_ids: list[str] = Field(default_factory=list)
+    react_config: dict[str, Any] = Field(default_factory=_default_react_config)
     output_schema: str = "agent_result"
     enabled: bool = True
 
@@ -174,8 +230,11 @@ class AgentTemplateUpdate(BaseModel):
     name: str | None = None
     role: str | None = None
     prompt: str | None = None
+    skill_package_ids: list[str] | None = None
+    tool_ids: list[str] | None = None
     skill_ids: list[str] | None = None
     resource_ids: list[str] | None = None
+    react_config: dict[str, Any] | None = None
     output_schema: str | None = None
     enabled: bool | None = None
 

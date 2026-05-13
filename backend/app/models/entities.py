@@ -70,6 +70,35 @@ class SkillConfig(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class SkillPackage(Base):
+    __tablename__ = "skill_packages"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("skill_pkg"))
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    directory_name: Mapped[str] = mapped_column(String, nullable=False)
+    skill_md: Mapped[str] = mapped_column(Text, nullable=False)
+    resources_manifest: Mapped[dict] = mapped_column(JSON, default=dict)
+    enabled: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ToolConfig(Base):
+    __tablename__ = "tool_configs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("tool"))
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    implementation: Mapped[str] = mapped_column(String, nullable=False)
+    input_schema: Mapped[dict] = mapped_column(JSON, default=dict)
+    output_schema: Mapped[dict] = mapped_column(JSON, default=dict)
+    requires_api_key: Mapped[bool] = mapped_column(default=False)
+    enabled: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class ResourceConfig(Base):
     __tablename__ = "resource_configs"
 
@@ -90,8 +119,11 @@ class AgentTemplate(Base):
     name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     role: Mapped[str] = mapped_column(String, nullable=False)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    skill_package_ids: Mapped[list] = mapped_column(JSON, default=list)
+    tool_ids: Mapped[list] = mapped_column(JSON, default=list)
     skill_ids: Mapped[list] = mapped_column(JSON, default=list)
     resource_ids: Mapped[list] = mapped_column(JSON, default=list)
+    react_config: Mapped[dict] = mapped_column(JSON, default=dict)
     output_schema: Mapped[str] = mapped_column(String, nullable=False, default="agent_result")
     enabled: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

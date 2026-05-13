@@ -9,6 +9,8 @@ from app.models.entities import (
     Resource,
     ResourceConfig,
     SkillConfig,
+    SkillPackage,
+    ToolConfig,
     User,
     WorkflowTemplate,
 )
@@ -24,6 +26,8 @@ __all__ = [
     "Resource",
     "ResourceConfig",
     "SkillConfig",
+    "SkillPackage",
+    "ToolConfig",
     "User",
     "WorkflowTemplate",
 ]

@@ -12,6 +12,7 @@ import { ResourceConfigsPage } from "./pages/ResourceConfigsPage";
 import { RunHistoryPage } from "./pages/RunHistoryPage";
 import { ScenariosPage } from "./pages/ScenariosPage";
 import { SkillsPage } from "./pages/SkillsPage";
+import { ToolConfigsPage } from "./pages/ToolConfigsPage";
 import { WorkflowTemplatesPage } from "./pages/WorkflowTemplatesPage";
 import type { AuthSession, User } from "./types/domain";
 
@@ -68,6 +69,7 @@ export function App() {
                   <Route path="/workflow-templates" element={<WorkflowTemplatesPage />} />
                   <Route path="/agent-templates" element={<AgentTemplatesPage />} />
                   <Route path="/skills" element={<SkillsPage />} />
+                  <Route path="/tools" element={<ToolConfigsPage />} />
                   <Route path="/resource-configs" element={<ResourceConfigsPage />} />
                   <Route path="/projects/new" element={<NewProjectPage />} />
                   <Route path="/projects" element={<ProjectsPage />} />

@@ -36,7 +36,36 @@ Current templates:
 - `financial_investment_due_diligence`: finance/investment-focused flow.
 - `market_entry_due_diligence`: market and competitor-focused flow.
 
-At run time, the backend sends an immutable workflow snapshot to the Agent service. The snapshot includes the workflow graph, agent templates, skills, and resource configs used by that run.
+At run time, the backend sends an immutable workflow snapshot to the Agent service. The snapshot includes the workflow graph, agent templates, Anthropic-style skill packages, executable tools, resource configs, and AgentScope ReAct parameters used by that run.
+
+Each agent template can bind:
+
+- `skill_package_ids`: `SKILL.md` packages that inject procedural guidance and bundled resources into the agent context.
+- `tool_ids`: executable tools the agent may call, such as search, web fetch, file reader, vector retrieval, evidence store, and report store.
+- `resource_ids`: data resources exposed in the AgentScope ReAct system prompt.
+- `react_config`: AgentScope ReAct settings such as `max_iters` and `parallel_tool_calls`.
+
+The Agent service builds an AgentScope ReAct runtime for every agent from this snapshot. The runtime creates an AgentScope `Toolkit`, registers the selected tool functions, materializes selected `SKILL.md` packages as AgentScope agent skills, injects bound resources into the ReAct system prompt, and calls the configured real model through an Anthropic Messages-compatible provider.
+
+Default model config:
+
+```json
+{
+  "baseUrl": "http://127.0.0.1:8081/v1",
+  "apiKey": "yuanjun",
+  "api": "anthropic-messages",
+  "models": [
+    {
+      "id": "kimi-code",
+      "name": "kimi-code(Custom Provider)",
+      "reasoning": true,
+      "input": ["text", "image"],
+      "contextWindow": 128000,
+      "maxTokens": 4096
+    }
+  ]
+}
+```
 
 ```mermaid
 flowchart TD

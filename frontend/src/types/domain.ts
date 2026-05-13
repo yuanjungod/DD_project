@@ -114,7 +114,19 @@ export type Scenario = {
   agents: string[];
 };
 
-export type SkillConfig = {
+export type SkillPackage = {
+  id: string;
+  name: string;
+  description: string;
+  directory_name: string;
+  skill_md: string;
+  resources_manifest: Record<string, unknown>;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ToolConfig = {
   id: string;
   name: string;
   description: string;
@@ -143,8 +155,11 @@ export type AgentTemplate = {
   name: string;
   role: string;
   prompt: string;
+  skill_package_ids: string[];
+  tool_ids: string[];
   skill_ids: string[];
   resource_ids: string[];
+  react_config: Record<string, unknown>;
   output_schema: string;
   enabled: boolean;
   created_at: string;

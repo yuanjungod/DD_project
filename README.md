@@ -52,7 +52,7 @@ Default users are created on backend startup:
 MVP flow:
 
 1. Log in.
-2. Configure skills, data resources, agent templates, and workflow templates as an admin.
+2. Configure Anthropic-style skill packages, executable tools, data resources, agent templates, and workflow templates as an admin.
 3. Publish a workflow template.
 4. Apply a published scenario to a specific company.
 5. Add project resources.

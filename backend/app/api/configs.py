@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import require_roles
 from app.core.database import get_db
-from app.models.entities import AgentTemplate, ResourceConfig, SkillConfig, User, WorkflowTemplate, new_id
+from app.models.entities import AgentTemplate, ResourceConfig, SkillPackage, ToolConfig, User, WorkflowTemplate, new_id
 from app.schemas import (
     AgentTemplateCreate,
     AgentTemplateRead,
@@ -13,9 +13,12 @@ from app.schemas import (
     ResourceConfigCreate,
     ResourceConfigRead,
     ResourceConfigUpdate,
-    SkillConfigCreate,
-    SkillConfigRead,
-    SkillConfigUpdate,
+    SkillPackageCreate,
+    SkillPackageRead,
+    SkillPackageUpdate,
+    ToolConfigCreate,
+    ToolConfigRead,
+    ToolConfigUpdate,
     WorkflowTemplateCreate,
     WorkflowTemplateRead,
     WorkflowTemplateUpdate,
@@ -25,38 +28,76 @@ from app.schemas import (
 router = APIRouter(tags=["configuration"])
 
 
-@router.get("/skills", response_model=list[SkillConfigRead])
+@router.get("/skills", response_model=list[SkillPackageRead])
 def list_skills(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
-) -> list[SkillConfig]:
-    query = db.query(SkillConfig)
+) -> list[SkillPackage]:
+    query = db.query(SkillPackage)
     if user.role != "admin":
-        query = query.filter(SkillConfig.enabled.is_(True))
-    return query.order_by(SkillConfig.name).all()
+        query = query.filter(SkillPackage.enabled.is_(True))
+    return query.order_by(SkillPackage.name).all()
 
 
-@router.post("/skills", response_model=SkillConfigRead)
+@router.post("/skills", response_model=SkillPackageRead)
 def create_skill(
-    payload: SkillConfigCreate,
+    payload: SkillPackageCreate,
     db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
-) -> SkillConfig:
-    item = SkillConfig(**_create_payload(payload))
+) -> SkillPackage:
+    item = SkillPackage(**_create_payload(payload))
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
 
 
-@router.patch("/skills/{skill_id}", response_model=SkillConfigRead)
+@router.patch("/skills/{skill_id}", response_model=SkillPackageRead)
 def update_skill(
     skill_id: str,
-    payload: SkillConfigUpdate,
+    payload: SkillPackageUpdate,
     db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
-) -> SkillConfig:
-    item = _get_or_404(db, SkillConfig, skill_id, "Skill")
+) -> SkillPackage:
+    item = _get_or_404(db, SkillPackage, skill_id, "Skill package")
+    _apply_updates(item, payload)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.get("/tools/configs", response_model=list[ToolConfigRead])
+def list_tool_configs(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("admin", "analyst", "viewer")),
+) -> list[ToolConfig]:
+    query = db.query(ToolConfig)
+    if user.role != "admin":
+        query = query.filter(ToolConfig.enabled.is_(True))
+    return query.order_by(ToolConfig.name).all()
+
+
+@router.post("/tools/configs", response_model=ToolConfigRead)
+def create_tool_config(
+    payload: ToolConfigCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles("admin")),
+) -> ToolConfig:
+    item = ToolConfig(**_create_payload(payload))
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.patch("/tools/configs/{tool_id}", response_model=ToolConfigRead)
+def update_tool_config(
+    tool_id: str,
+    payload: ToolConfigUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles("admin")),
+) -> ToolConfig:
+    item = _get_or_404(db, ToolConfig, tool_id, "Tool config")
     _apply_updates(item, payload)
     db.commit()
     db.refresh(item)

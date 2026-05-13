@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,6 +17,13 @@ class AgentDefinition(BaseModel):
     prompt: str
     prompt_text: str | None = None
     tools: list[str]
+    skill_package_ids: list[str] = Field(default_factory=list)
+    tool_ids: list[str] = Field(default_factory=list)
+    resource_ids: list[str] = Field(default_factory=list)
+    skill_packages: list[dict[str, Any]] = Field(default_factory=list)
+    tool_configs: list[dict[str, Any]] = Field(default_factory=list)
+    resource_configs: list[dict[str, Any]] = Field(default_factory=list)
+    react_config: dict[str, Any] = Field(default_factory=dict)
     output_schema: str
 
 

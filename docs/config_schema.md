@@ -38,12 +38,13 @@ This document describes the configuration contract shared by the frontend, backe
 
 Reusable workflows are now managed through the backend configuration catalog:
 
-- `SkillConfig`: reusable capability such as search, web fetch, file reading, vector retrieval, evidence storage, or report storage.
+- `SkillPackage`: Anthropic/Cursor-style skill package with `SKILL.md`, directory name, and optional bundled resources such as references, scripts, and assets.
+- `ToolConfig`: executable capability such as search, web fetch, file reading, vector retrieval, evidence storage, or report storage.
 - `ResourceConfig`: data resource available to agents, such as public web, uploaded files, vector stores, databases, or external APIs.
-- `AgentTemplate`: agent role, prompt, skills, resources, and output schema.
+- `AgentTemplate`: agent role, prompt, Anthropic skill packages, tools, resources, AgentScope ReAct configuration, and output schema.
 - `WorkflowTemplate`: ordered agent graph, scenario, status, and version.
 
-Only `published` workflow templates should be selected by downstream company projects. When a run starts, the backend creates a workflow snapshot so historical runs remain auditable even if the template changes later.
+Only `published` workflow templates should be selected by downstream company projects. When a run starts, the backend creates a workflow snapshot so historical runs remain auditable even if the template changes later. The snapshot includes `skill_packages`, executable `tools`, `resources`, and each agent's `react_config`. By default, `react_config.model` uses the local Anthropic Messages-compatible `kimi-code` provider at `http://127.0.0.1:8081/v1`.
 
 ```json
 {
