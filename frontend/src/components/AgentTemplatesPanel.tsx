@@ -232,7 +232,6 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
     role: "",
     prompt: "",
     react_config: defaultReActConfig,
-    output_schema: "agent_result",
   });
   const [skillSel, setSkillSel] = useState<Set<string>>(new Set());
   const [toolSel, setToolSel] = useState<Set<string>>(new Set());
@@ -434,7 +433,6 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
         resource_ids: Array.from(resourceSel),
         platform_upload_file_ids: fileStoreConnectorSelected ? Array.from(platformFileSel) : [],
         react_config: JSON.parse(form.react_config) as Record<string, unknown>,
-        output_schema: form.output_schema,
         enabled: true,
       });
       setForm({
@@ -443,7 +441,6 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
         role: "",
         prompt: "",
         react_config: defaultReActConfig,
-        output_schema: "agent_result",
       });
       setSkillSel(new Set());
       setToolSel(new Set());
@@ -483,10 +480,6 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
                 <label className="agent-template-editor__span-2">
                   角色定位 <span className="required-dot">*</span>
                   <input value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })} placeholder="例如：财务分析专员" required />
-                </label>
-                <label className="agent-template-editor__span-2">
-                  输出契约类型
-                  <input value={form.output_schema} onChange={(event) => setForm({ ...form, output_schema: event.target.value })} />
                 </label>
               </div>
             </div>

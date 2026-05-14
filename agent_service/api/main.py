@@ -38,19 +38,23 @@ def config() -> dict[str, object]:
 
 @app.post("/runs", response_model=RunResult)
 def run_due_diligence(request: RunRequest) -> RunResult:
-    return workflow.run(
-        project_id=request.project_id,
-        company_config=request.company_config,
-        workflow_snapshot=request.workflow_snapshot,
-        run_id_override=request.run_id,
-        diligence_session_id=request.diligence_session_id,
-        attempt_index=request.attempt_index,
-        continuation_context=request.continuation_context,
-        pause_after_each_step=request.pause_after_each_step,
-        resume_from_step_index=request.resume_from_step_index,
-        completed_steps=request.completed_steps,
-        completed_evidence=request.completed_evidence,
-    )
+    try:
+        return workflow.run(
+            project_id=request.project_id,
+            company_config=request.company_config,
+            workflow_snapshot=request.workflow_snapshot,
+            run_id_override=request.run_id,
+            diligence_session_id=request.diligence_session_id,
+            attempt_index=request.attempt_index,
+            continuation_context=request.continuation_context,
+            pause_after_each_step=request.pause_after_each_step,
+            resume_from_step_index=request.resume_from_step_index,
+            completed_steps=request.completed_steps,
+            completed_evidence=request.completed_evidence,
+        )
+    except ValueError as exc:
+        # Invalid snapshot / resume contract / session ids — was surfacing as opaque 500.
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/assist/step-review-chat", response_model=StepReviewChatResponse)

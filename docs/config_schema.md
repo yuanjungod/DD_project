@@ -81,7 +81,7 @@ Reusable workflows are managed through the backend configuration catalog:
 - `SkillPackage` (file-backed, DB-mirrored): Anthropic/Cursor-style skill package with `SKILL.md`, directory name, editable package files, and optional bundled resources such as references, scripts, and assets. Skill packages live under `agent_service/skills/<directory_name>/`. Admins may **`POST /skills/import-zip`** (`multipart/form-data`: **`file`** = single-skill `.zip` with one top-level folder containing `SKILL.md`; optional **`directory_name`** form field overrides the disk directory slug).
 - `ToolConfig` (file-backed, DB-mirrored): executable capability such as search, web fetch, file reading, vector retrieval, evidence storage, or report storage; persisted under `agent_service/configs/tools.yaml`.
 - `ResourceConfig`: data resource available to agents, such as public web, uploaded files, vector stores, databases, or external APIs.
-- `AgentTemplate` (file-backed): **definitions** are embedded in each workflow bundle (`workflow_templates/<id>.yaml`) and optionally in **`workflow_templates/_shared_agents.yaml`**. Each record has `id`, `name`, `role`, inline `prompt`, `skill_package_ids`, `tool_ids`, `skill_ids`, `resource_ids`, `react_config`, `output_schema`, and `enabled`. Workflow graphs reference agents by **`id`**. The Admin UI uses **`GET/POST/PATCH /agent-templates`**; **`GET`** returns the union across bundles + shared file, **`POST`** appends to **`_shared_agents.yaml`**, and **`PATCH`** updates every file that contains that agent id.
+- `AgentTemplate` (file-backed): **definitions** are embedded in each workflow bundle (`workflow_templates/<id>.yaml`) and optionally in **`workflow_templates/_shared_agents.yaml`**. Each record has `id`, `name`, `role`, inline `prompt`, `skill_package_ids`, `tool_ids`, `skill_ids`, `resource_ids`, `react_config`, and `enabled`. Agent-specific output requirements live in the agent prompt / bound Skills, not in a separate output contract field. Workflow graphs reference agents by **`id`**. The Admin UI uses **`GET/POST/PATCH /agent-templates`**; **`GET`** returns the union across bundles + shared file, **`POST`** appends to **`_shared_agents.yaml`**, and **`PATCH`** updates every file that contains that agent id.
 - `WorkflowTemplate` (file-backed): one bundle per workflow under **`agent_service/configs/workflow_templates/{workflow_id}.yaml`**. Each file has a `workflow` object (ordered `graph`, `scenario`, `status`, `version`, etc.) plus the `agents` array used for that graph. **`GET/POST/PATCH /workflow-templates`** and publish/clone operate on these files; only **`published`** templates are listed for non-admin callers and for run snapshots.
 
 Only **`published`** workflow templates should be selected by downstream company projects. When a run starts, the backend creates a **workflow snapshot** from the current file-backed bundle/catalog mirrors. The snapshot sent to the agent service includes `skill_packages` (with `package_files`), executable `tools`, `resources`, and each agent's `react_config`. By default, `react_config.model` uses the local Anthropic Messages-compatible `kimi-code` provider at `http://127.0.0.1:8081/v1`.
@@ -106,9 +106,13 @@ Only **`published`** workflow templates should be selected by downstream company
       "evidence_ids": ["ev_003"]
     }
   ],
-  "evidence": []
+  "evidence": [],
+  "output_dir": "/path/to/sessions/proj_x/run_y_outputs/run_y_step_003_LegalRiskAgent",
+  "output_readme_path": "/path/to/sessions/proj_x/run_y_outputs/run_y_step_003_LegalRiskAgent/README.md"
 }
 ```
+
+Each completed agent step also writes a filesystem handoff folder next to the run session JSON. The folder contains **`README.md`** (human-readable summary), **`result.json`** (full structured result), **`findings/`**, and **`resources/evidence/*.json`**. Downstream agents receive prior folder addresses in `previous_agent_output_folders` and can call the automatic `agent_output_reader` runtime tool with `folder_path` to read the prior README/result/resource index.
 
 ## Report Section
 

@@ -93,7 +93,6 @@ agents:
           cacheWrite: 0
         contextWindow: 128000
         maxTokens: 4096
-  output_schema: agent_result
   enabled: true
 - id: CompanyProfileAgent
   name: CompanyProfileAgent
@@ -149,7 +148,6 @@ agents:
           cacheWrite: 0
         contextWindow: 128000
         maxTokens: 4096
-  output_schema: agent_result
   enabled: true
 - id: WebResearchAgent
   name: WebResearchAgent
@@ -202,7 +200,6 @@ agents:
           cacheWrite: 0
         contextWindow: 128000
         maxTokens: 4096
-  output_schema: agent_result
   enabled: true
 - id: LegalRiskAgent
   name: LegalRiskAgent
@@ -259,7 +256,6 @@ agents:
           cacheWrite: 0
         contextWindow: 128000
         maxTokens: 4096
-  output_schema: agent_result
   enabled: true
 - id: IndustryAnalysisAgent
   name: IndustryAnalysisAgent
@@ -316,7 +312,6 @@ agents:
           cacheWrite: 0
         contextWindow: 128000
         maxTokens: 4096
-  output_schema: agent_result
   enabled: true
 - id: EvidenceVerifierAgent
   name: EvidenceVerifierAgent
@@ -364,7 +359,6 @@ agents:
           cacheWrite: 0
         contextWindow: 128000
         maxTokens: 4096
-  output_schema: agent_result
   enabled: true
 - id: ReportWriterAgent
   name: ReportWriterAgent
@@ -415,5 +409,4 @@ agents:
           cacheWrite: 0
         contextWindow: 128000
         maxTokens: 4096
-  output_schema: report
   enabled: true

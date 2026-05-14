@@ -43,6 +43,12 @@ def project_resources_manifest_path(project_id: str) -> Path:
     return p
 
 
+def project_agent_overrides_manifest_path(project_id: str) -> Path:
+    p = project_tree_dir(project_id) / "agent_overrides.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
+
+
 def project_uploads_dir(project_id: str) -> Path:
     """Binary blobs for uploaded files (file_id → single file under this directory)."""
     d = project_tree_dir(project_id) / "uploads"

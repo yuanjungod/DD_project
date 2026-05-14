@@ -135,7 +135,6 @@ def _bootstrap_entries_from_legacy_agents_yaml() -> list[dict[str, Any]]:
                 "skill_ids": tool_ids,
                 "resource_ids": _resource_ids_for_tools(tool_ids),
                 "react_config": _default_react_config(),
-                "output_schema": agent.get("output_schema", "agent_result"),
                 "enabled": True,
             }
         )
@@ -146,6 +145,7 @@ def _normalize_agent_record(raw: dict[str, Any]) -> dict[str, Any]:
     if "id" not in raw:
         raise HTTPException(status_code=400, detail="Each agent requires an id")
     data = dict(raw)
+    data.pop("output_schema", None)
     tid = data["id"]
     data.setdefault("name", tid)
     data.setdefault("role", "")
@@ -163,7 +163,6 @@ def _normalize_agent_record(raw: dict[str, Any]) -> dict[str, Any]:
         data["react_config"] = _merge_react_config(rc if isinstance(rc, dict) else {})
     else:
         data["react_config"] = rc
-    data.setdefault("output_schema", "agent_result")
     data.setdefault("enabled", True)
     return data
 

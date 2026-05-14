@@ -52,6 +52,16 @@ class AgentServiceClient:
             try:
                 response = await client.post(f"{self.base_url}/runs", json=payload)
                 response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                detail = ""
+                try:
+                    detail = exc.response.text[:2000]
+                except Exception:
+                    pass
+                msg = f"{exc}"
+                if detail:
+                    msg = f"{msg} body={detail}"
+                raise AgentServiceError(f"Agent service request failed: {msg}") from exc
             except httpx.HTTPError as exc:
                 raise AgentServiceError(f"Agent service request failed: {exc}") from exc
         return response.json()

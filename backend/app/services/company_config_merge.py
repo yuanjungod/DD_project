@@ -54,6 +54,15 @@ def merged_company_config_with_project_resources(
             if isinstance(rid, str):
                 seen_clue_rows.add(rid)
 
+    agent_scopes: list[dict[str, Any]] = []
+    seen_scope_rows: set[str] = set()
+    for scope in resources.get("agent_resource_scopes") or []:
+        if isinstance(scope, dict):
+            agent_scopes.append(scope)
+            rid = scope.get("resource_id")
+            if isinstance(rid, str):
+                seen_scope_rows.add(rid)
+
     for row in sorted(resource_records, key=lambda r: str(r.get("created_at", ""))):
         meta = row["metadata_json"] if isinstance(row.get("metadata_json"), dict) else {}
         val = (str(row.get("value") or "")).strip()
@@ -100,6 +109,20 @@ def merged_company_config_with_project_resources(
                     }
                 )
                 seen_metric_rows.add(rid)
+        elif rtype == "agent_resource_scope":
+            if rid not in seen_scope_rows:
+                file_ids = meta.get("uploaded_file_ids") or meta.get("file_ids") or []
+                if isinstance(file_ids, str):
+                    file_ids = [x.strip() for x in file_ids.split(",") if x.strip()]
+                agent_scopes.append(
+                    {
+                        "resource_id": rid,
+                        "agent_id": val,
+                        "uploaded_file_ids": [str(x).strip() for x in file_ids if str(x).strip()],
+                        "notes": meta.get("notes") or "",
+                    }
+                )
+                seen_scope_rows.add(rid)
 
     resources["trusted_sources"] = list(trusted.keys())
     resources["blocked_sources"] = list(blocked.keys())
@@ -109,6 +132,7 @@ def merged_company_config_with_project_resources(
     resources["uploaded_files"] = sorted(files.keys())
     resources["metrics"] = metrics
     resources["external_clues"] = clues
+    resources["agent_resource_scopes"] = agent_scopes
     return merged
 
 

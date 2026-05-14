@@ -187,15 +187,31 @@ class AgentScopeReActRuntime:
                     "agent": result.agent,
                     "summary": result.summary,
                     "findings": [finding.model_dump(mode="json") for finding in result.findings],
+                    "output_dir": result.output_dir,
+                    "output_readme_path": result.output_readme_path,
                 }
                 for result in previous_results
             ],
         }
+        output_folders = [
+            {
+                "agent": result.agent,
+                "output_dir": result.output_dir,
+                "readme_path": result.output_readme_path,
+            }
+            for result in previous_results
+            if result.output_dir
+        ]
+        if output_folders:
+            payload["previous_agent_output_folders"] = output_folders
         if continuation_context:
             payload["continuation_from_previous_session_attempt"] = continuation_context
         return (
             "Run this due diligence agent with the configured AgentScope ReAct tools, "
             "skills, and resources. Use tools if you need more evidence. "
+            "Previous agents hand off their outputs as filesystem folders; use the "
+            "`agent_output_reader` tool with `folder_path` from previous_agent_output_folders "
+            "when you need the README, structured result, findings, or resources from an earlier step. "
             "When finished, call generate_response with a concise summary and "
             "source-backed findings. Use only risk_level values low, medium, high, or unknown. "
             "Use evidence IDs from available_evidence whenever possible.\n\n"
@@ -251,8 +267,19 @@ class AgentScopeReActRuntime:
                     "agent": result.agent,
                     "summary": result.summary,
                     "findings": [finding.model_dump(mode="json") for finding in result.findings],
+                    "output_dir": result.output_dir,
+                    "output_readme_path": result.output_readme_path,
                 }
                 for result in previous_results
+            ],
+            "previous_agent_output_folders": [
+                {
+                    "agent": result.agent,
+                    "output_dir": result.output_dir,
+                    "readme_path": result.output_readme_path,
+                }
+                for result in previous_results
+                if result.output_dir
             ],
             "current_agent_step_summary": current_step_summary,
             "current_agent_step_findings": current_findings,
@@ -310,9 +337,16 @@ class AgentScopeReActRuntime:
         }
 
     def _tool_configs(self) -> list[dict[str, Any]]:
+        handoff_tool = {
+            "id": "agent_output_reader",
+            "name": "agent_output_reader",
+            "description": "Read a previous agent handoff folder by folder_path and return README, result, and resource index.",
+            "implementation": "agent_service.workflows.agent_outputs.read_agent_output_folder",
+        }
         if self.definition.tool_configs:
-            return self.definition.tool_configs
-        return [
+            ids = {tool.get("id") for tool in self.definition.tool_configs}
+            return [*self.definition.tool_configs, handoff_tool] if handoff_tool["id"] not in ids else self.definition.tool_configs
+        tools = [
             {
                 "id": tool_id,
                 "name": tool_id,
@@ -321,6 +355,8 @@ class AgentScopeReActRuntime:
             }
             for tool_id in self.definition.tools
         ]
+        ids = {tool.get("id") for tool in tools}
+        return [*tools, handoff_tool] if handoff_tool["id"] not in ids else tools
 
 
 def build_react_system_prompt(definition: AgentDefinition, base_prompt: str) -> str:
@@ -388,13 +424,14 @@ def _make_tool_function(
     description: str,
     tool_executor: ToolExecutor | None,
 ) -> Callable[..., ToolResponse]:
-    def tool_function(query: str = "", url: str = "", file_id: str = "") -> ToolResponse:
+    def tool_function(query: str = "", url: str = "", file_id: str = "", folder_path: str = "") -> ToolResponse:
         """Execute a configured due diligence tool."""
 
         payload = {
             "query": query,
             "url": url,
             "file_id": file_id,
+            "folder_path": folder_path,
         }
         result = (
             tool_executor(tool_id, payload)
@@ -421,6 +458,7 @@ def _tool_json_schema(tool_id: str, description: str) -> dict[str, Any]:
                     "query": {"type": "string"},
                     "url": {"type": "string"},
                     "file_id": {"type": "string"},
+                    "folder_path": {"type": "string"},
                 },
                 "required": [],
             },

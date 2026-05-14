@@ -168,6 +168,7 @@ export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
           {rtype === "external_clue" && "会议纪、路演、熟人渠道等不可用 URL 表达的线索。"}
           {rtype === "metric" &&
             "定义尽调时要盯的 KPI：代码 + 中文名 + 单位 + 口径说明 + 数据来源；可设比较方向与阈值。"}
+          {rtype === "agent_resource_scope" && "按本应用的 Agent ID 限定可见文件。留空文件列表时仅作为备注，不会收窄 file_reader。"}
         </p>
 
         {rtype === "trusted_source" ? (
@@ -477,6 +478,38 @@ export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
                 />
               </label>
             </div>
+            <label>
+              备注
+              <input
+                value={fields.notes ?? ""}
+                onChange={(e) => setFields({ ...fields, notes: e.target.value })}
+                disabled={formDisabled}
+              />
+            </label>
+          </>
+        ) : null}
+
+        {rtype === "agent_resource_scope" ? (
+          <>
+            <label>
+              Agent ID
+              <input
+                value={fields.agent_id ?? ""}
+                onChange={(e) => setFields({ ...fields, agent_id: e.target.value })}
+                placeholder="例如 CompanyProfileAgent 或 agent_tpl_xxx"
+                disabled={formDisabled}
+              />
+            </label>
+            <label>
+              可见 file_id（逗号或换行分隔）
+              <textarea
+                rows={3}
+                value={fields.uploaded_file_ids ?? ""}
+                onChange={(e) => setFields({ ...fields, uploaded_file_ids: e.target.value })}
+                placeholder="file_xxx&#10;file_yyy"
+                disabled={formDisabled}
+              />
+            </label>
             <label>
               备注
               <input

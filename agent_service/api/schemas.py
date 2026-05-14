@@ -37,6 +37,7 @@ class Resources(BaseModel):
     competitors: list[str] = Field(default_factory=list)
     metrics: list[dict[str, Any]] = Field(default_factory=list)
     external_clues: list[dict[str, Any]] = Field(default_factory=list)
+    agent_resource_scopes: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class CompanyConfig(BaseModel):
@@ -69,6 +70,11 @@ class AgentResult(BaseModel):
     summary: str
     findings: list[Finding] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)
+    output_dir: str = Field(
+        default="",
+        description="Filesystem handoff folder for this agent step. Contains README.md, result.json, findings, and resources.",
+    )
+    output_readme_path: str = Field(default="", description="README.md inside output_dir.")
 
 
 class ReportSection(BaseModel):
@@ -128,8 +134,6 @@ class RunResult(BaseModel):
     project_id: str
     status: RunStatus
     steps: list[AgentStep] = Field(default_factory=list)
-    evidence: list[Evidence] = Field(default_factory=list)
-    report: DueDiligenceReport | None = None
 
 
 class StepReviewChatRequest(BaseModel):

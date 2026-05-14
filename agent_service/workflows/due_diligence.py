@@ -8,16 +8,15 @@ from agent_service.api.schemas import (
     AgentResult,
     AgentStep,
     CompanyConfig,
-    DueDiligenceReport,
     Evidence,
-    ReportSection,
     RunResult,
     StepReviewChatRequest,
     StepReviewChatResponse,
 )
 from agent_service.callback_client import notify_run_progress
 from agent_service.session_history import build_session_recorder, open_session_recorder_for_resume
-from agent_service.tools.stores import EvidenceStoreTool, ReportStoreTool
+from agent_service.tools.stores import EvidenceStoreTool
+from agent_service.workflows.agent_outputs import write_agent_step_output_folder
 from agent_service.workflows.config_loader import (
     AgentConfig,
     AgentDefinition,
@@ -89,13 +88,21 @@ class DueDiligenceWorkflow:
         agent_definitions = self._agent_definitions_from_snapshot(workflow_snapshot)
         evidence_store = EvidenceStoreTool(id_prefix=run_id)
         evidence_store.seed(done_evidence)
-        report_store = ReportStoreTool()
         steps: list[AgentStep] = list(done_steps)
         results: list[AgentResult] = []
         for st in steps:
             if st.result is not None:
                 results.append(st.result)
         ordered_agents = self._ordered_agents(workflow)
+        if workflow_snapshot:
+            missing = [a for a in ordered_agents if a not in agent_definitions]
+            if missing:
+                defined = sorted(agent_definitions.keys())
+                raise ValueError(
+                    "Workflow graph references agent_template_id that are missing from "
+                    "workflow_snapshot.agent_templates (compare each node's agent_template_id "
+                    f"to agent_templates[].id). missing={missing!r}; defined_ids={defined!r}"
+                )
 
         recorder: object
         start_payload = {
@@ -154,13 +161,17 @@ class DueDiligenceWorkflow:
                     project_id=project_id,
                     status="failed",
                     steps=steps,
-                    evidence=evidence_store.all(),
-                    report=None,
                 )
                 recorder.finalize_failure(msg, partial_result=rr.model_dump(mode="json"))
                 return rr
             step.status = result.status
             step.summary = result.summary
+            output_dir, output_readme_path = write_agent_step_output_folder(
+                project_id=project_id,
+                run_id=run_id,
+                step_id=step.id,
+                result=result,
+            )
             step.result = result
             results.append(result)
             notify_run_progress(project_id, run_id, step, evidence_delta=list(result.evidence))
@@ -171,6 +182,8 @@ class DueDiligenceWorkflow:
                     "agent": agent_name,
                     "evidence_count": len(result.evidence),
                     "findings_count": len(result.findings),
+                    "output_dir": output_dir,
+                    "output_readme_path": output_readme_path,
                 },
             )
             if pause_after_each_step and step_idx < len(ordered_agents) - 1:
@@ -179,22 +192,15 @@ class DueDiligenceWorkflow:
                     project_id=project_id,
                     status="paused",
                     steps=steps,
-                    evidence=evidence_store.all(),
-                    report=None,
                 )
                 recorder.mark_paused(rr.model_dump(mode="json"))
                 return rr
-
-        report = self._build_report(company_config, results, workflow)
-        report_store.save(report)
 
         rr = RunResult(
             run_id=run_id,
             project_id=project_id,
             status="completed",
             steps=steps,
-            evidence=evidence_store.all(),
-            report=report_store.get(),
         )
         recorder.finalize_success(rr.model_dump(mode="json"))
         return rr
@@ -222,73 +228,47 @@ class DueDiligenceWorkflow:
         }
 
     def _ordered_agents(self, workflow: WorkflowDefinition) -> list[str]:
-        return [
+        configured = workflow.ordered_agents or [
             workflow.coordinator,
             *workflow.research_agents,
             *workflow.analysis_agents,
             workflow.verifier,
             workflow.reporter,
         ]
-
-    def _build_report(
-        self,
-        company_config: CompanyConfig,
-        results: list[AgentResult],
-        workflow: WorkflowDefinition,
-    ) -> DueDiligenceReport:
-        company = company_config.target_company
-        sections: list[ReportSection] = []
-
-        for result in results:
-            if result.agent == workflow.reporter:
-                continue
-            evidence_ids = [evidence.id for evidence in result.evidence]
-            risk_level = self._highest_risk([finding.risk_level for finding in result.findings])
-            sections.append(
-                ReportSection(
-                    title=result.agent.replace("Agent", ""),
-                    summary=result.summary,
-                    risk_level=risk_level,
-                    evidence_ids=evidence_ids,
-                )
-            )
-
-        overall_risk = self._highest_risk([section.risk_level for section in sections])
-        return DueDiligenceReport(
-            title=f"{company.name} 尽调报告",
-            executive_summary=(
-                f"本报告基于「{workflow.name}」AgentScope 尽调流程生成，覆盖 "
-                f"{', '.join(company_config.scope.focus_areas)}。MVP 使用可替换的本地工具，"
-                "生产使用前应接入真实数据源并进行人工复核。"
-            ),
-            overall_risk=overall_risk,
-            sections=sections,
-        )
-
-    def _highest_risk(self, risk_levels: list[str]) -> str:
-        rank = {"unknown": 0, "low": 1, "medium": 2, "high": 3}
-        if not risk_levels:
-            return "unknown"
-        return max(risk_levels, key=lambda risk: rank.get(risk, 0))
+        ordered: list[str] = []
+        seen: set[str] = set()
+        for agent_name in configured:
+            if agent_name and agent_name not in seen:
+                ordered.append(agent_name)
+                seen.add(agent_name)
+        return ordered
 
     def _workflow_from_snapshot(self, snapshot: dict | None) -> WorkflowDefinition:
         if not snapshot:
             raise ValueError("Missing workflow snapshot")
-        workflow = snapshot["workflow"]
-        graph = workflow["graph"]
+        workflow = snapshot.get("workflow")
+        if not isinstance(workflow, dict):
+            raise ValueError("workflow_snapshot must contain a 'workflow' object")
+        graph = workflow.get("graph")
+        if not isinstance(graph, dict):
+            raise ValueError("workflow_snapshot.workflow must contain a 'graph' object")
         agent_ids = self._agent_ids_from_graph(graph)
-        if len(agent_ids) < 3:
-            raise ValueError("Workflow snapshot must include at least coordinator, verifier, and reporter")
+        if not agent_ids:
+            raise ValueError(
+                "Workflow snapshot graph must include at least one node with agent_template_id. "
+                "Check entry_node, edges, and that at least one execution node sets agent_template_id."
+            )
         return WorkflowDefinition(
             id=workflow["id"],
             name=workflow["name"],
             description=workflow.get("description", ""),
             scenario=workflow.get("scenario", "standard"),
+            ordered_agents=agent_ids,
             coordinator=agent_ids[0],
-            research_agents=agent_ids[1:-2],
+            research_agents=agent_ids[1:-2] if len(agent_ids) >= 3 else agent_ids[1:],
             analysis_agents=[],
-            verifier=agent_ids[-2],
-            reporter=agent_ids[-1],
+            verifier=agent_ids[-2] if len(agent_ids) >= 3 else "",
+            reporter=agent_ids[-1] if len(agent_ids) >= 3 else "",
         )
 
     def _agent_ids_from_graph(self, graph: dict[str, Any]) -> list[str]:
@@ -368,7 +348,6 @@ class DueDiligenceWorkflow:
                 tool_configs=agent_tool_configs,
                 resource_configs=agent_resource_configs,
                 react_config=agent.get("react_config", {}),
-                output_schema=agent.get("output_schema", "agent_result"),
             )
         return definitions
 

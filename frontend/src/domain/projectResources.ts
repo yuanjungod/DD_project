@@ -6,7 +6,8 @@ export type ProjectResourceType =
   | "competitor"
   | "file_reference"
   | "external_clue"
-  | "metric";
+  | "metric"
+  | "agent_resource_scope";
 
 export const PROJECT_RESOURCE_TYPE_LABELS: Record<ProjectResourceType, string> = {
   trusted_source: "可信来源 URL / 描述",
@@ -15,6 +16,7 @@ export const PROJECT_RESOURCE_TYPE_LABELS: Record<ProjectResourceType, string> =
   file_reference: "已上传文件引用",
   external_clue: "外部线索摘要",
   metric: "财务/业务指标定义",
+  agent_resource_scope: "Agent 资源作用域",
 };
 
 export type ParsedProjectResource = {
@@ -51,6 +53,8 @@ export function emptyFieldsForResourceType(type: ProjectResourceType): Record<st
         baseline_value: "",
         notes: "",
       };
+    case "agent_resource_scope":
+      return { agent_id: "", uploaded_file_ids: "", notes: "" };
     default:
       return { value: "" };
   }
@@ -103,6 +107,13 @@ export function parseProjectResourceForm(
     metadata.frequency = fields.frequency?.trim() || "";
     metadata.baseline_value = fields.baseline_value?.trim() || "";
     metadata.notes = fields.notes?.trim() || "";
+  } else if (rtype === "agent_resource_scope") {
+    value = fields.agent_id?.trim() ?? "";
+    metadata.uploaded_file_ids = (fields.uploaded_file_ids ?? "")
+      .split(/[\n,]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    metadata.notes = fields.notes?.trim() || "";
   }
 
   if (!value) return null;
@@ -131,6 +142,10 @@ export function headlineForResourceRow(row: {
     const lbl = typeof meta.label === "string" ? meta.label.trim() : "";
     if (fn) return fn;
     if (lbl) return `${lbl} · ${row.value}`;
+  }
+  if (row.type === "agent_resource_scope") {
+    const fileIds = Array.isArray(meta.uploaded_file_ids) ? meta.uploaded_file_ids.length : 0;
+    return `${row.value}${fileIds ? ` · ${fileIds} 个 file_id` : ""}`;
   }
   return row.value.length > 120 ? `${row.value.slice(0, 120)}…` : row.value;
 }

@@ -1,11 +1,13 @@
 import type {
   AgentRun,
+  AgentStepOutputFolder,
   AgentTemplate,
   AuthSession,
   CompanyConfig,
   DiligenceSessionModel,
   Evidence,
   Project,
+  ProjectAgentOverride,
   Report,
   Resource,
   ResourceConfig,
@@ -113,6 +115,39 @@ export async function deleteProject(projectId: string): Promise<void> {
 
 export function listResources(projectId: string): Promise<Resource[]> {
   return request<Resource[]>(`/projects/${projectId}/resources`);
+}
+
+export function listProjectAgentOverrides(projectId: string): Promise<ProjectAgentOverride[]> {
+  return request<ProjectAgentOverride[]>(`/projects/${encodeURIComponent(projectId)}/agent-overrides`);
+}
+
+export function upsertProjectAgentOverride(
+  projectId: string,
+  agentId: string,
+  payload: ProjectAgentOverride,
+): Promise<ProjectAgentOverride> {
+  return request<ProjectAgentOverride>(
+    `/projects/${encodeURIComponent(projectId)}/agent-overrides/${encodeURIComponent(agentId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function deleteProjectAgentOverride(projectId: string, agentId: string): Promise<void> {
+  const token = localStorage.getItem("dd_access_token");
+  const response = await fetch(
+    `${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/agent-overrides/${encodeURIComponent(agentId)}`,
+    {
+      method: "DELETE",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `删除失败（${response.status}）`);
+  }
 }
 
 export function createResource(
@@ -252,6 +287,12 @@ export function postStepReviewChat(runId: string, stepId: string, message: strin
 export function listStepReviewChatTurns(runId: string, stepId: string): Promise<StepReviewChatTurn[]> {
   return request<StepReviewChatTurn[]>(
     `/runs/${encodeURIComponent(runId)}/steps/${encodeURIComponent(stepId)}/review-chat-turns`,
+  );
+}
+
+export function getAgentStepOutputFolder(runId: string, stepId: string): Promise<AgentStepOutputFolder> {
+  return request<AgentStepOutputFolder>(
+    `/runs/${encodeURIComponent(runId)}/steps/${encodeURIComponent(stepId)}/output-folder`,
   );
 }
 

@@ -5,10 +5,11 @@ from sqlalchemy.orm import Session
 
 from app.models.entities import SkillPackage, ToolConfig
 from app.services.platform_resource_catalog import load_resource_configs_by_ids
+from app.services.project_agent_overrides_store import project_agent_override_records
 from app.services.workflow_template_files import get_published_workflow_bundle, resolve_agents_for_snapshot
 
 
-def build_workflow_snapshot(db: Session, company_config: dict) -> dict:
+def build_workflow_snapshot(db: Session, company_config: dict, *, project_id: str | None = None) -> dict:
     scope = company_config.get("scope", {})
     workflow_id = scope.get("workflow_template_id") or scope.get("workflow_id") or "standard_due_diligence"
     bundle = get_published_workflow_bundle(workflow_id)
@@ -18,6 +19,8 @@ def build_workflow_snapshot(db: Session, company_config: dict) -> dict:
     agents, missing_agents = resolve_agents_for_snapshot(bundle, agent_ids)
     if missing_agents:
         raise HTTPException(status_code=400, detail=f"Workflow has missing or disabled agents: {missing_agents}")
+    if project_id:
+        agents = _apply_project_agent_overrides(agents, project_agent_override_records(project_id))
 
     skill_package_ids = sorted({skill_id for agent in agents for skill_id in (agent.get("skill_package_ids") or [])})
     tool_ids = sorted({tool_id for agent in agents for tool_id in (agent.get("tool_ids") or agent.get("skill_ids") or [])})
@@ -48,7 +51,6 @@ def build_workflow_snapshot(db: Session, company_config: dict) -> dict:
                 "platform_upload_file_ids": agent.get("platform_upload_file_ids") or [],
                 "react_config": agent.get("react_config")
                 or {"max_iters": 6, "parallel_tool_calls": False},
-                "output_schema": agent.get("output_schema") or "agent_result",
             }
             for agent in sorted(agents, key=lambda row: agent_ids.index(row["id"]))
         ],
@@ -87,3 +89,77 @@ def build_workflow_snapshot(db: Session, company_config: dict) -> dict:
             for resource in disk_resources
         ],
     }
+
+
+def _unique(items: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        text = str(item).strip()
+        if text and text not in seen:
+            out.append(text)
+            seen.add(text)
+    return out
+
+
+def _apply_id_delta(base: list[str], add: list[str], remove: list[str]) -> list[str]:
+    remove_set = set(_unique(remove))
+    return _unique([item for item in base if item not in remove_set] + add)
+
+
+def _merge_dict(base: dict | None, override: dict | None) -> dict:
+    merged = dict(base or {})
+    for key, value in (override or {}).items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _merge_dict(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _apply_project_agent_overrides(agents: list[dict], overrides: list[dict]) -> list[dict]:
+    by_agent = {str(row.get("agent_id")): row for row in overrides if row.get("enabled", True)}
+    out: list[dict] = []
+    for agent in agents:
+        row = dict(agent)
+        override = by_agent.get(str(row.get("id")))
+        if not override:
+            out.append(row)
+            continue
+
+        prompt_override = str(override.get("prompt_override") or "").strip()
+        prompt_append = str(override.get("prompt_append") or "").strip()
+        if prompt_override:
+            row["prompt"] = prompt_override
+        elif prompt_append:
+            inherited = str(row.get("prompt") or "").rstrip()
+            row["prompt"] = f"{inherited}\n\n# 应用级补充提示词\n{prompt_append}".strip()
+
+        row["skill_package_ids"] = _apply_id_delta(
+            list(row.get("skill_package_ids") or []),
+            list(override.get("skill_package_ids_add") or []),
+            list(override.get("skill_package_ids_remove") or []),
+        )
+        row["tool_ids"] = _apply_id_delta(
+            list(row.get("tool_ids") or row.get("skill_ids") or []),
+            list(override.get("tool_ids_add") or []),
+            list(override.get("tool_ids_remove") or []),
+        )
+        row["skill_ids"] = list(row["tool_ids"])
+        row["resource_ids"] = _apply_id_delta(
+            list(row.get("resource_ids") or []),
+            list(override.get("resource_ids_add") or []),
+            list(override.get("resource_ids_remove") or []),
+        )
+        platform_files = _unique(list(override.get("platform_upload_file_ids") or []))
+        if platform_files:
+            row["platform_upload_file_ids"] = platform_files
+        react_override = override.get("react_config_override")
+        if isinstance(react_override, dict) and react_override:
+            row["react_config"] = _merge_dict(row.get("react_config"), react_override)
+        row["app_override"] = {
+            "project_scoped": True,
+            "prompt_mode": "override" if prompt_override else "append" if prompt_append else "inherit",
+        }
+        out.append(row)
+    return out

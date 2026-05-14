@@ -1,0 +1,52 @@
+# Workflow template bundle — one YAML per workflow; agents used by this graph are embedded below.
+
+version: 1
+workflow:
+  id: workflow_tpl_a37fcc4ab87a
+  name: Test
+  description: ''
+  scenario: custom
+  graph:
+    nodes:
+    - id: node_1
+      agent_template_id: agent_tpl_6a0a5de72005
+      stage: coordination
+    edges: []
+    entry_node: node_1
+    report_node: node_1
+  status: published
+  version: 2
+agents:
+- name: 测试
+  role: 乔布斯助手
+  prompt: '按照乔布斯风格和我对话
+
+    你的输出写在markdown文件里面'
+  skill_package_ids: []
+  tool_ids: []
+  skill_ids: []
+  resource_ids: []
+  platform_upload_file_ids: []
+  react_config:
+    max_iters: 6
+    parallel_tool_calls: false
+    model:
+      baseUrl: http://127.0.0.1:8081/v1
+      apiKey: yuanjun
+      api: anthropic-messages
+      models:
+      - id: kimi-code
+        name: kimi-code(Custom Provider)
+        reasoning: true
+        input:
+        - text
+        - image
+        cost:
+          input: 0
+          output: 0
+          cacheRead: 0
+          cacheWrite: 0
+        contextWindow: 128000
+        maxTokens: 4096
+  enabled: true
+  id: agent_tpl_6a0a5de72005

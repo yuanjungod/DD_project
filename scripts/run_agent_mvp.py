@@ -24,9 +24,11 @@ def main() -> None:
                 "run_id": result.run_id,
                 "status": result.status,
                 "steps": len(result.steps),
-                "evidence": len(result.evidence),
-                "report_title": result.report.title if result.report else None,
-                "overall_risk": result.report.overall_risk if result.report else None,
+                "output_dirs": [
+                    step.result.output_dir
+                    for step in result.steps
+                    if step.result and step.result.output_dir
+                ],
             },
             ensure_ascii=False,
             indent=2,

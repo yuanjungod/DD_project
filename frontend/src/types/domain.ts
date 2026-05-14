@@ -23,6 +23,7 @@ export type CompanyConfig = {
     competitors: string[];
     metrics?: Record<string, unknown>[];
     external_clues?: Record<string, unknown>[];
+    agent_resource_scopes?: Record<string, unknown>[];
   };
 };
 
@@ -43,6 +44,22 @@ export type Resource = {
   created_at: string;
 };
 
+export type ProjectAgentOverride = {
+  agent_id: string;
+  prompt_append: string;
+  prompt_override: string;
+  skill_package_ids_add: string[];
+  skill_package_ids_remove: string[];
+  tool_ids_add: string[];
+  tool_ids_remove: string[];
+  resource_ids_add: string[];
+  resource_ids_remove: string[];
+  platform_upload_file_ids: string[];
+  react_config_override: Record<string, unknown>;
+  enabled: boolean;
+  updated_at?: string | null;
+};
+
 export type AgentStep = {
   id: string;
   run_id: string;
@@ -50,6 +67,20 @@ export type AgentStep = {
   status: string;
   summary: string;
   result: Record<string, unknown>;
+};
+
+export type AgentStepOutputFolder = {
+  available: boolean;
+  step_id: string;
+  agent: string;
+  folder_path?: string;
+  readme_path?: string;
+  readme?: string;
+  result?: Record<string, unknown>;
+  resources?: unknown;
+  findings?: Array<{ name: string; path: string; content: string }>;
+  evidence_files?: Array<{ name: string; path: string; json: unknown }>;
+  reason?: string;
 };
 
 export type Evidence = {
@@ -219,7 +250,6 @@ export type AgentTemplate = {
   /** Empty = use all merged uploaded_files at run time; otherwise restrict file_reader to these IDs. */
   platform_upload_file_ids?: string[];
   react_config: Record<string, unknown>;
-  output_schema: string;
   enabled: boolean;
   created_at: string;
   updated_at: string;

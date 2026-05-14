@@ -25,7 +25,6 @@ class AgentDefinition(BaseModel):
     tool_configs: list[dict[str, Any]] = Field(default_factory=list)
     resource_configs: list[dict[str, Any]] = Field(default_factory=list)
     react_config: dict[str, Any] = Field(default_factory=dict)
-    output_schema: str
 
 
 class WorkflowDefinition(BaseModel):
@@ -33,6 +32,7 @@ class WorkflowDefinition(BaseModel):
     name: str = "标准完整尽调"
     description: str = ""
     scenario: str = "standard"
+    ordered_agents: list[str] = Field(default_factory=list)
     coordinator: str
     research_agents: list[str]
     analysis_agents: list[str]

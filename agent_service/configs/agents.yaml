@@ -6,7 +6,6 @@ agents:
     prompt: coordinator.md
     tools:
       - evidence_store
-    output_schema: agent_result
   - name: CompanyProfileAgent
     role: company_profile_researcher
     prompt: company_profile.md
@@ -15,7 +14,6 @@ agents:
       - web_fetch
       - file_reader
       - evidence_store
-    output_schema: agent_result
   - name: WebResearchAgent
     role: public_researcher
     prompt: web_research.md
@@ -23,7 +21,6 @@ agents:
       - search
       - web_fetch
       - evidence_store
-    output_schema: agent_result
   - name: FinancialAnalysisAgent
     role: financial_analyst
     prompt: financial_analysis.md
@@ -32,7 +29,6 @@ agents:
       - file_reader
       - vector_retrieval
       - evidence_store
-    output_schema: agent_result
   - name: LegalRiskAgent
     role: legal_risk_analyst
     prompt: legal_risk.md
@@ -41,7 +37,6 @@ agents:
       - web_fetch
       - vector_retrieval
       - evidence_store
-    output_schema: agent_result
   - name: IndustryAnalysisAgent
     role: industry_analyst
     prompt: industry_analysis.md
@@ -50,20 +45,17 @@ agents:
       - web_fetch
       - vector_retrieval
       - evidence_store
-    output_schema: agent_result
   - name: EvidenceVerifierAgent
     role: evidence_verifier
     prompt: evidence_verifier.md
     tools:
       - evidence_store
-    output_schema: agent_result
   - name: ReportWriterAgent
     role: report_writer
     prompt: report_writer.md
     tools:
       - report_store
       - evidence_store
-    output_schema: report
 
 workflow:
   coordinator: CoordinatorAgent

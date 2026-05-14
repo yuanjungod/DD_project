@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
 
@@ -49,6 +50,24 @@ async def parse_start_run_body(request: Request) -> StartAgentRunBody:
         return StartAgentRunBody.model_validate(data)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _read_text_if_exists(path: Path, *, max_chars: int = 20000) -> str:
+    if not path.is_file():
+        return ""
+    text = path.read_text(encoding="utf-8")
+    if len(text) > max_chars:
+        return text[:max_chars] + "\n...(truncated)"
+    return text
+
+
+def _read_json_if_exists(path: Path) -> dict | list | None:
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {"_error": f"Invalid JSON file: {path.name}"}
 
 
 async def _dispatch_agent_background(
@@ -166,7 +185,7 @@ async def _execute_start_agent_run(
 ) -> AgentRun:
     """Create session + pending run row and enqueue agent dispatch."""
     project = ensure_project_write_access(db, user, project_id)
-    workflow_snapshot = build_workflow_snapshot(db, project.company_config)
+    workflow_snapshot = build_workflow_snapshot(db, project.company_config, project_id=project.id)
     run_id = f"run_{uuid4().hex[:12]}"
 
     continuation_context: dict | None = None
@@ -322,6 +341,56 @@ def list_run_steps(
     return db.query(AgentStep).filter(AgentStep.run_id == run_id).all()
 
 
+@router.get("/runs/{run_id}/steps/{step_id}/output-folder")
+def get_agent_step_output_folder(
+    run_id: str,
+    step_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("admin", "analyst", "viewer")),
+) -> dict:
+    run = db.get(AgentRun, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    ensure_project_access(db, user, run.project_id)
+    step = db.get(AgentStep, step_id)
+    if step is None or step.run_id != run.id:
+        raise HTTPException(status_code=404, detail="Step not found for this run")
+
+    result = step.result if isinstance(step.result, dict) else {}
+    output_dir = str(result.get("output_dir") or "").strip()
+    if not output_dir:
+        return {"available": False, "step_id": step.id, "agent": step.agent, "reason": "output_dir is not ready"}
+
+    folder = Path(output_dir).expanduser().resolve()
+    if not folder.is_dir():
+        return {
+            "available": False,
+            "step_id": step.id,
+            "agent": step.agent,
+            "folder_path": str(folder),
+            "reason": "output folder does not exist on backend filesystem",
+        }
+
+    return {
+        "available": True,
+        "step_id": step.id,
+        "agent": step.agent,
+        "folder_path": str(folder),
+        "readme_path": str(folder / "README.md"),
+        "readme": _read_text_if_exists(folder / "README.md"),
+        "result": _read_json_if_exists(folder / "result.json"),
+        "resources": _read_json_if_exists(folder / "resources" / "index.json") or {},
+        "findings": [
+            {"name": path.name, "path": str(path), "content": _read_text_if_exists(path)}
+            for path in sorted((folder / "findings").glob("*.md"))
+        ],
+        "evidence_files": [
+            {"name": path.name, "path": str(path), "json": _read_json_if_exists(path)}
+            for path in sorted((folder / "resources" / "evidence").glob("*.json"))
+        ],
+    }
+
+
 @router.post("/runs/{run_id}/continue-step-gated", response_model=AgentRunRead)
 async def continue_step_gated(
     run_id: str,
@@ -356,7 +425,7 @@ async def continue_step_gated(
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    snapshot = dict(build_workflow_snapshot(db, project.company_config))
+    snapshot = dict(build_workflow_snapshot(db, project.company_config, project_id=project.id))
     completed_steps_payload, evidence_payload = completed_slice_for_agent_service(db, run_id)
 
     row.status = "running"
@@ -425,7 +494,7 @@ def agent_step_review_chat(
     proj_records = project_resource_records_for_merge(project.id)
     merged_cfg = merged_company_config_with_project_resources(dict(project.company_config), proj_records)
 
-    snapshot = dict(build_workflow_snapshot(db, project.company_config))
+    snapshot = dict(build_workflow_snapshot(db, project.company_config, project_id=project.id))
 
     append_agent_step_chat_message(db, step_id=step_id, role="user", content=msg)
 

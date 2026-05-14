@@ -37,6 +37,7 @@ class Resources(BaseModel):
     # Optional structured entries merged from project Resource library at run time / stored in config.
     metrics: list[dict[str, Any]] = Field(default_factory=list)
     external_clues: list[dict[str, Any]] = Field(default_factory=list)
+    agent_resource_scopes: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class CompanyConfig(BaseModel):
@@ -64,6 +65,75 @@ class ProjectRead(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ProjectAgentOverrideBase(BaseModel):
+    agent_id: str
+    prompt_append: str = ""
+    prompt_override: str = ""
+    skill_package_ids_add: list[str] = Field(default_factory=list)
+    skill_package_ids_remove: list[str] = Field(default_factory=list)
+    tool_ids_add: list[str] = Field(default_factory=list)
+    tool_ids_remove: list[str] = Field(default_factory=list)
+    resource_ids_add: list[str] = Field(default_factory=list)
+    resource_ids_remove: list[str] = Field(default_factory=list)
+    platform_upload_file_ids: list[str] = Field(default_factory=list)
+    react_config_override: dict[str, Any] = Field(default_factory=dict)
+    enabled: bool = True
+
+    @field_validator(
+        "agent_id",
+        "prompt_append",
+        "prompt_override",
+        mode="before",
+    )
+    @classmethod
+    def coerce_str(cls, value: Any) -> str:
+        return "" if value is None else str(value)
+
+    @field_validator(
+        "skill_package_ids_add",
+        "skill_package_ids_remove",
+        "tool_ids_add",
+        "tool_ids_remove",
+        "resource_ids_add",
+        "resource_ids_remove",
+        "platform_upload_file_ids",
+        mode="before",
+    )
+    @classmethod
+    def coerce_str_list(cls, value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            raw = value.replace("\n", ",").split(",")
+        elif isinstance(value, list):
+            raw = value
+        else:
+            return []
+        out: list[str] = []
+        seen: set[str] = set()
+        for item in raw:
+            text = str(item).strip()
+            if text and text not in seen:
+                out.append(text)
+                seen.add(text)
+        return out
+
+    @model_validator(mode="after")
+    def validate_agent_id(self) -> ProjectAgentOverrideBase:
+        if not self.agent_id.strip():
+            raise ValueError("agent_id must be non-empty")
+        self.agent_id = self.agent_id.strip()
+        return self
+
+
+class ProjectAgentOverrideUpsert(ProjectAgentOverrideBase):
+    pass
+
+
+class ProjectAgentOverrideRead(ProjectAgentOverrideBase):
+    updated_at: datetime | None = None
 
 
 class LoginRequest(BaseModel):
@@ -256,7 +326,6 @@ class AgentTemplateBase(BaseModel):
         description="Merged uploaded file_ids visible to this agent; empty means use full merged list.",
     )
     react_config: dict[str, Any] = Field(default_factory=_default_react_config)
-    output_schema: str = "agent_result"
     enabled: bool = True
 
 
@@ -274,7 +343,6 @@ class AgentTemplateUpdate(BaseModel):
     resource_ids: list[str] | None = None
     platform_upload_file_ids: list[str] | None = None
     react_config: dict[str, Any] | None = None
-    output_schema: str | None = None
     enabled: bool | None = None
 
 

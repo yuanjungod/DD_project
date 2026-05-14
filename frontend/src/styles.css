@@ -186,6 +186,34 @@ label {
   gap: 28px;
 }
 
+.app-section-nav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.app-section-nav a {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #dbe3ef;
+  border-radius: 18px;
+  background: white;
+  color: #172033;
+  padding: 14px 16px;
+}
+
+.app-section-nav a span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.app-section-nav a.active,
+.app-section-nav a:hover {
+  border-color: rgba(29, 78, 216, 0.35);
+  background: #eff6ff;
+}
+
 .hero-run-controls {
   display: flex;
   flex-direction: column;
@@ -776,6 +804,52 @@ label {
   padding: 6px 10px;
 }
 
+.agent-resource-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.agent-resource-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #f8fafc;
+  padding: 14px;
+}
+
+.agent-override-list {
+  display: grid;
+  gap: 16px;
+}
+
+.agent-override-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #f8fafc;
+  padding: 16px;
+}
+
+.agent-override-card__header,
+.agent-override-enabled {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.agent-override-enabled {
+  align-items: center;
+  flex-direction: row;
+  white-space: nowrap;
+}
+
+.agent-override-enabled input {
+  width: auto;
+}
+
 .button-link,
 .ghost-button,
 .secondary-button {
@@ -1131,6 +1205,10 @@ label {
     grid-template-columns: 1fr;
   }
 
+  .app-section-nav {
+    grid-template-columns: 1fr;
+  }
+
   .hero {
     align-items: flex-start;
     flex-direction: column;
@@ -1192,6 +1270,90 @@ label {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin-bottom: 4px;
+}
+
+.agent-output-folder {
+  margin-top: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  background: #f8fbff;
+  padding: 12px;
+}
+
+.agent-output-folder h4 {
+  margin: 14px 0 8px;
+}
+
+.agent-output-folder code,
+.agent-output-folder pre {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+.agent-output-folder pre {
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 12px;
+  white-space: pre-wrap;
+}
+
+.agent-output-folder__path {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.agent-output-folder__path code {
+  color: #334155;
+  overflow-wrap: anywhere;
+}
+
+.agent-output-folder__file {
+  margin-top: 8px;
+}
+
+.agent-output-folder__index {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.agent-output-folder__index button {
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: white;
+  color: #1e3a8a;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 7px 10px;
+}
+
+.agent-output-folder__index button.selected {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: white;
+}
+
+.agent-output-folder__preview {
+  margin-top: 12px;
+}
+
+.step-review-panel {
+  margin-top: 12px;
+  border: 1px solid #ccfbf1;
+  border-radius: 14px;
+  background: #f0fdfa;
+  padding: 12px;
+}
+
+.step-review-panel h4 {
+  margin: 0 0 6px;
+  color: #115e59;
 }
 
 /* Project resource library + platform resource registry */

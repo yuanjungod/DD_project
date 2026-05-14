@@ -6,5 +6,6 @@ PROJECT_RESOURCE_TYPES = frozenset(
         "file_reference",
         "external_clue",
         "metric",
+        "agent_resource_scope",
     }
 )

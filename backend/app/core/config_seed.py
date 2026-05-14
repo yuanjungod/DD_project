@@ -59,10 +59,13 @@ def _upsert_tool_configs(db: Session, disk_tools: list[ToolConfig]) -> None:
 
 def _upsert_skill_packages(db: Session, disk_skill_packages: list[SkillPackage]) -> None:
     for disk_package in disk_skill_packages:
-        existing = db.get(SkillPackage, disk_package.id)
+        existing = db.get(SkillPackage, disk_package.id) or (
+            db.query(SkillPackage).filter(SkillPackage.name == disk_package.name).first()
+        )
         if existing is None:
             db.add(disk_package)
             continue
+        existing.id = disk_package.id
         existing.name = disk_package.name
         existing.description = disk_package.description
         existing.directory_name = disk_package.directory_name

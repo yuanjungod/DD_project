@@ -1,29 +1,32 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, NavLink, useParams } from "react-router-dom";
 
 import {
   continueStepGated,
+  deleteProjectAgentOverride,
+  getAgentStepOutputFolder,
   getRun,
   listDiligenceSessions,
-  listEvidence,
+  listProjectAgentOverrides,
   listProjectRuns,
   listProjects,
-  listReports,
   listResources,
   listWorkflowTemplates,
   listStepReviewChatTurns,
   postStepReviewChat,
   startRun,
+  upsertProjectAgentOverride,
 } from "../api/client";
 import { ProjectResourcesPanel } from "../components/ProjectResourcesPanel";
 import { SectionCard } from "../components/SectionCard";
 import { workflowName } from "../data/workflows";
 import type {
   AgentRun,
+  AgentStep,
+  AgentStepOutputFolder,
   DiligenceSessionModel,
-  Evidence,
   Project,
-  Report,
+  ProjectAgentOverride,
   Resource,
   StepReviewChatTurn,
   WorkflowTemplate,
@@ -45,12 +48,401 @@ function deriveRunFailureDetail(run: AgentRun | null | undefined): string {
   return "";
 }
 
-export function ProjectDetailPage() {
+function stepOutputDir(step: AgentStep): string {
+  const result = step.result;
+  return typeof result?.output_dir === "string" ? result.output_dir : "";
+}
+
+function jsonPreview(value: unknown): string {
+  return JSON.stringify(value ?? {}, null, 2);
+}
+
+type OutputFileEntry = {
+  id: string;
+  label: string;
+  path: string;
+  content: string;
+};
+
+function outputFileEntries(folder: AgentStepOutputFolder): OutputFileEntry[] {
+  if (!folder.available) {
+    return [];
+  }
+  const entries: OutputFileEntry[] = [];
+  if (folder.readme) {
+    entries.push({
+      id: "README.md",
+      label: "README.md",
+      path: folder.readme_path ?? "README.md",
+      content: folder.readme,
+    });
+  }
+  if (folder.result) {
+    entries.push({
+      id: "result.json",
+      label: "result.json",
+      path: `${folder.folder_path ?? ""}/result.json`,
+      content: jsonPreview(folder.result),
+    });
+  }
+  if (folder.resources) {
+    entries.push({
+      id: "resources/index.json",
+      label: "resources/index.json",
+      path: `${folder.folder_path ?? ""}/resources/index.json`,
+      content: jsonPreview(folder.resources),
+    });
+  }
+  for (const finding of folder.findings ?? []) {
+    entries.push({
+      id: `findings/${finding.name}`,
+      label: `findings/${finding.name}`,
+      path: finding.path,
+      content: finding.content,
+    });
+  }
+  for (const evidence of folder.evidence_files ?? []) {
+    entries.push({
+      id: `resources/evidence/${evidence.name}`,
+      label: `resources/evidence/${evidence.name}`,
+      path: evidence.path,
+      content: jsonPreview(evidence.json),
+    });
+  }
+  return entries;
+}
+
+function AgentOutputFolderPanel({
+  folder,
+  loading,
+  fallbackPath,
+  selectedFileId,
+  onSelectFile,
+}: {
+  folder?: AgentStepOutputFolder;
+  loading: boolean;
+  fallbackPath: string;
+  selectedFileId?: string;
+  onSelectFile: (fileId: string) => void;
+}) {
+  if (loading && !folder) {
+    return <p className="muted">正在读取输出文件夹…</p>;
+  }
+  if (!folder) {
+    return <p className="muted">输出目录：{fallbackPath}</p>;
+  }
+  if (!folder.available) {
+    return (
+      <div className="agent-output-folder">
+        <strong>输出目录</strong>
+        <code>{folder.folder_path ?? fallbackPath}</code>
+        <p className="muted">{folder.reason ?? "输出文件夹暂不可读"}</p>
+      </div>
+    );
+  }
+  const entries = outputFileEntries(folder);
+  const selected = entries.find((entry) => entry.id === selectedFileId);
+  return (
+    <div className="agent-output-folder">
+      <strong>输出文件夹索引</strong>
+      <div className="agent-output-folder__path">
+        <span>目录</span>
+        <code>{folder.folder_path}</code>
+      </div>
+      <div className="agent-output-folder__index" aria-label="输出目录文件索引">
+        {entries.map((entry) => (
+          <button
+            key={entry.id}
+            type="button"
+            className={entry.id === selectedFileId ? "selected" : ""}
+            onClick={() => onSelectFile(entry.id)}
+          >
+            {entry.label}
+          </button>
+        ))}
+      </div>
+      {selected ? (
+        <div className="agent-output-folder__preview">
+          <div className="agent-output-folder__path">
+            <span>当前文件</span>
+            <code>{selected.path}</code>
+          </div>
+          <pre>{selected.content}</pre>
+        </div>
+      ) : (
+        <p className="muted">点击上方目录文件查看内容。</p>
+      )}
+    </div>
+  );
+}
+
+export type ProjectDetailSection = "overview" | "resources" | "outputs" | "runs";
+
+function appSectionPath(projectId: string, section: ProjectDetailSection): string {
+  if (section === "overview") return `/projects/${encodeURIComponent(projectId)}`;
+  return `/projects/${encodeURIComponent(projectId)}/${section}`;
+}
+
+function ProjectAppNav({ projectId }: { projectId: string }) {
+  const items: Array<{ section: ProjectDetailSection; label: string; hint: string }> = [
+    { section: "overview", label: "应用概览", hint: "标的与入口" },
+    { section: "resources", label: "资源与 Agent 配置", hint: "按应用配置资源" },
+    { section: "outputs", label: "模型运行输出", hint: "步骤与输出目录" },
+    { section: "runs", label: "历史 Run", hint: "本应用记录" },
+  ];
+  return (
+    <nav className="app-section-nav" aria-label="场景应用页面">
+      {items.map((item) => (
+        <NavLink key={item.section} to={appSectionPath(projectId, item.section)} end={item.section === "overview"}>
+          <strong>{item.label}</strong>
+          <span>{item.hint}</span>
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
+
+function workflowAgentIds(project: Project | null, workflowTemplates: WorkflowTemplate[]): string[] {
+  const workflowId = project?.company_config.scope.workflow_template_id ?? project?.company_config.scope.workflow_id;
+  const workflow = workflowTemplates.find((item) => item.id === workflowId);
+  return (workflow?.graph.nodes ?? []).map((node) => node.agent_template_id).filter(Boolean);
+}
+
+function splitFileIds(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+  if (typeof value === "string") return value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
+  return [];
+}
+
+function splitIds(value: string): string[] {
+  return value
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function idsText(value: string[]): string {
+  return (value ?? []).join(", ");
+}
+
+function emptyOverride(agentId: string): ProjectAgentOverride {
+  return {
+    agent_id: agentId,
+    prompt_append: "",
+    prompt_override: "",
+    skill_package_ids_add: [],
+    skill_package_ids_remove: [],
+    tool_ids_add: [],
+    tool_ids_remove: [],
+    resource_ids_add: [],
+    resource_ids_remove: [],
+    platform_upload_file_ids: [],
+    react_config_override: {},
+    enabled: true,
+  };
+}
+
+function AgentOverrideEditor({
+  projectId,
+  agentId,
+  override,
+  onRefresh,
+}: {
+  projectId: string;
+  agentId: string;
+  override?: ProjectAgentOverride;
+  onRefresh: () => Promise<void>;
+}) {
+  const effective = override ?? emptyOverride(agentId);
+  const [draft, setDraft] = useState<ProjectAgentOverride>(effective);
+  const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState("");
+
+  useEffect(() => {
+    setDraft(effective);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset editor when server override changes
+  }, [agentId, JSON.stringify(override ?? {})]);
+
+  async function save() {
+    setSaving(true);
+    setLocalError("");
+    try {
+      await upsertProjectAgentOverride(projectId, agentId, { ...draft, agent_id: agentId });
+      await onRefresh();
+    } catch (err: unknown) {
+      setLocalError(String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    if (!override) return;
+    setSaving(true);
+    setLocalError("");
+    try {
+      await deleteProjectAgentOverride(projectId, agentId);
+      await onRefresh();
+    } catch (err: unknown) {
+      setLocalError(String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="agent-override-card">
+      <div className="agent-override-card__header">
+        <div>
+          <strong>{agentId}</strong>
+          <p className="muted">
+            {override ? "已配置应用级覆盖；启动新 run 时会合成到快照。" : "继承场景模板配置，尚未配置应用级覆盖。"}
+          </p>
+        </div>
+        <label className="agent-override-enabled">
+          <input
+            type="checkbox"
+            checked={draft.enabled}
+            onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}
+            disabled={saving}
+          />
+          启用覆盖
+        </label>
+      </div>
+      {localError ? <div className="error">{localError}</div> : null}
+      <label>
+        追加提示词（继承模板后追加）
+        <textarea
+          rows={3}
+          value={draft.prompt_append}
+          onChange={(event) => setDraft({ ...draft, prompt_append: event.target.value })}
+          disabled={saving}
+        />
+      </label>
+      <label>
+        覆盖提示词（填写后替代模板 prompt）
+        <textarea
+          rows={3}
+          value={draft.prompt_override}
+          onChange={(event) => setDraft({ ...draft, prompt_override: event.target.value })}
+          disabled={saving}
+        />
+      </label>
+      <div className="grid two">
+        <label>
+          追加 Skill IDs
+          <input
+            value={idsText(draft.skill_package_ids_add)}
+            onChange={(event) => setDraft({ ...draft, skill_package_ids_add: splitIds(event.target.value) })}
+            placeholder="skill_x, skill_y"
+            disabled={saving}
+          />
+        </label>
+        <label>
+          移除模板 Skill IDs
+          <input
+            value={idsText(draft.skill_package_ids_remove)}
+            onChange={(event) => setDraft({ ...draft, skill_package_ids_remove: splitIds(event.target.value) })}
+            disabled={saving}
+          />
+        </label>
+      </div>
+      <div className="grid two">
+        <label>
+          追加工具 IDs
+          <input
+            value={idsText(draft.tool_ids_add)}
+            onChange={(event) => setDraft({ ...draft, tool_ids_add: splitIds(event.target.value) })}
+            placeholder="search, file_reader"
+            disabled={saving}
+          />
+        </label>
+        <label>
+          移除模板工具 IDs
+          <input
+            value={idsText(draft.tool_ids_remove)}
+            onChange={(event) => setDraft({ ...draft, tool_ids_remove: splitIds(event.target.value) })}
+            disabled={saving}
+          />
+        </label>
+      </div>
+      <div className="grid two">
+        <label>
+          追加资源配置 IDs
+          <input
+            value={idsText(draft.resource_ids_add)}
+            onChange={(event) => setDraft({ ...draft, resource_ids_add: splitIds(event.target.value) })}
+            placeholder="resource_uploaded_files"
+            disabled={saving}
+          />
+        </label>
+        <label>
+          移除模板资源配置 IDs
+          <input
+            value={idsText(draft.resource_ids_remove)}
+            onChange={(event) => setDraft({ ...draft, resource_ids_remove: splitIds(event.target.value) })}
+            disabled={saving}
+          />
+        </label>
+      </div>
+      <label>
+        本应用限定可见 file_id（逗号或换行分隔）
+        <textarea
+          rows={2}
+          value={idsText(draft.platform_upload_file_ids)}
+          onChange={(event) => setDraft({ ...draft, platform_upload_file_ids: splitIds(event.target.value) })}
+          disabled={saving}
+        />
+      </label>
+      <div className="inline-form" style={{ flexWrap: "wrap" }}>
+        <button type="button" onClick={() => void save()} disabled={saving}>
+          {saving ? "保存中…" : "保存应用级配置"}
+        </button>
+        <button type="button" className="secondary-button" onClick={() => void remove()} disabled={saving || !override}>
+          删除覆盖，恢复继承模板
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AgentResourceScopePanel({ agentIds, resources }: { agentIds: string[]; resources: Resource[] }) {
+  const scopes = resources.filter((item) => item.type === "agent_resource_scope");
+  return (
+    <div className="agent-resource-grid">
+      {agentIds.map((agentId) => {
+        const scope = scopes.find((item) => item.value === agentId);
+        const fileIds = splitFileIds(scope?.metadata_json?.uploaded_file_ids);
+        return (
+          <div key={agentId} className="agent-resource-card">
+            <strong>{agentId}</strong>
+            <p className="muted">
+              {scope
+                ? fileIds.length
+                  ? `本应用限制 ${fileIds.length} 个 file_id 可见`
+                  : "已登记本应用作用域备注，未限制 file_id"
+                : "未配置专属作用域，默认使用工作流 Agent 模板与应用资源合并后的可见范围。"}
+            </p>
+            {fileIds.length ? (
+              <div className="tag-row">
+                {fileIds.map((fileId) => (
+                  <span key={fileId}>{fileId}</span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+      {agentIds.length === 0 ? <p className="muted">当前应用尚未解析到工作流 Agent。</p> : null}
+    </div>
+  );
+}
+
+export function ProjectDetailPage({ section = "overview" }: { section?: ProjectDetailSection }) {
   const { projectId = "" } = useParams();
   const [project, setProject] = useState<Project | null>(null);
   const [resources, setResources] = useState<Resource[]>([]);
-  const [evidence, setEvidence] = useState<Evidence[]>([]);
-  const [reports, setReports] = useState<Report[]>([]);
+  const [agentOverrides, setAgentOverrides] = useState<ProjectAgentOverride[]>([]);
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([]);
   const [sessions, setSessions] = useState<DiligenceSessionModel[]>([]);
@@ -63,22 +455,23 @@ export function ProjectDetailPage() {
   const [reviewChatDraft, setReviewChatDraft] = useState("");
   const [reviewChatSending, setReviewChatSending] = useState(false);
   const [reviewChatByStep, setReviewChatByStep] = useState<Record<string, StepReviewChatTurn[]>>({});
+  const [outputFoldersByStep, setOutputFoldersByStep] = useState<Record<string, AgentStepOutputFolder>>({});
+  const [loadingOutputStepIds, setLoadingOutputStepIds] = useState<Record<string, boolean>>({});
+  const [selectedOutputFileByStep, setSelectedOutputFileByStep] = useState<Record<string, string>>({});
   const [pollingRunId, setPollingRunId] = useState<string | null>(null);
 
   async function refresh() {
-    const [projects, resourceItems, evidenceItems, reportItems, runItems, sessionItems, workflowItems] = await Promise.all([
+    const [projects, resourceItems, overrideItems, runItems, sessionItems, workflowItems] = await Promise.all([
       listProjects(),
       listResources(projectId),
-      listEvidence(projectId),
-      listReports(projectId),
+      listProjectAgentOverrides(projectId),
       listProjectRuns(projectId),
       listDiligenceSessions(projectId),
       listWorkflowTemplates(),
     ]);
     setProject(projects.find((item) => item.id === projectId) ?? null);
     setResources(resourceItems);
-    setEvidence(evidenceItems);
-    setReports(reportItems);
+    setAgentOverrides(overrideItems);
     setRuns(runItems);
     setWorkflowTemplates(workflowItems);
     setSessions(sessionItems);
@@ -97,6 +490,9 @@ export function ProjectDetailPage() {
     setContinueLoading(false);
     setStepGatedMode(false);
     setReviewChatByStep({});
+    setOutputFoldersByStep({});
+    setLoadingOutputStepIds({});
+    setSelectedOutputFileByStep({});
     setReviewChatDraft("");
   }, [projectId]);
 
@@ -120,9 +516,8 @@ export function ProjectDetailPage() {
       try {
         const latest = await getRun(id);
         setActiveRun(latest);
-        const [runItems, evidenceItems] = await Promise.all([listProjectRuns(projectId), listEvidence(projectId)]);
+        const runItems = await listProjectRuns(projectId);
         setRuns(runItems);
-        setEvidence(evidenceItems);
         if (latest.status === "completed" || latest.status === "failed" || latest.status === "paused") {
           setPollingRunId(null);
           setRunStarting(false);
@@ -163,6 +558,35 @@ export function ProjectDetailPage() {
       cancelled = true;
     };
   }, [activeRun?.id, activeRun?.status, activeRun?.steps]);
+
+  useEffect(() => {
+    const runId = activeRun?.id;
+    if (!runId) return;
+    for (const step of activeRun.steps ?? []) {
+      const outputDir = stepOutputDir(step);
+      if (!outputDir || loadingOutputStepIds[step.id]) {
+        continue;
+      }
+      const existing = outputFoldersByStep[step.id];
+      if (existing && (existing.folder_path === outputDir || existing.reason)) {
+        continue;
+      }
+      setLoadingOutputStepIds((prev) => ({ ...prev, [step.id]: true }));
+      getAgentStepOutputFolder(runId, step.id)
+        .then((folder) => {
+          setOutputFoldersByStep((prev) => ({ ...prev, [step.id]: folder }));
+        })
+        .catch((err: unknown) => {
+          setOutputFoldersByStep((prev) => ({
+            ...prev,
+            [step.id]: { available: false, step_id: step.id, agent: step.agent, reason: String(err) },
+          }));
+        })
+        .finally(() => {
+          setLoadingOutputStepIds((prev) => ({ ...prev, [step.id]: false }));
+        });
+    }
+  }, [activeRun?.id, activeRun?.steps, loadingOutputStepIds, outputFoldersByStep]);
 
   async function handleStartRun(mode: "new" | "continue") {
     setRunStarting(true);
@@ -235,6 +659,7 @@ export function ProjectDetailPage() {
         workflowTemplates,
       )
     : "";
+  const appAgentIds = workflowAgentIds(project, workflowTemplates);
 
   return (
     <div className="page-stack">
@@ -248,6 +673,7 @@ export function ProjectDetailPage() {
               : "加载中"}
           </p>
         </div>
+        {section === "outputs" ? (
         <div className="hero-run-controls" aria-label="运行 diligence">
           <div className="hero-run-controls__primary-row">
             <div className="hero-run-controls__session-field">
@@ -298,16 +724,76 @@ export function ProjectDetailPage() {
             </span>
           </label>
         </div>
+        ) : null}
       </header>
+      <ProjectAppNav projectId={projectId} />
       {error ? <div className="error">{error}</div> : null}
-      <div className="grid two">
+      {section === "overview" ? (
+        <div className="grid three">
+          <SectionCard
+            title="资源与 Agent 配置"
+            description="按应用维护文件、来源、线索、指标，并可为本应用里的具体 Agent 登记资源作用域。"
+          >
+            <p className="muted">
+              已登记资源 {resources.length} 条 · 工作流 Agent {appAgentIds.length} 个
+            </p>
+            <Link className="button-link" to={appSectionPath(projectId, "resources")}>
+              配置资源
+            </Link>
+          </SectionCard>
+          <SectionCard title="模型运行输出" description="启动 Run、查看每个 Agent 的步骤状态、输出目录、README、findings 与 evidence 文件。">
+            <p className="muted">
+              当前 Run：{activeRun ? `${activeRun.id} · ${activeRun.status}` : "暂无"}
+            </p>
+            <Link className="button-link" to={appSectionPath(projectId, "outputs")}>
+              查看输出
+            </Link>
+          </SectionCard>
+          <SectionCard title="本应用历史 Run" description="按 session 与 attempt 查看本应用历史执行记录。">
+            <p className="muted">历史 Run {runs.length} 条 · Session {sessions.length} 个</p>
+            <Link className="button-link" to={appSectionPath(projectId, "runs")}>
+              查看历史
+            </Link>
+          </SectionCard>
+        </div>
+      ) : null}
+      {section === "resources" ? (
+      <div className="page-stack">
+        <div className="grid two">
+          <SectionCard
+            title="应用资源管理"
+            description="上传文件材料、配置可信/屏蔽来源、竞品、文件引用（手动 ID）、线索与指标等。启动 Run 时会并入 company_config 供 Agent 使用。"
+          >
+            <ProjectResourcesPanel projectId={projectId} resources={resources} onRefresh={() => refresh()} />
+          </SectionCard>
+          <SectionCard
+            title="本应用 Agent 资源作用域"
+            description="用资源类型「Agent 资源作用域」为具体 Agent 填 file_id 列表；运行时 file_reader 会按当前 Agent 过滤可见文件。"
+          >
+            <AgentResourceScopePanel agentIds={appAgentIds} resources={resources} />
+          </SectionCard>
+        </div>
         <SectionCard
-          title="应用资源"
-          description="上传文件材料、配置可信/屏蔽来源、竞品、文件引用（手动 ID）、线索与指标等。启动 Run 时会并入 company_config 供 Agent 使用。"
+          title="本应用 Agent 覆盖配置"
+          description="这里配置的是应用级 overlay：提示词、Skills、工具、资源配置和文件作用域只影响本应用未来新 run 的 snapshot，不会覆盖场景模板。"
         >
-          <ProjectResourcesPanel projectId={projectId} resources={resources} onRefresh={() => refresh()} />
+          <div className="agent-override-list">
+            {appAgentIds.map((agentId) => (
+              <AgentOverrideEditor
+                key={agentId}
+                projectId={projectId}
+                agentId={agentId}
+                override={agentOverrides.find((item) => item.agent_id === agentId)}
+                onRefresh={refresh}
+              />
+            ))}
+            {appAgentIds.length === 0 ? <p className="muted">当前应用尚未解析到工作流 Agent。</p> : null}
+          </div>
         </SectionCard>
-        <SectionCard title="本应用历史 Run">
+      </div>
+      ) : null}
+      {section === "runs" ? (
+        <SectionCard title="本应用历史 Run" description="这里只保留本应用的历史执行记录，模型输出文件请到「模型运行输出」页查看。">
           <ul className="list">
             {runs.map((run) => (
               <li key={run.id}>
@@ -324,48 +810,9 @@ export function ProjectDetailPage() {
             <p className="muted">尚无 Run。点击右上角启动后即可在此看到记录。</p>
           ) : null}
         </SectionCard>
-      </div>
-      {pausedReviewStep && activeRun?.id ? (
-        <SectionCard
-          title="本步复核对话"
-          description={`与 ${pausedReviewStep.agent} 对齐输出、纠错或补充（步骤 ${pausedReviewStep.id}）`}
-        >
-          <div className="review-chat-turns">
-            {(reviewChatByStep[pausedReviewStep.id] ?? []).map((t) => (
-              <div key={t.id} className={`review-chat-msg ${t.role}`}>
-                <span className="muted">{t.role}</span>
-                <p>{t.content}</p>
-              </div>
-            ))}
-          </div>
-          <div className="inline-form" style={{ marginTop: "0.75rem", flexWrap: "wrap", alignItems: "flex-start" }}>
-            <textarea
-              rows={3}
-              style={{ minWidth: "min(100%, 28rem)", flex: 1 }}
-              placeholder="校验意见、纠错或追问…"
-              value={reviewChatDraft}
-              onChange={(e) => setReviewChatDraft(e.target.value)}
-              disabled={reviewChatSending}
-            />
-            <button
-              type="button"
-              onClick={() => void handleSendReviewChat()}
-              disabled={reviewChatSending || !reviewChatDraft.trim()}
-            >
-              {reviewChatSending ? "发送中…" : "发送至 Agent"}
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleContinueStepGated()}
-              disabled={continueLoading}
-            >
-              {continueLoading ? "继续执行中…" : "校验完成，继续下一步"}
-            </button>
-          </div>
-        </SectionCard>
       ) : null}
-      <div className="grid three">
-        <SectionCard title="Agent 执行状态">
+      {section === "outputs" ? (
+      <SectionCard title="Agent 输出目录" description="每个 Agent 完成后会生成输出文件夹，可在对应步骤下查看 README、findings 与资源索引。">
           {activeRun?.status === "paused" ? (
             <p className="notice">
               已进入「分步门禁」暂停点：可先与<strong>最新完成步骤</strong>对应 Agent 在下方复核对话中沟通，确认后点击「继续下一步」拉起后续链路。
@@ -387,6 +834,60 @@ export function ProjectDetailPage() {
                   <span className={`status ${step.status}`}>{step.status}</span>
                   <strong>{step.agent}</strong>
                   <p>{step.summary || (step.status === "running" ? "执行中…" : "")}</p>
+                  {stepOutputDir(step) ? (
+                    <AgentOutputFolderPanel
+                      folder={outputFoldersByStep[step.id]}
+                      loading={Boolean(loadingOutputStepIds[step.id])}
+                      fallbackPath={stepOutputDir(step)}
+                      selectedFileId={selectedOutputFileByStep[step.id]}
+                      onSelectFile={(fileId) =>
+                        setSelectedOutputFileByStep((prev) => ({
+                          ...prev,
+                          [step.id]: fileId,
+                        }))
+                      }
+                    />
+                  ) : step.status === "completed" ? (
+                    <p className="muted">输出文件夹正在生成或等待下一次轮询刷新。</p>
+                  ) : null}
+                  {pausedReviewStep?.id === step.id && activeRun?.id ? (
+                    <div className="step-review-panel">
+                      <h4>本步复核对话</h4>
+                      <p className="muted">复核对象：{step.agent} 的当前输出目录与所选文件。</p>
+                      <div className="review-chat-turns">
+                        {(reviewChatByStep[step.id] ?? []).map((t) => (
+                          <div key={t.id} className={`review-chat-msg ${t.role}`}>
+                            <span className="muted">{t.role}</span>
+                            <p>{t.content}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="inline-form" style={{ marginTop: "0.75rem", flexWrap: "wrap", alignItems: "flex-start" }}>
+                        <textarea
+                          rows={3}
+                          style={{ minWidth: "min(100%, 28rem)", flex: 1 }}
+                          placeholder="校验这个输出目录里的内容、纠错或追问…"
+                          value={reviewChatDraft}
+                          onChange={(e) => setReviewChatDraft(e.target.value)}
+                          disabled={reviewChatSending}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handleSendReviewChat()}
+                          disabled={reviewChatSending || !reviewChatDraft.trim()}
+                        >
+                          {reviewChatSending ? "发送中…" : "发送至本步 Agent"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleContinueStepGated()}
+                          disabled={continueLoading}
+                        >
+                          {continueLoading ? "继续执行中…" : "校验完成，继续下一步"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ol>
@@ -399,39 +900,11 @@ export function ProjectDetailPage() {
           )}
           {runInFlight && orderedSteps.length ? (
             <p className="muted" style={{ marginTop: "0.75rem" }}>
-              流程进行中；步骤与证据会随回调或轮询持续刷新。
+              流程进行中；步骤与输出目录会随回调或轮询持续刷新。
             </p>
           ) : null}
-        </SectionCard>
-        <SectionCard title="证据库">
-          {runInFlight && evidence.length === 0 ? (
-            <p className="muted">证据会随各 Agent 回调写入；若未配置回调，将在 Run 结束后一次性展示。</p>
-          ) : null}
-          <ul className="list evidence-list">
-            {evidence.map((item) => (
-              <li key={item.id}>
-                <span>{item.collected_by}</span>
-                <strong>{item.title}</strong>
-                <p>{item.excerpt}</p>
-              </li>
-            ))}
-          </ul>
-        </SectionCard>
-        <SectionCard title="尽调报告">
-          {runInFlight && !reports[0] ? (
-            <p className="muted">报告在 Run 成功完成后写入；请稍候或留意上方 Run 状态。</p>
-          ) : null}
-          {reports[0] ? (
-            <article className="report">
-              <h3>{reports[0].title}</h3>
-              <span className={`risk ${reports[0].overall_risk}`}>整体风险：{reports[0].overall_risk}</span>
-              <p>{reports[0].executive_summary}</p>
-            </article>
-          ) : !runInFlight ? (
-            <p className="muted">完成 run 后生成报告。</p>
-          ) : null}
-        </SectionCard>
-      </div>
+      </SectionCard>
+      ) : null}
     </div>
   );
 }

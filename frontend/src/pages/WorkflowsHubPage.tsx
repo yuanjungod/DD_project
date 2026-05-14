@@ -277,7 +277,7 @@ export function WorkflowsHubPage() {
                   <ul className="list">
                     {agents.map((agent) => (
                       <li key={agent.id}>
-                        <span>{agent.output_schema}</span>
+                        <span>{agent.enabled ? "enabled" : "disabled"}</span>
                         <strong>{agent.id}</strong>
                         <p>{agent.role}</p>
                       </li>
