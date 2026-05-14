@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useMemo, useState } from "react";
 
-import { createResource, deleteResource } from "../api/client";
+import { createResource, deleteResource, uploadProjectFile } from "../api/client";
 import {
   PROJECT_RESOURCE_TYPE_LABELS,
   type ParsedProjectResource,
@@ -38,6 +38,7 @@ export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
   const [fields, setFields] = useState<Record<string, string>>(() => emptyFieldsForResourceType("trusted_source"));
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState("");
+  const [uploadPick, setUploadPick] = useState<File | null>(null);
 
   const listRows = useMemo(() => {
     if (props.variant === "draft") return props.draftRows;
@@ -105,9 +106,49 @@ export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
     props.onDraftRowsChange(props.draftRows.filter((r) => r.tempId !== tempId));
   }
 
+  async function handleUploadSelected() {
+    if (props.variant === "draft" || !uploadPick) return;
+    const projectId = props.projectId;
+    setLocalError("");
+    setBusy(true);
+    try {
+      await uploadProjectFile(projectId, uploadPick);
+      setUploadPick(null);
+      await props.onRefresh();
+    } catch (err: unknown) {
+      setLocalError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="project-resources-panel">
       {localError ? <div className="error" style={{ marginBottom: "0.75rem" }}>{localError}</div> : null}
+      {!isDraft ? (
+        <div style={{ marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid var(--border-subtle, #e5e7eb)" }}>
+          <p className="muted" style={{ fontSize: "13px", marginBottom: "10px" }}>
+            <strong>应用专属文件库</strong>：PDF / Office 等保存在本应用目录；另有<strong>平台共享文件库</strong>（可用资源配置 →
+            文件库），其中文件会在<strong>任意应用</strong>
+            的 Run 中自动并入 <code>resources.uploaded_files</code>（需工作流绑定「上传文件库」）。
+          </p>
+          <div className="inline-form" style={{ flexWrap: "wrap", alignItems: "center", gap: "10px" }}>
+            <label style={{ margin: 0, flex: "1 1 200px" }}>
+              <span className="muted" style={{ fontSize: "12px", display: "block", marginBottom: "4px" }}>
+                选择文件
+              </span>
+              <input
+                type="file"
+                disabled={busy}
+                onChange={(e) => setUploadPick(e.target.files?.[0] ?? null)}
+              />
+            </label>
+            <button type="button" disabled={busy || !uploadPick} onClick={() => void handleUploadSelected()}>
+              {busy ? "上传中…" : "上传到文件库"}
+            </button>
+          </div>
+        </div>
+      ) : null}
       <form className="form project-resources-form" onSubmit={(e) => void handleSubmit(e)}>
         <label>
           资源类型
@@ -123,7 +164,7 @@ export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
           {rtype === "trusted_source" && "用于补充可信网址、研报链接或简短说明（写入主字段，可附显示名）。"}
           {rtype === "blocked_source" && "域名、URL 片段或站点名；Agent 采集时应降低权重或忽略。"}
           {rtype === "competitor" && "对标企业名称必填；官网/股票代码写进附属字段便于消歧。"}
-          {rtype === "file_reference" && "对接已托管文件的 file_id（与上传管道一致）。"}
+          {rtype === "file_reference" && "可直接使用上方文件上传；如需对接外部托管 ID，也可手动填写 file_id。"}
           {rtype === "external_clue" && "会议纪、路演、熟人渠道等不可用 URL 表达的线索。"}
           {rtype === "metric" &&
             "定义尽调时要盯的 KPI：代码 + 中文名 + 单位 + 口径说明 + 数据来源；可设比较方向与阈值。"}

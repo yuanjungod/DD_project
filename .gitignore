@@ -9,3 +9,4 @@ dist/
 coverage/
 
 agent_service/sessions/
+data/dd_store/

@@ -22,7 +22,7 @@ class Project(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    resources: Mapped[list["Resource"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+
     runs: Mapped[list["AgentRun"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     reports: Mapped[list["Report"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     access_entries: Mapped[list["ProjectAccess"]] = relationship(back_populates="project", cascade="all, delete-orphan")
@@ -116,32 +116,6 @@ class ToolConfig(Base):
     enabled: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-
-class ResourceConfig(Base):
-    __tablename__ = "resource_configs"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("resource_cfg"))
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    type: Mapped[str] = mapped_column(String, nullable=False)
-    description: Mapped[str] = mapped_column(Text, default="")
-    connection_config: Mapped[dict] = mapped_column(JSON, default=dict)
-    enabled: Mapped[bool] = mapped_column(default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-
-class Resource(Base):
-    __tablename__ = "resources"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("res"))
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
-    type: Mapped[str] = mapped_column(String, nullable=False)
-    value: Mapped[str] = mapped_column(Text, nullable=False)
-    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-    project: Mapped[Project] = relationship(back_populates="resources")
 
 
 class AgentRun(Base):

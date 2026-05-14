@@ -183,6 +183,15 @@ export type ToolConfig = {
   updated_at: string;
 };
 
+/** Platform-shared upload (merged into every run's resources.uploaded_files). */
+export type LibraryFile = {
+  id: string;
+  original_filename: string;
+  content_type: string;
+  size_bytes: number;
+  created_at: string;
+};
+
 export type ResourceConfig = {
   id: string;
   name: string;
@@ -192,6 +201,10 @@ export type ResourceConfig = {
   enabled: boolean;
   created_at: string;
   updated_at: string;
+  /** Overlay YAML exists under data store; DELETE removes overlay file. */
+  deletable?: boolean;
+  /** Repo catalog defines this id (may still have overlay override). */
+  builtin_base?: boolean;
 };
 
 export type AgentTemplate = {
@@ -203,6 +216,8 @@ export type AgentTemplate = {
   tool_ids: string[];
   skill_ids: string[];
   resource_ids: string[];
+  /** Empty = use all merged uploaded_files at run time; otherwise restrict file_reader to these IDs. */
+  platform_upload_file_ids?: string[];
   react_config: Record<string, unknown>;
   output_schema: string;
   enabled: boolean;

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 import yaml
 
-from app.models.entities import ResourceConfig, SkillPackage, ToolConfig
+from app.models.entities import SkillPackage, ToolConfig
 from app.services.skill_files import sync_all_skill_packages_to_disk
 from app.services.workflow_template_files import ensure_workflow_template_bundles_migrated
 
@@ -41,34 +41,12 @@ def seed_configuration_catalog(db: Session) -> None:
     if db.query(SkillPackage).count() == 0:
         db.add_all(_default_skill_packages())
 
-    if db.query(ResourceConfig).count() == 0:
-        resource_configs = [
-            ResourceConfig(
-                id="resource_public_web",
-                name="公开网页与新闻源",
-                type="web",
-                description="用于搜索和抓取公开网页、新闻、公告和官网信息。",
-                connection_config={"allowed_tools": ["search", "web_fetch"]},
-            ),
-            ResourceConfig(
-                id="resource_uploaded_files",
-                name="上传文件库",
-                type="file_store",
-                description="用于读取项目上传的 PDF、Word、Excel 和其他材料。",
-                connection_config={"allowed_tools": ["file_reader"]},
-            ),
-            ResourceConfig(
-                id="resource_vector_store",
-                name="项目向量库",
-                type="vector_store",
-                description="用于检索已索引项目资料的相关片段。",
-                connection_config={"allowed_tools": ["vector_retrieval"]},
-            ),
-        ]
-        db.add_all(resource_configs)
-
     db.commit()
     sync_all_skill_packages_to_disk(db.query(SkillPackage).all())
+
+    from app.services.resource_fs_migration import migrate_if_needed
+
+    migrate_if_needed(db.get_bind(), db)
 
 
 def ensure_configuration_schema(db: Session) -> None:

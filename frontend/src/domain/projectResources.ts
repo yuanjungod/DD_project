@@ -126,5 +126,11 @@ export function headlineForResourceRow(row: {
     const head = row.value.length > 80 ? `${row.value.slice(0, 80)}…` : row.value;
     return `${head} · ${meta.category}`;
   }
+  if (row.type === "file_reference") {
+    const fn = typeof meta.original_filename === "string" ? meta.original_filename.trim() : "";
+    const lbl = typeof meta.label === "string" ? meta.label.trim() : "";
+    if (fn) return fn;
+    if (lbl) return `${lbl} · ${row.value}`;
+  }
   return row.value.length > 120 ? `${row.value.slice(0, 120)}…` : row.value;
 }

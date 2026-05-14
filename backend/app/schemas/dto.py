@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 
-from app.services.company_config_merge import PROJECT_RESOURCE_TYPES
+from app.services.company_config_merge_constants import PROJECT_RESOURCE_TYPES
 
 
 class TargetCompany(BaseModel):
@@ -185,6 +185,16 @@ class ResourceConfigBase(BaseModel):
 class ResourceConfigCreate(ResourceConfigBase):
     id: str | None = None
 
+    @field_validator("id", mode="before")
+    @classmethod
+    def normalize_optional_resource_config_id(cls, v: Any) -> str | None:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            s = v.strip()
+            return s if s else None
+        return v
+
 
 class ResourceConfigUpdate(BaseModel):
     name: str | None = None
@@ -198,6 +208,14 @@ class ResourceConfigRead(ResourceConfigBase):
     id: str
     created_at: datetime
     updated_at: datetime
+    deletable: bool = Field(
+        default=False,
+        description="Overlay YAML exists under data store; DELETE removes that file (may revert to built-in).",
+    )
+    builtin_base: bool = Field(
+        default=False,
+        description="True when repo catalog ships a YAML with this id (overlay may override).",
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -233,6 +251,10 @@ class AgentTemplateBase(BaseModel):
     tool_ids: list[str] = Field(default_factory=list)
     skill_ids: list[str] = Field(default_factory=list)
     resource_ids: list[str] = Field(default_factory=list)
+    platform_upload_file_ids: list[str] = Field(
+        default_factory=list,
+        description="Merged uploaded file_ids visible to this agent; empty means use full merged list.",
+    )
     react_config: dict[str, Any] = Field(default_factory=_default_react_config)
     output_schema: str = "agent_result"
     enabled: bool = True
@@ -250,6 +272,7 @@ class AgentTemplateUpdate(BaseModel):
     tool_ids: list[str] | None = None
     skill_ids: list[str] | None = None
     resource_ids: list[str] | None = None
+    platform_upload_file_ids: list[str] | None = None
     react_config: dict[str, Any] | None = None
     output_schema: str | None = None
     enabled: bool | None = None
@@ -315,6 +338,18 @@ class ResourceRead(BaseModel):
     type: str
     value: str
     metadata_json: dict[str, Any]
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LibraryFileRead(BaseModel):
+    """Platform library upload (shared file_id merged into runs' resources.uploaded_files)."""
+
+    id: str
+    original_filename: str
+    content_type: str = ""
+    size_bytes: int = 0
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

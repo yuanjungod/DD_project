@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.auth import accessible_project_ids, ensure_project_access, ensure_project_write_access, require_roles
 from app.core.database import SessionLocal, get_db
-from app.models.entities import AgentRun, AgentStep, AgentStepChatMessage, DiligenceSession, Project, Resource, User
+from app.models.entities import AgentRun, AgentStep, AgentStepChatMessage, DiligenceSession, Project, User
 from app.schemas import (
     AgentRunBriefRead,
     AgentRunRead,
@@ -27,6 +27,7 @@ from app.services.agent_client import AgentServiceClient, AgentServiceError
 from app.services.agent_run_resume import completed_slice_for_agent_service, previous_results_before_step
 from app.services.company_config_merge import merged_company_config_with_project_resources
 from app.services.persistence import append_agent_step_chat_message, create_pending_agent_run, finalize_agent_run, mark_agent_run_failed
+from app.services.project_resources_store import project_resource_records_for_merge
 from app.services.session_context import build_continuation_context, latest_attempt_in_session, next_attempt_index
 from app.services.workflow_snapshots import build_workflow_snapshot
 
@@ -211,8 +212,8 @@ async def _execute_start_agent_run(
     )
 
     snapshot_dict = dict(workflow_snapshot)
-    proj_resources = db.query(Resource).filter(Resource.project_id == project.id).all()
-    company_dict = merged_company_config_with_project_resources(dict(project.company_config), proj_resources)
+    proj_records = project_resource_records_for_merge(project.id)
+    company_dict = merged_company_config_with_project_resources(dict(project.company_config), proj_records)
 
     loaded = (
         db.query(AgentRun)
@@ -364,8 +365,8 @@ async def continue_step_gated(
     resume_ix = len(completed_steps_payload)
     attempt_ix = getattr(row, "attempt_index", 1) or 1
     sess_id = row.session_id
-    proj_resources = db.query(Resource).filter(Resource.project_id == project.id).all()
-    company_merged = merged_company_config_with_project_resources(dict(project.company_config), proj_resources)
+    proj_records = project_resource_records_for_merge(project.id)
+    company_merged = merged_company_config_with_project_resources(dict(project.company_config), proj_records)
     background_tasks.add_task(
         _dispatch_agent_background,
         row.project_id,
@@ -421,8 +422,8 @@ def agent_step_review_chat(
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    proj_resources = db.query(Resource).filter(Resource.project_id == project.id).all()
-    merged_cfg = merged_company_config_with_project_resources(dict(project.company_config), proj_resources)
+    proj_records = project_resource_records_for_merge(project.id)
+    merged_cfg = merged_company_config_with_project_resources(dict(project.company_config), proj_records)
 
     snapshot = dict(build_workflow_snapshot(db, project.company_config))
 

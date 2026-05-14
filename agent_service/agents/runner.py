@@ -37,6 +37,14 @@ class ConfiguredAgentRunner:
             tool_executor=self._execute_react_tool,
         )
 
+    def _visible_uploaded_file_ids(self, company_config: CompanyConfig) -> list[str]:
+        full = list(company_config.resources.uploaded_files or [])
+        allow = [x.strip() for x in (self.definition.platform_upload_file_ids or []) if x and str(x).strip()]
+        if not allow:
+            return full
+        allow_set = set(allow)
+        return [fid for fid in full if fid in allow_set]
+
     def run(
         self,
         company_config: CompanyConfig,
@@ -109,7 +117,8 @@ class ConfiguredAgentRunner:
             evidence = self.evidence_store.add(self.web_fetch.run(str(url), company_config, agent_name))
             return {"evidence": evidence.model_dump(mode="json")}
         if tool_id == "file_reader":
-            file_id = payload.get("file_id") or next(iter(company_config.resources.uploaded_files), "")
+            visible = self._visible_uploaded_file_ids(company_config)
+            file_id = payload.get("file_id") or next(iter(visible), "")
             evidence = self.evidence_store.add(self.file_reader.run(str(file_id), company_config, agent_name))
             return {"evidence": evidence.model_dump(mode="json")}
         if tool_id == "vector_retrieval":
@@ -135,7 +144,8 @@ class ConfiguredAgentRunner:
             evidence.append(self.evidence_store.add(self.web_fetch.run(company.website, company_config, agent_name)))
 
         if "file_reader" in self.definition.tools:
-            for file_id in company_config.resources.uploaded_files[:2]:
+            visible = self._visible_uploaded_file_ids(company_config)
+            for file_id in visible[:2]:
                 evidence.append(self.evidence_store.add(self.file_reader.run(file_id, company_config, agent_name)))
 
         if "vector_retrieval" in self.definition.tools:

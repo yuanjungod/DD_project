@@ -326,6 +326,7 @@ class DueDiligenceWorkflow:
                 skill_package_ids=agent.get("skill_package_ids", []),
                 tool_ids=agent.get("tool_ids") or agent.get("skill_ids", []),
                 resource_ids=agent.get("resource_ids", []),
+                platform_upload_file_ids=list(agent.get("platform_upload_file_ids") or []),
                 skill_packages=agent_skill_packages,
                 tool_configs=agent_tool_configs,
                 resource_configs=agent_resource_configs,

@@ -328,13 +328,59 @@ def build_react_system_prompt(definition: AgentDefinition, base_prompt: str) -> 
         f"# Agent Role\n{definition.role}",
         "# Task Prompt\n" + base_prompt,
     ]
-    if definition.resource_configs:
-        resources = "\n".join(
-            f"- {resource['id']}: {resource.get('name', '')} ({resource.get('type', '')})"
-            for resource in definition.resource_configs
-        )
-        sections.append("# Bound Resources\n" + resources)
+    catalog = _format_bound_resources_for_sys_prompt(definition.resource_configs)
+    if catalog:
+        sections.append("# 绑定的平台资源（登记详情）\n" + catalog)
+    allow_files = [str(x).strip() for x in (definition.platform_upload_file_ids or []) if str(x).strip()]
+    if allow_files:
+        lines = [
+            "下列为本 Agent **限定可见**的平台共享上传文件 `file_id`。调用文件相关工具时请优先基于这些 ID：",
+            "",
+            *[f"- `{fid}`" for fid in allow_files],
+        ]
+        sections.append("# 平台共享文件限定\n" + "\n".join(lines))
     return "\n\n".join(sections)
+
+
+def _connection_config_sys_text(cfg: dict[str, Any], *, max_chars: int = 8000) -> str:
+    if not cfg:
+        return "(无额外登记字段)"
+    try:
+        text = json.dumps(cfg, ensure_ascii=False, indent=2)
+    except (TypeError, ValueError):
+        text = str(cfg)
+    if len(text) > max_chars:
+        return text[:max_chars] + "\n…(已截断)"
+    return text
+
+
+def _format_bound_resources_for_sys_prompt(resources: list[dict[str, Any]]) -> str:
+    """Human-readable catalog text injected into the agent system prompt."""
+    if not resources:
+        return ""
+    lines = [
+        "以下为编排中为当前 Agent 勾选的平台资源条目。**名称、描述与登记字段**均来自平台配置，",
+        "请在分析与选用工具时以此为上下文（不要求背诵 ID，但要遵守描述中的约束与用途说明）。",
+        "",
+    ]
+    for idx, r in enumerate(resources, start=1):
+        rid = str(r.get("id", "") or "").strip() or "(no-id)"
+        name = str(r.get("name", "") or "").strip()
+        rtype = str(r.get("type", "") or "").strip()
+        desc = str(r.get("description", "") or "").strip()
+        conn = r.get("connection_config")
+        conn_dict = conn if isinstance(conn, dict) else {}
+
+        lines.append(f"## {idx}. `{rid}`")
+        lines.append(f"- **名称**: {name or '—'}")
+        lines.append(f"- **类型**: {rtype or '—'}")
+        lines.append(f"- **描述**: {desc or '—'}")
+        lines.append("- **登记详情 (connection_config)**:")
+        lines.append("```json")
+        lines.append(_connection_config_sys_text(conn_dict))
+        lines.append("```")
+        lines.append("")
+    return "\n".join(lines).rstrip()
 
 
 def _make_tool_function(

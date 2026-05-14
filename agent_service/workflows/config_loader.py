@@ -20,6 +20,7 @@ class AgentDefinition(BaseModel):
     skill_package_ids: list[str] = Field(default_factory=list)
     tool_ids: list[str] = Field(default_factory=list)
     resource_ids: list[str] = Field(default_factory=list)
+    platform_upload_file_ids: list[str] = Field(default_factory=list)
     skill_packages: list[dict[str, Any]] = Field(default_factory=list)
     tool_configs: list[dict[str, Any]] = Field(default_factory=list)
     resource_configs: list[dict[str, Any]] = Field(default_factory=list)

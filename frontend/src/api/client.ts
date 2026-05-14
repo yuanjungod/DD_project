@@ -9,6 +9,7 @@ import type {
   Report,
   Resource,
   ResourceConfig,
+  LibraryFile,
   Scenario,
   SkillDebugResult,
   SkillPackage,
@@ -137,6 +138,76 @@ export async function deleteResource(projectId: string, resourceId: string): Pro
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     },
   );
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `删除失败（${response.status}）`);
+  }
+}
+
+export async function uploadProjectFile(projectId: string, file: File): Promise<Resource> {
+  const token = localStorage.getItem("dd_access_token");
+  const formData = new FormData();
+  formData.append("file", file);
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/uploads`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === "Failed to fetch" || msg.includes("NetworkError")) {
+      throw new Error(
+        `无法连接 API（当前基址：${API_BASE_URL}）。请确认 Backend 已在 127.0.0.1:8010 运行，并使用 npm run dev 开发服务器（带 /api 代理）。`,
+      );
+    }
+    throw err;
+  }
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `上传失败（${response.status}）`);
+  }
+  return response.json() as Promise<Resource>;
+}
+
+export function listLibraryUploads(): Promise<LibraryFile[]> {
+  return request<LibraryFile[]>("/library/uploads");
+}
+
+export async function uploadLibraryFile(file: File): Promise<LibraryFile> {
+  const token = localStorage.getItem("dd_access_token");
+  const formData = new FormData();
+  formData.append("file", file);
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/library/uploads`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === "Failed to fetch" || msg.includes("NetworkError")) {
+      throw new Error(
+        `无法连接 API（当前基址：${API_BASE_URL}）。请确认 Backend 已在 127.0.0.1:8010 运行，并使用 npm run dev 开发服务器（带 /api 代理）。`,
+      );
+    }
+    throw err;
+  }
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `上传失败（${response.status}）`);
+  }
+  return response.json() as Promise<LibraryFile>;
+}
+
+export async function deleteLibraryUpload(fileId: string): Promise<void> {
+  const token = localStorage.getItem("dd_access_token");
+  const response = await fetch(`${API_BASE_URL}/library/uploads/${encodeURIComponent(fileId)}`, {
+    method: "DELETE",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   if (!response.ok) {
     const detail = await response.text();
     throw new Error(detail || `删除失败（${response.status}）`);
@@ -272,6 +343,28 @@ export function listResourceConfigs(): Promise<ResourceConfig[]> {
 
 export function createResourceConfig(payload: Partial<ResourceConfig>): Promise<ResourceConfig> {
   return request<ResourceConfig>("/resources/configs", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function updateResourceConfig(
+  resourceId: string,
+  payload: Partial<Pick<ResourceConfig, "name" | "description" | "type" | "connection_config" | "enabled">>,
+): Promise<ResourceConfig> {
+  return request<ResourceConfig>(`/resources/configs/${encodeURIComponent(resourceId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteResourceConfig(resourceId: string): Promise<void> {
+  const token = localStorage.getItem("dd_access_token");
+  const response = await fetch(`${API_BASE_URL}/resources/configs/${encodeURIComponent(resourceId)}`, {
+    method: "DELETE",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `删除失败（${response.status}）`);
+  }
 }
 
 export function listAgentTemplates(): Promise<AgentTemplate[]> {

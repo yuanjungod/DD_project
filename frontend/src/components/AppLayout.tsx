@@ -39,10 +39,10 @@ export function AppLayout({ user, onLogout, children }: AppLayoutProps) {
           </div>
         </div>
         <nav>
-          <NavLink to="/workflows">场景与流程</NavLink>
           <NavLink to="/skills">Skills 管理</NavLink>
           <NavLink to="/tools">工具管理</NavLink>
-          <NavLink to="/resource-configs">资源管理</NavLink>
+          <NavLink to="/resource-configs">平台资源</NavLink>
+          <NavLink to="/workflows">场景与流程</NavLink>
           <NavLink to="/projects/new">创建应用</NavLink>
           <NavLink
             to="/projects"

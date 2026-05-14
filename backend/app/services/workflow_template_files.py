@@ -146,6 +146,8 @@ def _normalize_agent_record(raw: dict[str, Any]) -> dict[str, Any]:
     data["skill_ids"] = list(data.get("skill_ids") or tool_ids)
     if not data.get("resource_ids"):
         data["resource_ids"] = _resource_ids_for_tools(data["tool_ids"])
+    puf = data.get("platform_upload_file_ids")
+    data["platform_upload_file_ids"] = [str(x).strip() for x in (puf or []) if str(x).strip()]
     rc = data.get("react_config")
     if not rc or not isinstance(rc, dict) or "model" not in rc:
         data["react_config"] = _merge_react_config(rc if isinstance(rc, dict) else {})

@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, configs, evidence, internal_agent, projects, reports, resources, runs, scenarios
+from app.api import auth, configs, evidence, internal_agent, library_uploads, projects, reports, resources, runs, scenarios, uploads
 from app.core.auth import seed_default_users
 from app.core.config import settings
 from app.core.config_seed import seed_configuration_catalog
@@ -26,8 +26,10 @@ def create_app() -> FastAPI:
     )
     app.include_router(auth.router)
     app.include_router(configs.router)
+    app.include_router(library_uploads.router)
     app.include_router(projects.router)
     app.include_router(resources.router)
+    app.include_router(uploads.router)
     app.include_router(runs.router)
     app.include_router(evidence.router)
     app.include_router(reports.router)

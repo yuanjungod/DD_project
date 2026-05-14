@@ -37,11 +37,12 @@ class Resources(BaseModel):
     competitors: list[str] = Field(default_factory=list)
     metrics: list[dict[str, Any]] = Field(default_factory=list)
     external_clues: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class CompanyConfig(BaseModel):
     target_company: TargetCompany
     scope: Scope = Field(default_factory=Scope)
     resources: Resources = Field(default_factory=Resources)
-
-
 class Evidence(BaseModel):
     id: str
     title: str

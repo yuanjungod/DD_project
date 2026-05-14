@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     token_ttl_seconds: int = 60 * 60 * 8
     # Verified by POST /internal/agent-runs/*/progress — must match agent service AGENT_CALLBACK_SECRET
     agent_callback_secret: str = "local-dd-agent-callback"
+    # Project + platform connector resources (YAML/JSON), not SQLite tables.
+    filesystem_data_root: str = "data/dd_store"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

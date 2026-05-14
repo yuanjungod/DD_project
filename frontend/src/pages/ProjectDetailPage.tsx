@@ -294,7 +294,7 @@ export function ProjectDetailPage() {
       <div className="grid two">
         <SectionCard
           title="应用资源"
-          description="按类型配置：可信/屏蔽来源、竞品、文件引用、非结构化线索与指标定义。启动 Run 时会并入 company_config 供 Agent 使用。"
+          description="上传文件材料、配置可信/屏蔽来源、竞品、文件引用（手动 ID）、线索与指标等。启动 Run 时会并入 company_config 供 Agent 使用。"
         >
           <ProjectResourcesPanel projectId={projectId} resources={resources} onRefresh={() => refresh()} />
         </SectionCard>

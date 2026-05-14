@@ -1,30 +1,18 @@
-"""Merge persisted project Resource rows into company_config.resources for Agent runs."""
+"""Merge filesystem-backed project resource records into company_config.resources for Agent runs."""
 
 from __future__ import annotations
 
 import copy
 from typing import Any
 
-from app.models.entities import Resource
-
-
-PROJECT_RESOURCE_TYPES = frozenset(
-    {
-        "trusted_source",
-        "blocked_source",
-        "competitor",
-        "file_reference",
-        "external_clue",
-        "metric",
-    }
-)
+from app.services.platform_uploads_store import iter_platform_upload_file_ids
 
 
 def merged_company_config_with_project_resources(
     company_config: dict[str, Any],
-    resource_rows: list[Resource],
+    resource_records: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Deep-copy company_config and fold Resource ORM rows into resources.* lists."""
+    """Deep-copy company_config and fold resource manifests into resources.* lists."""
     merged: dict[str, Any] = copy.deepcopy(company_config) if company_config else {}
     resources = merged.setdefault("resources", {})
     if not isinstance(resources, dict):
@@ -66,22 +54,24 @@ def merged_company_config_with_project_resources(
             if isinstance(rid, str):
                 seen_clue_rows.add(rid)
 
-    for row in sorted(resource_rows, key=lambda r: r.created_at):
-        meta = row.metadata_json if isinstance(row.metadata_json, dict) else {}
-        val = (row.value or "").strip()
-        if row.type == "trusted_source" and val:
+    for row in sorted(resource_records, key=lambda r: str(r.get("created_at", ""))):
+        meta = row["metadata_json"] if isinstance(row.get("metadata_json"), dict) else {}
+        val = (str(row.get("value") or "")).strip()
+        rtype = str(row.get("type", ""))
+        rid = str(row.get("id", ""))
+        if rtype == "trusted_source" and val:
             trusted[val] = None
-        elif row.type == "blocked_source" and val:
+        elif rtype == "blocked_source" and val:
             blocked[val] = None
-        elif row.type == "competitor" and val:
+        elif rtype == "competitor" and val:
             competitors[val] = None
-        elif row.type == "file_reference" and val:
+        elif rtype == "file_reference" and val:
             files[val] = None
-        elif row.type == "external_clue":
-            if row.id not in seen_clue_rows:
+        elif rtype == "external_clue":
+            if rid not in seen_clue_rows:
                 clues.append(
                     {
-                        "resource_id": row.id,
+                        "resource_id": rid,
                         "summary": val,
                         "category": meta.get("category") or "",
                         "priority": meta.get("priority") or "normal",
@@ -89,12 +79,12 @@ def merged_company_config_with_project_resources(
                         "notes": meta.get("notes") or "",
                     }
                 )
-                seen_clue_rows.add(row.id)
-        elif row.type == "metric":
-            if row.id not in seen_metric_rows:
+                seen_clue_rows.add(rid)
+        elif rtype == "metric":
+            if rid not in seen_metric_rows:
                 metrics.append(
                     {
-                        "resource_id": row.id,
+                        "resource_id": rid,
                         "metric_code": val,
                         "name": meta.get("name") or val,
                         "unit": meta.get("unit") or "",
@@ -109,12 +99,17 @@ def merged_company_config_with_project_resources(
                         "notes": meta.get("notes") or "",
                     }
                 )
-                seen_metric_rows.add(row.id)
+                seen_metric_rows.add(rid)
 
     resources["trusted_sources"] = list(trusted.keys())
     resources["blocked_sources"] = list(blocked.keys())
     resources["competitors"] = list(competitors.keys())
-    resources["uploaded_files"] = list(files.keys())
+    for fid in iter_platform_upload_file_ids():
+        files[fid] = None
+    resources["uploaded_files"] = sorted(files.keys())
     resources["metrics"] = metrics
     resources["external_clues"] = clues
     return merged
+
+
+__all__ = ["merged_company_config_with_project_resources"]

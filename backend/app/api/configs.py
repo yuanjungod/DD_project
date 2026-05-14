@@ -10,7 +10,7 @@ import frontmatter
 
 from app.core.auth import require_roles
 from app.core.database import get_db
-from app.models.entities import ResourceConfig, SkillPackage, ToolConfig, User
+from app.models.entities import SkillPackage, ToolConfig, User
 from app.schemas import (
     AgentTemplateCreate,
     AgentTemplateRead,
@@ -39,6 +39,13 @@ from app.services.workflow_template_files import update_agent as update_agent_on
 from app.services.workflow_template_files import update_workflow_template as update_workflow_on_disk
 from app.services.skill_files import skill_package_disk_path, sync_skill_package_to_disk
 from app.services.skill_zip_import import skill_package_create_from_zip
+from app.services.platform_resource_catalog import (
+    BuiltinOnlyResourceConfigError,
+    create_resource_config_overlay,
+    delete_resource_config_overlay,
+    list_resource_config_reads,
+    update_resource_config_overlay,
+)
 
 
 router = APIRouter(tags=["configuration"])
@@ -186,40 +193,50 @@ def update_tool_config(
 
 @router.get("/resources/configs", response_model=list[ResourceConfigRead])
 def list_resource_configs(
-    db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
-) -> list[ResourceConfig]:
-    query = db.query(ResourceConfig)
-    if user.role != "admin":
-        query = query.filter(ResourceConfig.enabled.is_(True))
-    return query.order_by(ResourceConfig.name).all()
+) -> list[ResourceConfigRead]:
+    return list_resource_config_reads(only_enabled=user.role != "admin")
 
 
 @router.post("/resources/configs", response_model=ResourceConfigRead)
 def create_resource_config(
     payload: ResourceConfigCreate,
-    db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
-) -> ResourceConfig:
-    item = ResourceConfig(**_create_payload(payload))
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return item
+) -> ResourceConfigRead:
+    try:
+        return create_resource_config_overlay(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail="Resource config id already exists in data overlay") from exc
 
 
 @router.patch("/resources/configs/{resource_id}", response_model=ResourceConfigRead)
 def update_resource_config(
     resource_id: str,
     payload: ResourceConfigUpdate,
-    db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
-) -> ResourceConfig:
-    item = _get_or_404(db, ResourceConfig, resource_id, "Resource config")
-    _apply_updates(item, payload)
-    db.commit()
-    db.refresh(item)
-    return item
+) -> ResourceConfigRead:
+    try:
+        return update_resource_config_overlay(resource_id, payload)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Resource config not found") from exc
+
+
+@router.delete("/resources/configs/{resource_id}", status_code=204)
+def delete_resource_config(
+    resource_id: str,
+    _: User = Depends(require_roles("admin")),
+) -> None:
+    try:
+        delete_resource_config_overlay(resource_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Resource config not found") from exc
+    except BuiltinOnlyResourceConfigError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail="Built-in resource configs cannot be deleted from the API; only data-store overlays can be removed.",
+        ) from exc
 
 
 @router.get("/agent-templates", response_model=list[AgentTemplateRead])

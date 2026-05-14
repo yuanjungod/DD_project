@@ -3,7 +3,8 @@ from __future__ import annotations
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.entities import ResourceConfig, SkillPackage, ToolConfig
+from app.models.entities import SkillPackage, ToolConfig
+from app.services.platform_resource_catalog import load_resource_configs_by_ids
 from app.services.workflow_template_files import get_published_workflow_bundle, resolve_agents_for_snapshot
 
 
@@ -23,7 +24,7 @@ def build_workflow_snapshot(db: Session, company_config: dict) -> dict:
     resource_ids = sorted({resource_id for agent in agents for resource_id in (agent.get("resource_ids") or [])})
     skill_packages = db.query(SkillPackage).filter(SkillPackage.id.in_(skill_package_ids), SkillPackage.enabled.is_(True)).all()
     tools = db.query(ToolConfig).filter(ToolConfig.id.in_(tool_ids), ToolConfig.enabled.is_(True)).all()
-    resources = db.query(ResourceConfig).filter(ResourceConfig.id.in_(resource_ids), ResourceConfig.enabled.is_(True)).all()
+    disk_resources = load_resource_configs_by_ids(resource_ids)
 
     return {
         "workflow": {
@@ -44,6 +45,7 @@ def build_workflow_snapshot(db: Session, company_config: dict) -> dict:
                 "tool_ids": agent.get("tool_ids") or agent.get("skill_ids") or [],
                 "skill_ids": agent.get("tool_ids") or agent.get("skill_ids") or [],
                 "resource_ids": agent.get("resource_ids") or [],
+                "platform_upload_file_ids": agent.get("platform_upload_file_ids") or [],
                 "react_config": agent.get("react_config")
                 or {"max_iters": 6, "parallel_tool_calls": False},
                 "output_schema": agent.get("output_schema") or "agent_result",
@@ -80,8 +82,8 @@ def build_workflow_snapshot(db: Session, company_config: dict) -> dict:
                 "name": resource.name,
                 "type": resource.type,
                 "description": resource.description,
-                "connection_config": resource.connection_config,
+                "connection_config": dict(resource.connection_config or {}),
             }
-            for resource in resources
+            for resource in disk_resources
         ],
     }
