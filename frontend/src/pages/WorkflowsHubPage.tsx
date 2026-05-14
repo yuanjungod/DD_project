@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   cloneWorkflowTemplate,
   createWorkflowTemplate,
+  deleteWorkflowTemplate,
   listAgentTemplates,
   listScenarios,
   listWorkflowTemplates,
@@ -32,6 +33,14 @@ function graphFromAgents(agentIds: string[]): WorkflowGraph {
 }
 
 type HubTab = "scenarios" | "builder" | "agents";
+
+/** Must match backend `workflow_template_files._PROTECTED_WORKFLOW_TEMPLATE_IDS`. */
+const PROTECTED_WORKFLOW_TEMPLATE_IDS = new Set([
+  "standard_due_diligence",
+  "financial_investment_due_diligence",
+  "legal_compliance_due_diligence",
+  "market_entry_due_diligence",
+]);
 
 export function WorkflowsHubPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -140,18 +149,38 @@ export function WorkflowsHubPage() {
     }
   }
 
+  async function handleDelete(workflow: WorkflowTemplate) {
+    if (PROTECTED_WORKFLOW_TEMPLATE_IDS.has(workflow.id)) {
+      return;
+    }
+    const publishedHint =
+      workflow.status === "published"
+        ? "该场景已发布，删除后「使用场景」中将不再出现。确定删除吗？"
+        : "确定删除该草稿模板吗？";
+    if (!window.confirm(`${publishedHint}\n\n「${workflow.name}」 (${workflow.id})`)) {
+      return;
+    }
+    setError("");
+    try {
+      await deleteWorkflowTemplate(workflow.id);
+      await refreshAfterMutation();
+    } catch (err) {
+      setError(String(err));
+    }
+  }
+
   const heroDescription =
     activeTab === "scenarios"
       ? "选择已发布场景，一键创建绑定公司的尽调应用。"
       : activeTab === "builder"
-        ? "新建草稿、编排 Agent、发布后与「使用场景」页同步可见。"
+        ? "新建草稿、编排 Agent、发布后与「使用场景」页同步可见；可删除自建模板（内置场景除外）。"
         : "维护提示词、Skill 包、工具与资源配置，供流程模板引用。";
 
   return (
     <div className="page-stack">
       <header className="page-hero">
         <p className="eyebrow">Workflows</p>
-        <h1>场景与流程</h1>
+        <h1>场景与Agent</h1>
         <p>{heroDescription}</p>
         <nav className="hub-tab-bar" aria-label="工作流分区">
           <button
@@ -168,7 +197,7 @@ export function WorkflowsHubPage() {
             aria-current={activeTab === "builder" ? "page" : undefined}
             onClick={() => setActiveTab("builder")}
           >
-            流程管理
+            场景管理
           </button>
           <button
             type="button"
@@ -280,6 +309,15 @@ export function WorkflowsHubPage() {
                         <button type="button" className="secondary-button" onClick={() => handleClone(workflow.id)}>
                           克隆
                         </button>
+                        {!PROTECTED_WORKFLOW_TEMPLATE_IDS.has(workflow.id) ? (
+                          <button
+                            type="button"
+                            className="danger-button"
+                            onClick={() => void handleDelete(workflow)}
+                          >
+                            删除
+                          </button>
+                        ) : null}
                       </div>
                     </article>
                   ))}

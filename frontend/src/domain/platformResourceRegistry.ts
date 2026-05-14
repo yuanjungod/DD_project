@@ -1,4 +1,4 @@
-/** 平台可用资源类型（磁盘 YAML），与「场景与流程」里绑定哪些 ID 无关；本模块文案侧重条目登记含义。 */
+/** 平台可用资源类型（磁盘 YAML），与「场景与Agent」里绑定哪些 ID 无关；本模块文案侧重条目登记含义。 */
 
 export type PlatformResourceType =
   | "web"

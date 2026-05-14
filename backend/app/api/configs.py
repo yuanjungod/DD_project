@@ -3,7 +3,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 from agentscope.tool import Toolkit
 import frontmatter
@@ -32,6 +32,7 @@ from app.schemas import (
 from app.services.workflow_template_files import clone_workflow_template as clone_workflow_on_disk
 from app.services.workflow_template_files import create_agent as create_agent_on_disk
 from app.services.workflow_template_files import create_workflow_template as create_workflow_on_disk
+from app.services.workflow_template_files import delete_workflow_template as delete_workflow_on_disk
 from app.services.workflow_template_files import list_union_agent_reads as list_agent_template_reads_from_disk
 from app.services.workflow_template_files import list_workflow_reads_for_api as list_workflow_reads_from_disk
 from app.services.workflow_template_files import publish_workflow_template as publish_workflow_on_disk
@@ -301,6 +302,15 @@ def clone_workflow_template(
     _: User = Depends(require_roles("admin")),
 ) -> WorkflowTemplateRead:
     return clone_workflow_on_disk(workflow_id)
+
+
+@router.delete("/workflow-templates/{workflow_id}", status_code=204)
+def delete_workflow_template(
+    workflow_id: str,
+    _: User = Depends(require_roles("admin")),
+) -> Response:
+    delete_workflow_on_disk(workflow_id)
+    return Response(status_code=204)
 
 
 def _create_payload(payload):

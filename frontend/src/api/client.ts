@@ -390,3 +390,26 @@ export function publishWorkflowTemplate(workflowId: string): Promise<WorkflowTem
 export function cloneWorkflowTemplate(workflowId: string): Promise<WorkflowTemplate> {
   return request<WorkflowTemplate>(`/workflow-templates/${workflowId}/clone`, { method: "POST" });
 }
+
+export async function deleteWorkflowTemplate(workflowId: string): Promise<void> {
+  const token = localStorage.getItem("dd_access_token");
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/workflow-templates/${encodeURIComponent(workflowId)}`, {
+      method: "DELETE",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === "Failed to fetch" || msg.includes("NetworkError")) {
+      throw new Error(
+        `无法连接 API（当前基址：${API_BASE_URL}）。请确认 Backend 已在 127.0.0.1:8010 运行，并使用 npm run dev 开发服务器（带 /api 代理）。`,
+      );
+    }
+    throw err;
+  }
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `删除失败（${response.status}）`);
+  }
+}

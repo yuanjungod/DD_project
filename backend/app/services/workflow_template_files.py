@@ -31,6 +31,16 @@ LEGACY_AGENT_CATALOG_PATH = AGENT_CONFIG_DIR / "agent_templates.yaml"
 
 _WORKFLOW_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 
+# Shipped bundles under agent_service/configs/workflow_templates — must not be removed via API.
+_PROTECTED_WORKFLOW_TEMPLATE_IDS = frozenset(
+    {
+        "standard_due_diligence",
+        "financial_investment_due_diligence",
+        "legal_compliance_due_diligence",
+        "market_entry_due_diligence",
+    }
+)
+
 
 def workflow_templates_dir() -> Path:
     return WORKFLOW_TEMPLATES_DIR
@@ -463,6 +473,16 @@ def update_workflow_template(workflow_id: str, payload: WorkflowTemplateUpdate) 
         bundle["agents"] = _pick_agents_for_graph(agent_ids, pool)
     path = save_workflow_bundle(workflow_id, bundle)
     return _bundle_to_read(path, _normalize_bundle(copy.deepcopy(_load_yaml(path))))
+
+
+def delete_workflow_template(workflow_id: str) -> None:
+    _assert_safe_workflow_id(workflow_id)
+    if workflow_id in _PROTECTED_WORKFLOW_TEMPLATE_IDS:
+        raise HTTPException(status_code=403, detail="内置工作流模板不可删除")
+    path = workflow_bundle_path(workflow_id)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Workflow template not found")
+    path.unlink()
 
 
 def publish_workflow_template(workflow_id: str) -> WorkflowTemplateRead:
