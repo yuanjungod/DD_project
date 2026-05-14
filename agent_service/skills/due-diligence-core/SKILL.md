@@ -1,4 +1,5 @@
 ---
+id: skill_due_diligence_core
 name: due-diligence-core
 description: Guides evidence-first due diligence work with source-backed claims, confidence, conflicts, and report-ready findings.
 ---

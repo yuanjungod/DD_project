@@ -1,4 +1,5 @@
 ---
+id: skill_report_writing
 name: due-diligence-report-writing
 description: Guides concise due diligence report writing with executive summaries, risk levels, evidence IDs, and open diligence gaps.
 ---

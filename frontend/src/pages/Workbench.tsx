@@ -8,37 +8,12 @@ import {
   listProjects,
   listReports,
   listResources,
+  listWorkflowTemplates,
   startRun,
 } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
-import type { AgentRun, CompanyConfig, Evidence, Project, Report, Resource } from "../types/domain";
-
-const workflowOptions = [
-  {
-    id: "standard_due_diligence",
-    scenario: "standard",
-    name: "标准完整尽调",
-    focusAreas: ["业务", "财务", "法律", "股权", "舆情", "合规"],
-  },
-  {
-    id: "legal_compliance_due_diligence",
-    scenario: "legal_compliance",
-    name: "法律合规重点尽调",
-    focusAreas: ["法律", "合规", "诉讼", "行政处罚", "知识产权", "监管"],
-  },
-  {
-    id: "financial_investment_due_diligence",
-    scenario: "financial_investment",
-    name: "财务投资重点尽调",
-    focusAreas: ["财务", "融资", "经营质量", "商业模式", "行业位置"],
-  },
-  {
-    id: "market_entry_due_diligence",
-    scenario: "market_entry",
-    name: "市场进入尽调",
-    focusAreas: ["行业", "竞品", "产品", "市场声誉", "合作风险"],
-  },
-];
+import { focusAreasForScenario, workflowName } from "../data/workflows";
+import type { AgentRun, CompanyConfig, Evidence, Project, Report, Resource, WorkflowTemplate } from "../types/domain";
 
 const defaultCompanyConfig: CompanyConfig = {
   target_company: {
@@ -51,9 +26,11 @@ const defaultCompanyConfig: CompanyConfig = {
   },
   scope: {
     workflow_id: "standard_due_diligence",
+    workflow_template_id: "standard_due_diligence",
+    workflow_template_version: 1,
     scenario: "standard",
     time_range: "近5年",
-    focus_areas: ["业务", "财务", "法律", "股权", "舆情", "合规"],
+    focus_areas: focusAreasForScenario("standard"),
     report_language: "zh-CN",
   },
   resources: {
@@ -71,12 +48,9 @@ function splitList(value: string): string[] {
     .filter(Boolean);
 }
 
-function workflowName(workflowId?: string): string {
-  return workflowOptions.find((workflow) => workflow.id === workflowId)?.name ?? "未配置流程";
-}
-
 export function Workbench() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [resources, setResources] = useState<Resource[]>([]);
   const [evidence, setEvidence] = useState<Evidence[]>([]);
@@ -93,8 +67,9 @@ export function Workbench() {
   );
 
   async function refreshProjects() {
-    const items = await listProjects();
+    const [items, workflowItems] = await Promise.all([listProjects(), listWorkflowTemplates()]);
     setProjects(items);
+    setWorkflowTemplates(workflowItems);
     if (!selectedProjectId && items[0]) {
       setSelectedProjectId(items[0].id);
     }
@@ -192,22 +167,24 @@ export function Workbench() {
               <select
                 value={form.scope.workflow_id}
                 onChange={(event) => {
-                  const workflow = workflowOptions.find((item) => item.id === event.target.value);
+                  const workflow = workflowTemplates.find((item) => item.id === event.target.value);
                   if (!workflow) return;
                   setForm({
                     ...form,
                     scope: {
                       ...form.scope,
                       workflow_id: workflow.id,
+                      workflow_template_id: workflow.id,
+                      workflow_template_version: workflow.version,
                       scenario: workflow.scenario,
-                      focus_areas: workflow.focusAreas,
+                      focus_areas: focusAreasForScenario(workflow.scenario),
                     },
                   });
                 }}
               >
-                {workflowOptions.map((workflow) => (
+                {workflowTemplates.map((workflow) => (
                   <option key={workflow.id} value={workflow.id}>
-                    {workflow.name}
+                    {workflow.name} v{workflow.version}
                   </option>
                 ))}
               </select>
@@ -278,7 +255,12 @@ export function Workbench() {
           {selectedProject ? (
             <div className="summary-box">
               <strong>{selectedProject.company_config.target_company.name}</strong>
-              <span>{workflowName(selectedProject.company_config.scope.workflow_id)}</span>
+              <span>
+                {workflowName(
+                  selectedProject.company_config.scope.workflow_template_id ?? selectedProject.company_config.scope.workflow_id,
+                  workflowTemplates,
+                )}
+              </span>
             </div>
           ) : null}
           <div className="inline-form">

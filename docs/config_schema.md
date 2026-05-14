@@ -15,9 +15,13 @@ This document describes the configuration contract shared by the frontend, backe
 
 Conventions in README: **backend listening on `8010`**, **agent_service on `8011`**, **Vite on `5173`**. In development, the UI defaults to relative **`/api`**, which Vite proxies to the backend so the browser does not open cross-origin requests to `8010`.
 
-## Agent templates on disk
+## File-backed runtime catalogs
 
-Authoritative agent definitions: **`agent_service/configs/agent_templates.yaml`**. On first backend startup, if the file is missing, it is generated from **`agent_service/configs/agents.yaml`** (tool lists) plus prompt bodies under **`agent_service/prompts/`**. Older SQLite files may still contain an unused **`agent_templates`** table; the application no longer reads or writes agent definitions there.
+Authoritative workflow and agent definitions live in **`agent_service/configs/workflow_templates/{workflow_id}.yaml`**. Each bundle contains the workflow graph plus the agent definitions used by that graph; optional shared agents created outside a bundle live in **`agent_service/configs/workflow_templates/_shared_agents.yaml`**.
+
+Legacy files **`agent_service/configs/workflows.yaml`**, **`agent_service/configs/agents.yaml`**, and **`agent_service/configs/agent_templates.yaml`** are migration/dev fallback inputs only. They seed workflow bundles when no bundle files exist and are not the steady-state runtime source for backend-created runs.
+
+Skill packages are file-backed under **`agent_service/skills/<directory_name>/`**. The backend mirrors those files into the DB catalog at startup and writes API edits back to the same directory. Tool configs are mirrored through **`agent_service/configs/tools.yaml`**. Resource configs are already file-backed through **`catalog/resource_configs/`** plus **`data/dd_store/platform/resource_configs/`** overlays.
 
 ## Company Configuration
 
@@ -49,7 +53,7 @@ Authoritative agent definitions: **`agent_service/configs/agent_templates.yaml`*
 }
 ```
 
-`workflow_id` still points at a reusable workflow key in `agent_service/configs/workflows.yaml` for legacy paths. **Published company projects** should set **`workflow_template_id`** (and version when applicable) so the backend snapshot drives the graph.
+`workflow_template_id` is the preferred pointer for company projects; `workflow_id` remains a compatibility alias. The backend builds the run snapshot from the published bundle on disk.
 
 ## Evidence
 
@@ -74,13 +78,13 @@ Example evidence item as returned by the agent and stored on the backend (metada
 
 Reusable workflows are managed through the backend configuration catalog:
 
-- `SkillPackage`: Anthropic/Cursor-style skill package with `SKILL.md`, directory name, editable package files, and optional bundled resources such as references, scripts, and assets. Skill packages are synchronized to `agent_service/skills/<directory_name>/`. Admins may **`POST /skills/import-zip`** (`multipart/form-data`: **`file`** = single-skill `.zip` with one top-level folder containing `SKILL.md`; optional **`directory_name`** form field overrides the disk directory slug).
-- `ToolConfig`: executable capability such as search, web fetch, file reading, vector retrieval, evidence storage, or report storage.
+- `SkillPackage` (file-backed, DB-mirrored): Anthropic/Cursor-style skill package with `SKILL.md`, directory name, editable package files, and optional bundled resources such as references, scripts, and assets. Skill packages live under `agent_service/skills/<directory_name>/`. Admins may **`POST /skills/import-zip`** (`multipart/form-data`: **`file`** = single-skill `.zip` with one top-level folder containing `SKILL.md`; optional **`directory_name`** form field overrides the disk directory slug).
+- `ToolConfig` (file-backed, DB-mirrored): executable capability such as search, web fetch, file reading, vector retrieval, evidence storage, or report storage; persisted under `agent_service/configs/tools.yaml`.
 - `ResourceConfig`: data resource available to agents, such as public web, uploaded files, vector stores, databases, or external APIs.
 - `AgentTemplate` (file-backed): **definitions** are embedded in each workflow bundle (`workflow_templates/<id>.yaml`) and optionally in **`workflow_templates/_shared_agents.yaml`**. Each record has `id`, `name`, `role`, inline `prompt`, `skill_package_ids`, `tool_ids`, `skill_ids`, `resource_ids`, `react_config`, `output_schema`, and `enabled`. Workflow graphs reference agents by **`id`**. The Admin UI uses **`GET/POST/PATCH /agent-templates`**; **`GET`** returns the union across bundles + shared file, **`POST`** appends to **`_shared_agents.yaml`**, and **`PATCH`** updates every file that contains that agent id.
 - `WorkflowTemplate` (file-backed): one bundle per workflow under **`agent_service/configs/workflow_templates/{workflow_id}.yaml`**. Each file has a `workflow` object (ordered `graph`, `scenario`, `status`, `version`, etc.) plus the `agents` array used for that graph. **`GET/POST/PATCH /workflow-templates`** and publish/clone operate on these files; only **`published`** templates are listed for non-admin callers and for run snapshots.
 
-Only **`published`** workflow templates should be selected by downstream company projects. When a run starts, the backend creates a **workflow snapshot** so historical runs remain auditable even if the template changes later. The snapshot includes `skill_packages` (with `package_files`), executable `tools`, `resources`, and each agent's `react_config`. By default, `react_config.model` uses the local Anthropic Messages-compatible `kimi-code` provider at `http://127.0.0.1:8081/v1`.
+Only **`published`** workflow templates should be selected by downstream company projects. When a run starts, the backend creates a **workflow snapshot** from the current file-backed bundle/catalog mirrors. The snapshot sent to the agent service includes `skill_packages` (with `package_files`), executable `tools`, `resources`, and each agent's `react_config`. By default, `react_config.model` uses the local Anthropic Messages-compatible `kimi-code` provider at `http://127.0.0.1:8081/v1`.
 
 ## Run and time fields
 

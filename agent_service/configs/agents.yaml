@@ -1,3 +1,5 @@
+# Legacy dev fallback only. Runtime workflow/agent definitions are file-backed in
+# agent_service/configs/workflow_templates/*.yaml and embedded in run snapshots.
 agents:
   - name: CoordinatorAgent
     role: due_diligence_coordinator

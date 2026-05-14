@@ -18,20 +18,29 @@ from agent_service.api.schemas import (
 from agent_service.callback_client import notify_run_progress
 from agent_service.session_history import build_session_recorder, open_session_recorder_for_resume
 from agent_service.tools.stores import EvidenceStoreTool, ReportStoreTool
-from agent_service.workflows.config_loader import AgentDefinition, WorkflowDefinition, load_agent_config, load_workflow_config
+from agent_service.workflows.config_loader import (
+    AgentConfig,
+    AgentDefinition,
+    WorkflowConfig,
+    WorkflowDefinition,
+    load_agent_config,
+    load_workflow_config,
+)
 
 
 class DueDiligenceWorkflow:
     def __init__(self) -> None:
-        self.agent_config = load_agent_config()
-        self.workflow_config = load_workflow_config()
+        self._agent_config: AgentConfig | None = None
+        self._workflow_config: WorkflowConfig | None = None
 
     def step_review_chat(self, payload: StepReviewChatRequest) -> StepReviewChatResponse:
         snapshot = payload.workflow_snapshot
         agent_definitions = self._agent_definitions_from_snapshot(snapshot)
         definition = agent_definitions.get(payload.agent_name) if agent_definitions else None
         if definition is None:
-            definition = self.agent_config.get_agent(payload.agent_name)
+            if snapshot:
+                raise ValueError(f"Workflow snapshot missing agent definition: {payload.agent_name}")
+            definition = self._legacy_agent_config().get_agent(payload.agent_name)
         evidence_store = EvidenceStoreTool(id_prefix="review")
         runner = ConfiguredAgentRunner(definition, evidence_store)
         cur = payload.current_step
@@ -75,7 +84,7 @@ class DueDiligenceWorkflow:
         workflow = (
             self._workflow_from_snapshot(workflow_snapshot)
             if workflow_snapshot
-            else self.workflow_config.get_workflow(company_config.scope.workflow_id)
+            else self._legacy_workflow_config().get_workflow(company_config.scope.workflow_id)
         )
         agent_definitions = self._agent_definitions_from_snapshot(workflow_snapshot)
         evidence_store = EvidenceStoreTool(id_prefix=run_id)
@@ -115,8 +124,10 @@ class DueDiligenceWorkflow:
         for step_idx in range(resume_from_step_index, len(ordered_agents)):
             agent_name = ordered_agents[step_idx]
             definition = (
-                agent_definitions.get(agent_name) if agent_definitions else self.agent_config.get_agent(agent_name)
+                agent_definitions.get(agent_name) if agent_definitions else self._legacy_agent_config().get_agent(agent_name)
             )
+            if definition is None:
+                raise ValueError(f"Workflow snapshot missing agent definition: {agent_name}")
             runner = ConfiguredAgentRunner(definition, evidence_store)
             step = AgentStep(id=f"{run_id}_step_{step_idx + 1:03d}", agent=agent_name, status="running")
             steps.append(step)
@@ -192,7 +203,7 @@ class DueDiligenceWorkflow:
         if workflow_snapshot and "workflow" in workflow_snapshot:
             w = workflow_snapshot["workflow"]
             graph = w.get("graph") or {}
-            ids = [n.get("agent_template_id") for n in graph.get("nodes", []) if isinstance(n, dict)]
+            ids = self._agent_ids_from_graph(graph)
             return {
                 "source": "workflow_snapshot",
                 "workflow_id": w.get("id"),
@@ -265,7 +276,7 @@ class DueDiligenceWorkflow:
             raise ValueError("Missing workflow snapshot")
         workflow = snapshot["workflow"]
         graph = workflow["graph"]
-        agent_ids = [node["agent_template_id"] for node in graph.get("nodes", [])]
+        agent_ids = self._agent_ids_from_graph(graph)
         if len(agent_ids) < 3:
             raise ValueError("Workflow snapshot must include at least coordinator, verifier, and reporter")
         return WorkflowDefinition(
@@ -274,11 +285,37 @@ class DueDiligenceWorkflow:
             description=workflow.get("description", ""),
             scenario=workflow.get("scenario", "standard"),
             coordinator=agent_ids[0],
-            research_agents=agent_ids[1:-3],
-            analysis_agents=agent_ids[-3:-2],
+            research_agents=agent_ids[1:-2],
+            analysis_agents=[],
             verifier=agent_ids[-2],
             reporter=agent_ids[-1],
         )
+
+    def _agent_ids_from_graph(self, graph: dict[str, Any]) -> list[str]:
+        nodes = [node for node in graph.get("nodes", []) if isinstance(node, dict)]
+        if not nodes:
+            return []
+        by_node_id = {str(node.get("id")): node for node in nodes if node.get("id")}
+        ordered_node_ids: list[str] = []
+        current = str(graph.get("entry_node") or nodes[0].get("id") or "")
+        outgoing: dict[str, str] = {}
+        for edge in graph.get("edges", []):
+            if isinstance(edge, dict) and edge.get("from") and edge.get("to"):
+                outgoing[str(edge["from"])] = str(edge["to"])
+        seen: set[str] = set()
+        while current and current in by_node_id and current not in seen:
+            ordered_node_ids.append(current)
+            seen.add(current)
+            current = outgoing.get(current, "")
+        for node in nodes:
+            node_id = str(node.get("id") or "")
+            if node_id and node_id not in seen:
+                ordered_node_ids.append(node_id)
+        return [
+            str(by_node_id[node_id].get("agent_template_id"))
+            for node_id in ordered_node_ids
+            if by_node_id[node_id].get("agent_template_id")
+        ]
 
     def _agent_definitions_from_snapshot(self, snapshot: dict | None) -> dict[str, AgentDefinition]:
         if not snapshot:
@@ -334,3 +371,13 @@ class DueDiligenceWorkflow:
                 output_schema=agent.get("output_schema", "agent_result"),
             )
         return definitions
+
+    def _legacy_agent_config(self) -> AgentConfig:
+        if self._agent_config is None:
+            self._agent_config = load_agent_config()
+        return self._agent_config
+
+    def _legacy_workflow_config(self) -> WorkflowConfig:
+        if self._workflow_config is None:
+            self._workflow_config = load_workflow_config()
+        return self._workflow_config

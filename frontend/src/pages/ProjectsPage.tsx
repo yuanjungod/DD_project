@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { deleteProject, getMe, listProjects } from "../api/client";
+import { deleteProject, getMe, listProjects, listWorkflowTemplates } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
 import { workflowName } from "../data/workflows";
-import type { Project, User } from "../types/domain";
+import type { Project, User, WorkflowTemplate } from "../types/domain";
 
 export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [deletingId, setDeletingId] = useState("");
   const [error, setError] = useState("");
@@ -15,7 +16,9 @@ export function ProjectsPage() {
   const canDeleteProjects = currentUser != null && currentUser.role !== "viewer";
 
   const refresh = useCallback(async () => {
-    setProjects(await listProjects());
+    const [projectItems, workflowItems] = await Promise.all([listProjects(), listWorkflowTemplates()]);
+    setProjects(projectItems);
+    setWorkflowTemplates(workflowItems);
   }, []);
 
   useEffect(() => {
@@ -61,7 +64,10 @@ export function ProjectsPage() {
             <div className="summary-box">
               <strong>{project.company_config.target_company.name}</strong>
               <span>
-                {workflowName(project.company_config.scope.workflow_template_id ?? project.company_config.scope.workflow_id)} · v
+                {workflowName(
+                  project.company_config.scope.workflow_template_id ?? project.company_config.scope.workflow_id,
+                  workflowTemplates,
+                )} · v
                 {project.company_config.scope.workflow_template_version ?? 1}
               </span>
             </div>

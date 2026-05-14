@@ -5,7 +5,7 @@ import { createProject, listWorkflowTemplates } from "../api/client";
 import { ProjectResourcesPanel } from "../components/ProjectResourcesPanel";
 import type { DraftResourceRow } from "../components/ProjectResourcesPanel";
 import { SectionCard } from "../components/SectionCard";
-import { workflowOptions } from "../data/workflows";
+import { focusAreasForScenario } from "../data/workflows";
 import type { CompanyConfig, WorkflowTemplate } from "../types/domain";
 
 function splitList(value: string): string[] {
@@ -16,7 +16,6 @@ function splitList(value: string): string[] {
 }
 
 function defaultConfig(workflowId: string): CompanyConfig {
-  const workflow = workflowOptions.find((item) => item.id === workflowId) ?? workflowOptions[0];
   return {
     target_company: {
       name: "Example Robotics",
@@ -27,12 +26,12 @@ function defaultConfig(workflowId: string): CompanyConfig {
       keywords: ["仓储自动化", "机器人"],
     },
     scope: {
-      workflow_id: workflow.id,
-      workflow_template_id: workflow.id,
+      workflow_id: workflowId,
+      workflow_template_id: workflowId,
       workflow_template_version: 1,
-      scenario: workflow.scenario,
+      scenario: "standard",
       time_range: "近5年",
-      focus_areas: workflow.focusAreas,
+      focus_areas: focusAreasForScenario("standard"),
       report_language: "zh-CN",
     },
     resources: {
@@ -192,6 +191,3 @@ export function NewProjectPage() {
   );
 }
 
-function focusAreasForScenario(scenario: string): string[] {
-  return workflowOptions.find((workflow) => workflow.scenario === scenario)?.focusAreas ?? ["业务", "财务", "法律", "合规"];
-}

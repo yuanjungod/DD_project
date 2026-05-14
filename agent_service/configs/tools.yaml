@@ -1,25 +1,51 @@
+# Tool config catalog — file-backed source mirrored into the backend DB at startup.
+
 tools:
-  search:
-    description: Search public and configured trusted sources.
-    implementation: agent_service.tools.research.MockSearchTool
-    requires_api_key: false
-  web_fetch:
-    description: Fetch and normalize webpage content.
-    implementation: agent_service.tools.research.MockWebFetchTool
-    requires_api_key: false
-  file_reader:
-    description: Extract content from uploaded project files.
-    implementation: agent_service.tools.research.MockFileReaderTool
-    requires_api_key: false
-  vector_retrieval:
-    description: Retrieve relevant chunks from indexed project resources.
-    implementation: agent_service.tools.research.MockVectorRetrievalTool
-    requires_api_key: false
   evidence_store:
+    name: evidence_store
     description: Create and reference evidence records.
     implementation: agent_service.tools.stores.EvidenceStoreTool
+    input_schema: {}
+    output_schema: {}
     requires_api_key: false
+    enabled: true
+  file_reader:
+    name: file_reader
+    description: Extract content from uploaded project files.
+    implementation: agent_service.tools.research.MockFileReaderTool
+    input_schema: {}
+    output_schema: {}
+    requires_api_key: false
+    enabled: true
   report_store:
+    name: report_store
     description: Persist report sections and final report payloads.
     implementation: agent_service.tools.stores.ReportStoreTool
+    input_schema: {}
+    output_schema: {}
     requires_api_key: false
+    enabled: true
+  search:
+    name: search
+    description: Search public and configured trusted sources.
+    implementation: agent_service.tools.research.MockSearchTool
+    input_schema: {}
+    output_schema: {}
+    requires_api_key: false
+    enabled: true
+  vector_retrieval:
+    name: vector_retrieval
+    description: Retrieve relevant chunks from indexed project resources.
+    implementation: agent_service.tools.research.MockVectorRetrievalTool
+    input_schema: {}
+    output_schema: {}
+    requires_api_key: false
+    enabled: true
+  web_fetch:
+    name: web_fetch
+    description: Fetch and normalize webpage content.
+    implementation: agent_service.tools.research.MockWebFetchTool
+    input_schema: {}
+    output_schema: {}
+    requires_api_key: false
+    enabled: true

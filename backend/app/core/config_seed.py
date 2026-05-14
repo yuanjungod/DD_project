@@ -1,47 +1,30 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
-import yaml
-
 from app.models.entities import SkillPackage, ToolConfig
-from app.services.skill_files import sync_all_skill_packages_to_disk
+from app.services.skill_files import load_skill_packages_from_disk, sync_all_skill_packages_to_disk
+from app.services.tool_files import load_tool_configs_from_disk, sync_tool_configs_to_disk
 from app.services.workflow_template_files import ensure_workflow_template_bundles_migrated
-
-
-ROOT = Path(__file__).resolve().parents[3]
-AGENT_CONFIG_DIR = ROOT / "agent_service" / "configs"
-
 
 def seed_configuration_catalog(db: Session) -> None:
     """Seed DB-backed catalog entries. Workflow + embedded agent defs live under workflow_templates/*.yaml."""
     ensure_configuration_schema(db)
     ensure_workflow_template_bundles_migrated()
 
-    tools = _load_yaml(AGENT_CONFIG_DIR / "tools.yaml").get("tools", {})
+    disk_tools = load_tool_configs_from_disk()
+    if disk_tools:
+        _upsert_tool_configs(db, disk_tools)
 
-    if db.query(ToolConfig).count() == 0:
-        for tool_id, config in tools.items():
-            db.add(
-                ToolConfig(
-                    id=tool_id,
-                    name=tool_id,
-                    description=config.get("description", ""),
-                    implementation=config.get("implementation", ""),
-                    input_schema={},
-                    output_schema={},
-                    requires_api_key=config.get("requires_api_key", False),
-                    enabled=True,
-                )
-            )
-
-    if db.query(SkillPackage).count() == 0:
+    disk_skill_packages = load_skill_packages_from_disk()
+    if disk_skill_packages:
+        _upsert_skill_packages(db, disk_skill_packages)
+    elif db.query(SkillPackage).count() == 0:
         db.add_all(_default_skill_packages())
 
     db.commit()
+    sync_tool_configs_to_disk(db.query(ToolConfig).all())
     sync_all_skill_packages_to_disk(db.query(SkillPackage).all())
 
     from app.services.resource_fs_migration import migrate_if_needed
@@ -59,9 +42,34 @@ def ensure_configuration_schema(db: Session) -> None:
             db.rollback()
 
 
-def _load_yaml(path: Path) -> dict:
-    with path.open("r", encoding="utf-8") as file:
-        return yaml.safe_load(file)
+def _upsert_tool_configs(db: Session, disk_tools: list[ToolConfig]) -> None:
+    for disk_tool in disk_tools:
+        existing = db.get(ToolConfig, disk_tool.id)
+        if existing is None:
+            db.add(disk_tool)
+            continue
+        existing.name = disk_tool.name
+        existing.description = disk_tool.description
+        existing.implementation = disk_tool.implementation
+        existing.input_schema = disk_tool.input_schema or {}
+        existing.output_schema = disk_tool.output_schema or {}
+        existing.requires_api_key = disk_tool.requires_api_key
+        existing.enabled = disk_tool.enabled
+
+
+def _upsert_skill_packages(db: Session, disk_skill_packages: list[SkillPackage]) -> None:
+    for disk_package in disk_skill_packages:
+        existing = db.get(SkillPackage, disk_package.id)
+        if existing is None:
+            db.add(disk_package)
+            continue
+        existing.name = disk_package.name
+        existing.description = disk_package.description
+        existing.directory_name = disk_package.directory_name
+        existing.skill_md = disk_package.skill_md
+        existing.package_files = disk_package.package_files or {}
+        existing.resources_manifest = disk_package.resources_manifest or {}
+        existing.enabled = disk_package.enabled
 
 
 def _default_skill_packages() -> list[SkillPackage]:

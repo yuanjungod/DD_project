@@ -40,6 +40,7 @@ from app.services.workflow_template_files import update_agent as update_agent_on
 from app.services.workflow_template_files import update_workflow_template as update_workflow_on_disk
 from app.services.skill_files import skill_package_disk_path, sync_skill_package_to_disk
 from app.services.skill_zip_import import skill_package_create_from_zip
+from app.services.tool_files import sync_tool_configs_to_disk
 from app.services.platform_resource_catalog import (
     BuiltinOnlyResourceConfigError,
     create_resource_config_overlay,
@@ -175,6 +176,7 @@ def create_tool_config(
     db.add(item)
     db.commit()
     db.refresh(item)
+    _sync_tool_catalog_to_disk(db)
     return item
 
 
@@ -189,6 +191,7 @@ def update_tool_config(
     _apply_updates(item, payload)
     db.commit()
     db.refresh(item)
+    _sync_tool_catalog_to_disk(db)
     return item
 
 
@@ -316,6 +319,10 @@ def delete_workflow_template(
 def _create_payload(payload):
     data = payload.model_dump(exclude_none=True)
     return data
+
+
+def _sync_tool_catalog_to_disk(db: Session) -> None:
+    sync_tool_configs_to_disk(db.query(ToolConfig).all())
 
 
 def _ensure_unique_skill_catalog_fields(db: Session, payload: SkillPackageCreate) -> SkillPackageCreate:

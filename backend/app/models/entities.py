@@ -73,21 +73,6 @@ class ProjectAccess(Base):
     user: Mapped[User] = relationship(back_populates="project_access")
 
 
-class SkillConfig(Base):
-    __tablename__ = "skill_configs"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("skill"))
-    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
-    description: Mapped[str] = mapped_column(Text, default="")
-    implementation: Mapped[str] = mapped_column(String, nullable=False)
-    input_schema: Mapped[dict] = mapped_column(JSON, default=dict)
-    output_schema: Mapped[dict] = mapped_column(JSON, default=dict)
-    requires_api_key: Mapped[bool] = mapped_column(default=False)
-    enabled: Mapped[bool] = mapped_column(default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-
 class SkillPackage(Base):
     __tablename__ = "skill_packages"
 

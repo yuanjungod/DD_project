@@ -10,6 +10,7 @@ import {
   listProjects,
   listReports,
   listResources,
+  listWorkflowTemplates,
   listStepReviewChatTurns,
   postStepReviewChat,
   startRun,
@@ -25,6 +26,7 @@ import type {
   Report,
   Resource,
   StepReviewChatTurn,
+  WorkflowTemplate,
 } from "../types/domain";
 import { formatApiDateTimeLocal } from "../utils/apiTime";
 
@@ -50,6 +52,7 @@ export function ProjectDetailPage() {
   const [evidence, setEvidence] = useState<Evidence[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [runs, setRuns] = useState<AgentRun[]>([]);
+  const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([]);
   const [sessions, setSessions] = useState<DiligenceSessionModel[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [activeRun, setActiveRun] = useState<AgentRun | null>(null);
@@ -63,19 +66,21 @@ export function ProjectDetailPage() {
   const [pollingRunId, setPollingRunId] = useState<string | null>(null);
 
   async function refresh() {
-    const [projects, resourceItems, evidenceItems, reportItems, runItems, sessionItems] = await Promise.all([
+    const [projects, resourceItems, evidenceItems, reportItems, runItems, sessionItems, workflowItems] = await Promise.all([
       listProjects(),
       listResources(projectId),
       listEvidence(projectId),
       listReports(projectId),
       listProjectRuns(projectId),
       listDiligenceSessions(projectId),
+      listWorkflowTemplates(),
     ]);
     setProject(projects.find((item) => item.id === projectId) ?? null);
     setResources(resourceItems);
     setEvidence(evidenceItems);
     setReports(reportItems);
     setRuns(runItems);
+    setWorkflowTemplates(workflowItems);
     setSessions(sessionItems);
     setActiveRun((prev) => {
       if (prev?.id) {
@@ -224,6 +229,12 @@ export function ProjectDetailPage() {
   const pausedReviewStep = awaitingStepReview
     ? [...orderedSteps].filter((s) => s.status === "completed").slice(-1)[0]
     : undefined;
+  const projectWorkflowName = project
+    ? workflowName(
+        project.company_config.scope.workflow_template_id ?? project.company_config.scope.workflow_id,
+        workflowTemplates,
+      )
+    : "";
 
   return (
     <div className="page-stack">
@@ -233,9 +244,7 @@ export function ProjectDetailPage() {
           <h1>{project?.company_config.target_company.name ?? "尽调应用"}</h1>
           <p>
             {project
-              ? `${workflowName(project.company_config.scope.workflow_template_id ?? project.company_config.scope.workflow_id)} · v${
-                  project.company_config.scope.workflow_template_version ?? 1
-                }`
+              ? `${projectWorkflowName} · v${project.company_config.scope.workflow_template_version ?? 1}`
               : "加载中"}
           </p>
         </div>

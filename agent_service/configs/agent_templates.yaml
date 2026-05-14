@@ -1,4 +1,5 @@
-# Agent templates — source of truth on disk (not persisted in SQLite).
+# Legacy migration input. Runtime agent definitions are embedded in
+# agent_service/configs/workflow_templates/*.yaml (and optional _shared_agents.yaml).
 # Workflow graphs reference agents by `id`.
 
 version: 1

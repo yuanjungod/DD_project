@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from typing import Any
+
+import yaml
 
 from app.models.entities import SkillPackage
 
@@ -42,6 +45,48 @@ def sync_all_skill_packages_to_disk(skill_packages: list[SkillPackage]) -> None:
         sync_skill_package_to_disk(skill_package)
 
 
+def load_skill_packages_from_disk() -> list[SkillPackage]:
+    """Load checked-in skill packages from agent_service/skills as the bootstrap source."""
+
+    if not SKILLS_DIR.is_dir():
+        return []
+
+    packages: list[SkillPackage] = []
+    for skill_md_path in sorted(SKILLS_DIR.glob("*/SKILL.md")):
+        skill_dir = skill_md_path.parent
+        skill_md = skill_md_path.read_text(encoding="utf-8")
+        metadata = _frontmatter_metadata(skill_md)
+        directory_name = skill_dir.name
+        name = str(metadata.get("name") or directory_name)
+        package_id = str(metadata.get("id") or f"skill_{name.replace('-', '_')}")
+        package_files: dict[str, str] = {}
+        file_names = ["SKILL.md"]
+        for child in sorted(skill_dir.rglob("*")):
+            if not child.is_file() or child.name == "SKILL.md":
+                continue
+            rel = child.relative_to(skill_dir).as_posix()
+            file_names.append(rel)
+            package_files[rel] = child.read_text(encoding="utf-8")
+        packages.append(
+            SkillPackage(
+                id=package_id,
+                name=name,
+                description=str(metadata.get("description") or ""),
+                directory_name=directory_name,
+                skill_md=skill_md,
+                package_files=package_files,
+                resources_manifest={
+                    "files": sorted(file_names),
+                    "references": [],
+                    "scripts": [],
+                    "assets": [],
+                },
+                enabled=bool(metadata.get("enabled", True)),
+            )
+        )
+    return packages
+
+
 def skill_package_disk_path(directory_name: str) -> str:
     return str(_safe_skill_dir(directory_name))
 
@@ -59,3 +104,14 @@ def _write_skill_file(skill_dir: Path, file_name: str, content: str) -> None:
         raise ValueError(f"Skill file path escapes skill directory: {file_name}")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(str(content), encoding="utf-8")
+
+
+def _frontmatter_metadata(text: str) -> dict[str, Any]:
+    if not text.startswith("---"):
+        return {}
+    try:
+        _, raw, _ = text.split("---", 2)
+    except ValueError:
+        return {}
+    loaded = yaml.safe_load(raw)
+    return loaded if isinstance(loaded, dict) else {}

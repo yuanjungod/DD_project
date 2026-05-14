@@ -1,4 +1,5 @@
 ---
+id: skill_market_competition_analysis
 name: market-competition-analysis
 description: Guides market, competitor, product positioning, defensibility, and industry risk analysis.
 ---
