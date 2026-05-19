@@ -12,12 +12,11 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["title", "summary", "risk_level", "evidence_ids"],
+        "required": ["title", "summary", "risk_level"],
         "properties": {
           "title": { "type": "string" },
           "summary": { "type": "string" },
-          "risk_level": { "type": "string", "enum": ["low", "medium", "high", "unknown"] },
-          "evidence_ids": { "type": "array", "items": { "type": "string" } }
+          "risk_level": { "type": "string", "enum": ["low", "medium", "high", "unknown"] }
         }
       }
     }

@@ -3,14 +3,14 @@
 An MVP due diligence platform with:
 
 - React frontend workbench.
-- FastAPI backend for projects, resources, runs, evidence, and reports.
+- FastAPI backend for projects, resources, runs, and reports.
 - AgentScope-oriented Python agent service with configurable agents, tools, prompts, and workflows.
 
 ## Layout
 
 ```text
 backend/        FastAPI application
-agent_service/  AgentScope workflow service (+ configs/, prompts/, scenario_templates/*.yaml, agent_templates.yaml)
+agent_service/  AgentScope workflow service (+ configs/scenario_templates/, agent_templates.yaml, skills/, tools.yaml)
 frontend/       React + Vite workbench
 shared/         Shared JSON schemas and example payloads
 docs/           Architecture, agent flow, configuration schema
@@ -72,4 +72,6 @@ MVP flow:
 4. Apply a published scenario to a specific company.
 5. Add project resources.
 6. Start a due diligence run from the project detail page.
-7. Review agent steps, evidence, report, workflow snapshot, and run history.
+7. Review agent steps, per-step output folders, report, workflow snapshot, and run history.
+
+After upgrading from a build that used the removed Evidence model, reset local SQLite under `data/dd_store/platform/` (delete `dd_platform.db` and restart the backend) so `create_all` rebuilds the schema.

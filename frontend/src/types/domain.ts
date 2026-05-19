@@ -79,22 +79,7 @@ export type AgentStepOutputFolder = {
   result?: Record<string, unknown>;
   resources?: unknown;
   findings?: Array<{ name: string; path: string; content: string }>;
-  evidence_files?: Array<{ name: string; path: string; json: unknown }>;
   reason?: string;
-};
-
-export type Evidence = {
-  id: string;
-  run_id: string;
-  project_id: string;
-  title: string;
-  source_type: string;
-  source_url?: string | null;
-  file_id?: string | null;
-  excerpt: string;
-  confidence: number;
-  collected_by: string;
-  metadata_json: Record<string, unknown>;
 };
 
 export type Report = {
@@ -108,7 +93,6 @@ export type Report = {
     title: string;
     summary: string;
     risk_level: string;
-    evidence_ids: string[];
   }>;
   created_at: string;
 };
@@ -136,7 +120,6 @@ export type AgentRun = {
   completed_at?: string | null;
   raw_result: Record<string, unknown>;
   steps: AgentStep[];
-  evidence: Evidence[];
   report?: Report | null;
 };
 

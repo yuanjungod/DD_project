@@ -1,14 +1,6 @@
 # Tool config catalog — file-backed source mirrored into the backend DB at startup.
 
 tools:
-  evidence_store:
-    name: evidence_store
-    description: Create and reference evidence records.
-    implementation: agent_service.tools.stores.EvidenceStoreTool
-    input_schema: {}
-    output_schema: {}
-    requires_api_key: false
-    enabled: true
   file_reader:
     name: file_reader
     description: Extract content from uploaded project files.

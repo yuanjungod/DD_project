@@ -1,9 +1,9 @@
 ---
 id: skill_report_writing
 name: due-diligence-report-writing
-description: Guides concise due diligence report writing with executive summaries, risk levels, evidence IDs, and open diligence gaps.
+description: Guides concise due diligence report writing with executive summaries, risk levels, and open diligence gaps.
 ---
 
 # Due Diligence Report Writing
 
-Every section must include evidence IDs. Do not hide uncertainty. Use the requested report language.
+Reference prior agent output folders where relevant. Do not hide uncertainty. Use the requested report language.

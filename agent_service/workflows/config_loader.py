@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 
 
 ROOT = Path(__file__).resolve().parents[1]
+AGENT_TEMPLATES_PATH = ROOT / "configs" / "agent_templates.yaml"
+SCENARIO_TEMPLATES_DIR = ROOT / "configs" / "scenario_templates"
 
 
 class AgentDefinition(BaseModel):
@@ -33,33 +35,11 @@ class WorkflowDefinition(BaseModel):
     description: str = ""
     scenario: str = "standard"
     ordered_agents: list[str] = Field(default_factory=list)
-    coordinator: str
-    research_agents: list[str]
-    analysis_agents: list[str]
-    verifier: str
-    reporter: str
-
-
-class AgentConfig(BaseModel):
-    agents: list[AgentDefinition]
-
-    def get_agent(self, name: str) -> AgentDefinition:
-        for agent in self.agents:
-            if agent.name == name:
-                return agent
-        raise KeyError(f"Unknown agent: {name}")
-
-
-class WorkflowConfig(BaseModel):
-    default_workflow_id: str
-    workflows: list[WorkflowDefinition]
-
-    def get_workflow(self, workflow_id: str | None = None) -> WorkflowDefinition:
-        selected_id = workflow_id or self.default_workflow_id
-        for workflow in self.workflows:
-            if workflow.id == selected_id:
-                return workflow
-        raise KeyError(f"Unknown workflow template: {selected_id}")
+    coordinator: str = ""
+    research_agents: list[str] = Field(default_factory=list)
+    analysis_agents: list[str] = Field(default_factory=list)
+    verifier: str = ""
+    reporter: str = ""
 
 
 class ToolDefinition(BaseModel):
@@ -73,28 +53,37 @@ class ToolConfig(BaseModel):
 
 
 @lru_cache
-def load_agent_config() -> AgentConfig:
-    data = _load_yaml(ROOT / "configs" / "agents.yaml")
-    return AgentConfig.model_validate(data)
-
-
-@lru_cache
-def load_workflow_config() -> WorkflowConfig:
-    data = _load_yaml(ROOT / "configs" / "workflows.yaml")
-    return WorkflowConfig.model_validate(data)
-
-
-@lru_cache
 def load_tool_config() -> ToolConfig:
     data = _load_yaml(ROOT / "configs" / "tools.yaml")
     return ToolConfig.model_validate(data)
 
 
 @lru_cache
-def load_prompt(prompt_name: str) -> str:
-    return (ROOT / "prompts" / prompt_name).read_text(encoding="utf-8")
+def load_agent_template_catalog() -> list[dict[str, Any]]:
+    if not AGENT_TEMPLATES_PATH.is_file():
+        return []
+    data = _load_yaml(AGENT_TEMPLATES_PATH)
+    raw = data.get("agents", []) if isinstance(data, dict) else []
+    return [dict(item) for item in raw] if isinstance(raw, list) else []
+
+
+@lru_cache
+def load_scenario_template_catalog() -> tuple[list[dict[str, Any]], str]:
+    if not SCENARIO_TEMPLATES_DIR.is_dir():
+        return [], "standard_due_diligence"
+    workflows: list[dict[str, Any]] = []
+    for path in sorted(SCENARIO_TEMPLATES_DIR.glob("*.yaml")):
+        if path.name.startswith("_"):
+            continue
+        doc = _load_yaml(path)
+        workflow = doc.get("workflow")
+        if isinstance(workflow, dict):
+            workflows.append(workflow)
+    default_id = workflows[0]["id"] if workflows else "standard_due_diligence"
+    return workflows, default_id
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as file:
-        return yaml.safe_load(file)
+        loaded = yaml.safe_load(file)
+    return loaded if isinstance(loaded, dict) else {}

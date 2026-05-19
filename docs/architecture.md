@@ -2,8 +2,8 @@
 
 This project is a due diligence workspace with three runtime services:
 
-- `frontend`: React workbench for configuring projects, monitoring agent runs, browsing evidence, and reviewing reports.
-- `backend`: FastAPI API for projects, resources, runs, evidence, reports, OAuth-style JWT authentication, and an internal webhook for incremental run progress from the agent process.
+- `frontend`: React workbench for configuring projects, monitoring agent runs, and reviewing reports.
+- `backend`: FastAPI API for projects, resources, runs, reports, OAuth-style JWT authentication, and an internal webhook for incremental run progress from the agent process.
 - `agent_service`: AgentScope-based orchestration service that runs configurable workflows; tool implementations can be deterministic mocks or pluggable integrations.
 
 Generic workflow configuration stays decoupled from company-specific **project configuration** persisted with each `Project`.
@@ -28,8 +28,8 @@ The browser usually talks to the backend through the Vite dev **`/api` proxy** (
 
 1. The user starts a run from the backend **POST `/projects/{project_id}/runs`**. The backend inserts an `AgentRun` row with status **`running`** and returns immediately.
 2. A background task (thread pool) calls **agent_service POST `/runs`**, passing the immutable **workflow snapshot**, company config, and a **client-allocated `run_id`** so the agent result lines up with the pending row.
-3. While the workflow executes, **agent_service** may **POST** step and evidence snapshots to **Backend `POST /internal/agent-runs/{run_id}/progress`** (shared secret header). This is optional from a product perspective but enabled by default when `PLATFORM_CALLBACK_BASE_URL` points at the backend so the UI can poll and show incremental steps and evidence.
-4. When the agent HTTP call completes, the backend **finalizes** the run: status, `raw_result`, steps, evidence, and report are written. Finalization clears prior derived rows for that run id and re-attaches the authoritative payload from the agent response to avoid duplicate keys after incremental upserts.
+3. While the workflow executes, **agent_service** may **POST** step snapshots to **Backend `POST /internal/agent-runs/{run_id}/progress`** (shared secret header). This is optional from a product perspective but enabled by default when `PLATFORM_CALLBACK_BASE_URL` points at the backend so the UI can poll and show incremental steps.
+4. When the agent HTTP call completes, the backend **finalizes** the run: status, `raw_result`, steps, and report are written. Finalization clears prior derived rows for that run id and re-attaches the authoritative payload from the agent response to avoid duplicate keys after incremental upserts.
 5. The frontend **polls `GET /runs/{id}`** (and refreshes project-scoped lists) until the run reaches **`completed`** or **`failed`**.
 
 ## Core Concepts
@@ -56,9 +56,9 @@ It defines:
 - Due diligence scope, time range, focus areas, and report language, including optional **`workflow_template_id`** for catalog-backed workflows.
 - Uploaded files, trusted sources, blocked sources, competitors, and optional notes.
 
-### Evidence-First Reporting
+### Source-Backed Outputs
 
-Agent outputs are structured around evidence. Any conclusion that appears in a report should link back to one or more evidence records with source metadata and confidence.
+Agent outputs are structured as summaries and findings. Material claims should be grounded in tool results or prior agent handoff folders (`output_dir` / `agent_output_reader`).
 
 ## Services
 
@@ -70,10 +70,9 @@ The backend owns durable entities:
 - `Resource`
 - `AgentRun`
 - `AgentStep`
-- `Evidence`
 - `Report`
 
-Configuration catalogs are file-first where practical. **Scenario/workflow templates** live on disk under **`agent_service/configs/scenario_templates/{workflow_id}.yaml`** and contain only workflow metadata plus a graph of `agent_template_id` references. **Agent templates** live separately in **`agent_service/configs/agent_templates.yaml`**. On first boot, if no scenario files exist yet, the backend can materialize them from legacy **`workflows.yaml`** plus the agent catalog / **`agents.yaml`** prompt fallback. **`GET/POST/PATCH /workflow-templates`** read and write scenario files, while **`GET/POST/PATCH /agent-templates`** read and write the agent catalog. **SkillPackage** and **ToolConfig** rows are DB mirrors of **`agent_service/skills/`** and **`agent_service/configs/tools.yaml`**; **ResourceConfig** is loaded from **`catalog/resource_configs/`** plus platform overlays under **`DD_DATA_ROOT/platform/resource_configs/`**. Development seed users are loaded from **`catalog/default_users.yaml`** only when the user table is empty.
+Configuration catalogs are file-first where practical. **Scenario/workflow templates** live on disk under **`agent_service/configs/scenario_templates/{workflow_id}.yaml`** and contain only workflow metadata plus a graph of `agent_template_id` references. **Agent templates** live separately in **`agent_service/configs/agent_templates.yaml`**. **`GET/POST/PATCH /workflow-templates`** read and write scenario files, while **`GET/POST/PATCH /agent-templates`** read and write the agent catalog. **SkillPackage** and **ToolConfig** rows are DB mirrors of **`agent_service/skills/`** and **`agent_service/configs/tools.yaml`**; **ResourceConfig** is loaded from **`catalog/resource_configs/`** plus platform overlays under **`DD_DATA_ROOT/platform/resource_configs/`**. Development seed users are loaded from **`catalog/default_users.yaml`** only when the user table is empty.
 
 For local development the backend defaults to SQLite at **`DD_DATA_ROOT/platform/dd_platform.db`** (`DD_DATA_ROOT` defaults to repo-root **`data/dd_store`**). Set **`DATABASE_URL`** to use PostgreSQL or another explicit database.
 
@@ -87,8 +86,7 @@ flowchart TD
   LoadConfig --> Coordinator[Coordinator]
   Coordinator --> Research[Research_Agents]
   Research --> Analyze[Analysis_Agents]
-  Analyze --> Verify[Verifier]
-  Verify --> Report[Reporter]
+  Analyze --> Report[Reporter]
   Report --> Respond[HTTP_RunResult]
 ```
 
@@ -101,7 +99,7 @@ The frontend provides a workbench for:
 - Creating and editing company due diligence projects.
 - Configuring resources and scope.
 - Starting and monitoring runs (polling plus incremental UI when callbacks are configured).
-- Reviewing agent steps and evidence with correct **local timestamps** (**API emits UTC timestamps with `Z`** for runs).
+- Reviewing agent steps and per-step output folders with correct **local timestamps** (**API emits UTC timestamps with `Z`** for runs).
 - Reading the generated report.
 
 ## Development Layout

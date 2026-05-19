@@ -44,16 +44,6 @@ class CompanyConfig(BaseModel):
     target_company: TargetCompany
     scope: Scope = Field(default_factory=Scope)
     resources: Resources = Field(default_factory=Resources)
-class Evidence(BaseModel):
-    id: str
-    title: str
-    source_type: Literal["web", "file", "database", "manual", "mock"] = "mock"
-    source_url: str | None = None
-    file_id: str | None = None
-    excerpt: str
-    confidence: float = Field(ge=0, le=1)
-    collected_by: str
-    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class Finding(BaseModel):
@@ -61,7 +51,6 @@ class Finding(BaseModel):
     description: str
     risk_level: RiskLevel = "unknown"
     confidence: float = Field(ge=0, le=1)
-    evidence_ids: list[str] = Field(default_factory=list)
 
 
 class AgentResult(BaseModel):
@@ -69,10 +58,9 @@ class AgentResult(BaseModel):
     status: RunStatus
     summary: str
     findings: list[Finding] = Field(default_factory=list)
-    evidence: list[Evidence] = Field(default_factory=list)
     output_dir: str = Field(
         default="",
-        description="Filesystem handoff folder for this agent step. Contains README.md, result.json, findings, and resources.",
+        description="Filesystem handoff folder for this agent step. Contains README.md, result.json, and findings.",
     )
     output_readme_path: str = Field(default="", description="README.md inside output_dir.")
 
@@ -81,7 +69,6 @@ class ReportSection(BaseModel):
     title: str
     summary: str
     risk_level: RiskLevel
-    evidence_ids: list[str] = Field(default_factory=list)
 
 
 class DueDiligenceReport(BaseModel):
@@ -123,10 +110,9 @@ class RunRequest(BaseModel):
     resume_from_step_index: int = Field(
         default=0,
         ge=0,
-        description="Skip the first N agents; pass completed_steps/evidence of length N when resuming.",
+        description="Skip the first N agents; pass completed_steps of length N when resuming.",
     )
     completed_steps: list[AgentStep] = Field(default_factory=list)
-    completed_evidence: list[Evidence] = Field(default_factory=list)
 
 
 class RunResult(BaseModel):

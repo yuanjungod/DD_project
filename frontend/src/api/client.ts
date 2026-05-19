@@ -5,7 +5,6 @@ import type {
   AuthSession,
   CompanyConfig,
   DiligenceSessionModel,
-  Evidence,
   Project,
   ProjectAgentOverride,
   Report,
@@ -298,10 +297,6 @@ export function getAgentStepOutputFolder(runId: string, stepId: string): Promise
 
 export function getRun(runId: string): Promise<AgentRun> {
   return request<AgentRun>(`/runs/${runId}`);
-}
-
-export function listEvidence(projectId: string): Promise<Evidence[]> {
-  return request<Evidence[]>(`/projects/${projectId}/evidence`);
 }
 
 export function listReports(projectId: string): Promise<Report[]> {

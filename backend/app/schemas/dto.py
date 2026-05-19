@@ -434,22 +434,6 @@ class AgentStepRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class EvidenceRead(BaseModel):
-    id: str
-    run_id: str
-    project_id: str
-    title: str
-    source_type: str
-    source_url: str | None
-    file_id: str | None
-    excerpt: str
-    confidence: float
-    collected_by: str
-    metadata_json: dict[str, Any]
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class ReportRead(BaseModel):
     id: str
     project_id: str
@@ -551,7 +535,6 @@ class AgentRunRead(BaseModel):
     completed_at: datetime | None
     raw_result: dict[str, Any]
     steps: list[AgentStepRead] = Field(default_factory=list)
-    evidence: list[EvidenceRead] = Field(default_factory=list)
     report: ReportRead | None = None
 
     model_config = ConfigDict(from_attributes=True)

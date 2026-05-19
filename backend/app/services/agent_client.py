@@ -26,7 +26,6 @@ class AgentServiceClient:
         pause_after_each_step: bool = False,
         resume_from_step_index: int = 0,
         completed_steps: list[dict] | None = None,
-        completed_evidence: list[dict] | None = None,
     ) -> dict:
         payload: dict = {
             "project_id": project_id,
@@ -45,8 +44,6 @@ class AgentServiceClient:
             payload["continuation_context"] = continuation_context
         if completed_steps:
             payload["completed_steps"] = completed_steps
-        if completed_evidence:
-            payload["completed_evidence"] = completed_evidence
 
         async with httpx.AsyncClient(timeout=3600) as client:
             try:

@@ -24,8 +24,6 @@ Backend and agent service both read environment overrides from the repository-ro
 
 Authoritative scenario/workflow definitions live in **`agent_service/configs/scenario_templates/{workflow_id}.yaml`**. Each scenario file contains only workflow metadata and the graph of `agent_template_id` references. Reusable agent definitions live separately in **`agent_service/configs/agent_templates.yaml`**.
 
-Legacy files **`agent_service/configs/workflows.yaml`** and **`agent_service/configs/agents.yaml`** are migration/dev fallback inputs only. They can seed scenario templates when no scenario files exist and are not the steady-state runtime source for backend-created runs.
-
 Skill packages are file-backed under **`agent_service/skills/<directory_name>/`**. The backend mirrors those files into the DB catalog at startup and writes API edits back to the same directory. Tool configs are mirrored through **`agent_service/configs/tools.yaml`**. Resource configs are already file-backed through **`catalog/resource_configs/`** plus **`DD_DATA_ROOT/platform/resource_configs/`** overlays. Development seed users are file-backed through **`catalog/default_users.yaml`** unless **`DD_DEFAULT_USERS_CONFIG`** points elsewhere.
 
 ## Company Configuration
@@ -60,31 +58,12 @@ Skill packages are file-backed under **`agent_service/skills/<directory_name>/`*
 
 `workflow_template_id` is the preferred pointer for company projects; `workflow_id` remains a compatibility alias. The backend builds the run snapshot from the published scenario file and the separate agent catalog on disk.
 
-## Evidence
-
-Example evidence item as returned by the agent and stored on the backend (metadata column in the database is **`metadata_json`**):
-
-```json
-{
-  "id": "ev_001",
-  "title": "Official website states product line",
-  "source_type": "web",
-  "source_url": "https://example.com/products",
-  "excerpt": "Example Robotics provides warehouse automation robots.",
-  "confidence": 0.82,
-  "collected_by": "WebResearchAgent",
-  "metadata": {
-    "published_at": "2026-01-01"
-  }
-}
-```
-
 ## Configuration Catalog
 
 Reusable workflows are managed through the backend configuration catalog:
 
 - `SkillPackage` (file-backed, DB-mirrored): Anthropic/Cursor-style skill package with `SKILL.md`, directory name, editable package files, and optional bundled resources such as references, scripts, and assets. Skill packages live under `agent_service/skills/<directory_name>/`. Admins may **`POST /skills/import-zip`** (`multipart/form-data`: **`file`** = single-skill `.zip` with one top-level folder containing `SKILL.md`; optional **`directory_name`** form field overrides the disk directory slug).
-- `ToolConfig` (file-backed, DB-mirrored): executable capability such as search, web fetch, file reading, vector retrieval, evidence storage, or report storage; persisted under `agent_service/configs/tools.yaml`.
+- `ToolConfig` (file-backed, DB-mirrored): executable capability such as search, web fetch, file reading, vector retrieval, or report storage; persisted under `agent_service/configs/tools.yaml`.
 - `ResourceConfig`: data resource available to agents, such as public web, uploaded files, vector stores, databases, or external APIs.
 - `AgentTemplate` (file-backed): definitions are stored in **`agent_service/configs/agent_templates.yaml`**. Each record has `id`, `name`, `role`, inline `prompt`, `skill_package_ids`, `tool_ids`, `skill_ids`, `resource_ids`, `react_config`, and `enabled`. Agent-specific output requirements live in the agent prompt / bound Skills, not in a separate output contract field. Workflow graphs reference agents by **`id`**. The Admin UI uses **`GET/POST/PATCH /agent-templates`**; **`POST`** and **`PATCH`** write this catalog.
 - `WorkflowTemplate` (file-backed scenario): one scenario file per workflow under **`agent_service/configs/scenario_templates/{workflow_id}.yaml`**. Each file has a `workflow` object (ordered `graph`, `scenario`, `status`, `version`, etc.) and no embedded agent definitions. **`GET/POST/PATCH /workflow-templates`** and publish/clone operate on these files; only **`published`** templates are listed for non-admin callers and for run snapshots.
@@ -104,29 +83,26 @@ Only **`published`** workflow templates should be selected by downstream company
   "summary": "No high-severity legal risk found in configured sources.",
   "findings": [
     {
-      "title": "No sanctions evidence found",
+      "title": "No sanctions matches in configured sources",
       "description": "Configured MVP sources did not return sanction matches.",
       "risk_level": "low",
-      "confidence": 0.65,
-      "evidence_ids": ["ev_003"]
+      "confidence": 0.65
     }
   ],
-  "evidence": [],
   "output_dir": "/path/to/data/dd_store/agent_service/sessions/proj_x/run_y_outputs/run_y_step_003_LegalRiskAgent",
   "output_readme_path": "/path/to/data/dd_store/agent_service/sessions/proj_x/run_y_outputs/run_y_step_003_LegalRiskAgent/README.md"
 }
 ```
 
-Each completed agent step also writes a filesystem handoff folder next to the run session JSON. The folder contains **`README.md`** (human-readable summary), **`result.json`** (full structured result), **`findings/`**, and **`resources/evidence/*.json`**. Downstream agents receive prior folder addresses in `previous_agent_output_folders` and can call the automatic `agent_output_reader` runtime tool with `folder_path` to read the prior README/result/resource index.
+Each completed agent step also writes a filesystem handoff folder next to the run session JSON. The folder contains **`README.md`** (human-readable summary), **`result.json`** (full structured result), and **`findings/`**. Downstream agents receive prior folder addresses in `previous_agent_output_folders` and can call the automatic `agent_output_reader` runtime tool with `folder_path` to read the prior README and structured result.
 
 ## Report Section
 
 ```json
 {
   "title": "Legal and Compliance Risk",
-  "summary": "The available evidence indicates low legal risk, subject to registry verification.",
-  "risk_level": "low",
-  "evidence_ids": ["ev_003"]
+  "summary": "Available sources indicate low legal risk, subject to registry verification.",
+  "risk_level": "low"
 }
 ```
 

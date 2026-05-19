@@ -26,9 +26,6 @@ workflow:
       agent_template_id: IndustryAnalysisAgent
       stage: execution
     - id: node_06
-      agent_template_id: EvidenceVerifierAgent
-      stage: verification
-    - id: node_07
       agent_template_id: ReportWriterAgent
       stage: reporting
     edges:
@@ -42,7 +39,5 @@ workflow:
       to: node_05
     - from: node_05
       to: node_06
-    - from: node_06
-      to: node_07
     entry_node: node_01
-    report_node: node_07
+    report_node: node_06

@@ -5,7 +5,11 @@ from fastapi import FastAPI, HTTPException
 from agent_service.agents.agentscope_adapter import initialize_agentscope
 from agent_service.api.schemas import RunRequest, RunResult, StepReviewChatRequest, StepReviewChatResponse
 from agent_service.session_history import list_session_files, list_session_project_ids, read_session_document
-from agent_service.workflows.config_loader import load_agent_config, load_tool_config, load_workflow_config
+from agent_service.workflows.config_loader import (
+    load_agent_template_catalog,
+    load_scenario_template_catalog,
+    load_tool_config,
+)
 from agent_service.workflows.due_diligence import DueDiligenceWorkflow
 
 
@@ -25,13 +29,12 @@ def health() -> dict[str, str]:
 
 @app.get("/config")
 def config() -> dict[str, object]:
-    agent_config = load_agent_config()
     tool_config = load_tool_config()
-    workflow_config = load_workflow_config()
+    workflows, default_workflow_id = load_scenario_template_catalog()
     return {
-        "agents": [agent.model_dump() for agent in agent_config.agents],
-        "default_workflow_id": workflow_config.default_workflow_id,
-        "workflows": [workflow.model_dump() for workflow in workflow_config.workflows],
+        "agents": load_agent_template_catalog(),
+        "default_workflow_id": default_workflow_id,
+        "workflows": workflows,
         "tools": {name: tool.model_dump() for name, tool in tool_config.tools.items()},
     }
 
@@ -50,7 +53,6 @@ def run_due_diligence(request: RunRequest) -> RunResult:
             pause_after_each_step=request.pause_after_each_step,
             resume_from_step_index=request.resume_from_step_index,
             completed_steps=request.completed_steps,
-            completed_evidence=request.completed_evidence,
         )
     except ValueError as exc:
         # Invalid snapshot / resume contract / session ids — was surfacing as opaque 500.

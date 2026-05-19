@@ -8,12 +8,12 @@ agents:
   prompt: 'You are the due diligence coordinator.
 
 
-    Build a focused execution plan for the target company. Use the company configuration, scope, resources, and risk focus areas. Assign work to downstream agents and keep the plan evidence-first.
+    Build a focused execution plan for the target company. Use the company configuration, scope, resources, and risk focus areas. Assign work to downstream agents and keep the plan source-backed.
 
 
     Rules:
 
-    - Do not make factual conclusions without evidence.
+    - Do not make factual conclusions without cited sources.
 
     - Preserve gaps and unknowns.
 
@@ -23,9 +23,7 @@ agents:
   skill_package_ids:
   - skill_due_diligence_core
   tool_ids:
-  - evidence_store
   skill_ids:
-  - evidence_store
   resource_ids: []
   react_config:
     max_iters: 6
@@ -95,7 +93,7 @@ agents:
 
     - Prefer official and registry-like sources.
 
-    - Attach evidence IDs to all material claims.
+    - Ground material claims in tool results or prior agent output folders.
 
     - Mark missing data as unknown.
 
@@ -106,12 +104,10 @@ agents:
   - search
   - web_fetch
   - file_reader
-  - evidence_store
   skill_ids:
   - search
   - web_fetch
   - file_reader
-  - evidence_store
   resource_ids:
   - resource_public_web
   - resource_uploaded_files
@@ -160,11 +156,9 @@ agents:
   tool_ids:
   - search
   - web_fetch
-  - evidence_store
   skill_ids:
   - search
   - web_fetch
-  - evidence_store
   resource_ids:
   - resource_public_web
   react_config:
@@ -195,12 +189,12 @@ agents:
   prompt: 'You are a financial due diligence analyst.
 
 
-    Analyze revenue signals, funding events, financing risk, cash flow hints, customer concentration, and business model quality from available evidence.
+    Analyze revenue signals, funding events, financing risk, cash flow hints, customer concentration, and business model quality from available sources.
 
 
     Rules:
 
-    - Do not infer precise financial numbers unless evidence provides them.
+    - Do not infer precise financial numbers unless sources provide them.
 
     - Separate facts, estimates, and unknowns.
 
@@ -214,12 +208,10 @@ agents:
   - search
   - file_reader
   - vector_retrieval
-  - evidence_store
   skill_ids:
   - search
   - file_reader
   - vector_retrieval
-  - evidence_store
   resource_ids:
   - resource_public_web
   - resource_uploaded_files
@@ -259,7 +251,7 @@ agents:
 
     - State whether the MVP sources are insufficient for a final legal conclusion.
 
-    - Attach every risk finding to evidence.
+    - Ground every risk finding in tool results or prior outputs.
 
     - Escalate unresolved high-impact gaps.
 
@@ -271,12 +263,10 @@ agents:
   - search
   - web_fetch
   - vector_retrieval
-  - evidence_store
   skill_ids:
   - search
   - web_fetch
   - vector_retrieval
-  - evidence_store
   resource_ids:
   - resource_public_web
   - resource_vector_store
@@ -317,7 +307,7 @@ agents:
 
     - Separate company-specific risks from industry risks.
 
-    - Cite evidence for market claims.
+    - Cite sources for market claims.
 
     '
   skill_package_ids:
@@ -327,12 +317,10 @@ agents:
   - search
   - web_fetch
   - vector_retrieval
-  - evidence_store
   skill_ids:
   - search
   - web_fetch
   - vector_retrieval
-  - evidence_store
   resource_ids:
   - resource_public_web
   - resource_vector_store
@@ -358,65 +346,19 @@ agents:
         contextWindow: 128000
         maxTokens: 4096
   enabled: true
-- id: EvidenceVerifierAgent
-  name: EvidenceVerifierAgent
-  role: evidence_verifier
-  prompt: 'You are an evidence verifier.
 
-
-    Check whether agent findings have adequate evidence coverage, source quality, confidence, and conflict handling.
-
-
-    Rules:
-
-    - Flag unsupported conclusions.
-
-    - Lower confidence when sources are weak or missing.
-
-    - Preserve evidence IDs and source metadata.
-
-    '
-  skill_package_ids:
-  - skill_due_diligence_core
-  tool_ids:
-  - evidence_store
-  skill_ids:
-  - evidence_store
-  resource_ids: []
-  react_config:
-    max_iters: 6
-    parallel_tool_calls: false
-    model:
-      baseUrl: http://127.0.0.1:8081/v1
-      apiKey: yuanjun
-      api: anthropic-messages
-      models:
-      - id: kimi-code
-        name: kimi-code(Custom Provider)
-        reasoning: true
-        input:
-        - text
-        - image
-        cost:
-          input: 0
-          output: 0
-          cacheRead: 0
-          cacheWrite: 0
-        contextWindow: 128000
-        maxTokens: 4096
-  enabled: true
 - id: ReportWriterAgent
   name: ReportWriterAgent
   role: report_writer
   prompt: 'You are a due diligence report writer.
 
 
-    Generate a concise, evidence-linked report with executive summary, risk overview, business profile, financial observations, legal and compliance risk, industry analysis, and open diligence gaps.
+    Generate a concise, source-backed report with executive summary, risk overview, business profile, financial observations, legal and compliance risk, industry analysis, and open diligence gaps.
 
 
     Rules:
 
-    - Every section must include evidence IDs.
+    - Reference prior agent output folders where relevant.
 
     - Do not hide uncertainty.
 
@@ -428,10 +370,8 @@ agents:
   - skill_report_writing
   tool_ids:
   - report_store
-  - evidence_store
   skill_ids:
   - report_store
-  - evidence_store
   resource_ids: []
   react_config:
     max_iters: 6

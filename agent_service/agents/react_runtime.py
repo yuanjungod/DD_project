@@ -15,7 +15,7 @@ from agentscope.model import AnthropicChatModel
 from agentscope.tool import ToolResponse, Toolkit
 from pydantic import BaseModel
 
-from agent_service.api.schemas import AgentResult, CompanyConfig, Evidence
+from agent_service.api.schemas import AgentResult, CompanyConfig
 from agent_service.workflows.config_loader import AgentDefinition
 
 
@@ -71,7 +71,6 @@ class AgentScopeReActRuntime:
         self,
         company_config: CompanyConfig,
         previous_results: list[AgentResult],
-        evidence: list[Evidence],
         structured_model: Type[BaseModel],
         *,
         continuation_context: dict[str, Any] | None = None,
@@ -80,7 +79,6 @@ class AgentScopeReActRuntime:
             self._run_model_async(
                 company_config,
                 previous_results,
-                evidence,
                 structured_model,
                 continuation_context=continuation_context,
             )
@@ -90,7 +88,6 @@ class AgentScopeReActRuntime:
         self,
         company_config: CompanyConfig,
         previous_results: list[AgentResult],
-        evidence: list[Evidence],
         structured_model: Type[BaseModel],
         *,
         continuation_context: dict[str, Any] | None = None,
@@ -100,7 +97,7 @@ class AgentScopeReActRuntime:
             Msg(
                 name="user",
                 content=self._build_task_message(
-                    company_config, previous_results, evidence, continuation_context=continuation_context
+                    company_config, previous_results, continuation_context=continuation_context
                 ),
                 role="user",
             ),
@@ -173,7 +170,6 @@ class AgentScopeReActRuntime:
         self,
         company_config: CompanyConfig,
         previous_results: list[AgentResult],
-        evidence: list[Evidence],
         *,
         continuation_context: dict[str, Any] | None = None,
     ) -> str:
@@ -181,7 +177,6 @@ class AgentScopeReActRuntime:
             "target_company": company_config.target_company.model_dump(mode="json"),
             "scope": company_config.scope.model_dump(mode="json"),
             "project_resources": company_config.resources.model_dump(mode="json"),
-            "available_evidence": [item.model_dump(mode="json") for item in evidence],
             "previous_agent_results": [
                 {
                     "agent": result.agent,
@@ -208,13 +203,12 @@ class AgentScopeReActRuntime:
             payload["continuation_from_previous_session_attempt"] = continuation_context
         return (
             "Run this due diligence agent with the configured AgentScope ReAct tools, "
-            "skills, and resources. Use tools if you need more evidence. "
+            "skills, and resources. Use tools when you need additional source material. "
             "Previous agents hand off their outputs as filesystem folders; use the "
             "`agent_output_reader` tool with `folder_path` from previous_agent_output_folders "
-            "when you need the README, structured result, findings, or resources from an earlier step. "
+            "when you need the README, structured result, or findings from an earlier step. "
             "When finished, call generate_response with a concise summary and "
-            "source-backed findings. Use only risk_level values low, medium, high, or unknown. "
-            "Use evidence IDs from available_evidence whenever possible.\n\n"
+            "source-backed findings. Use only risk_level values low, medium, high, or unknown.\n\n"
             f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
         )
 
@@ -222,7 +216,6 @@ class AgentScopeReActRuntime:
         self,
         company_config: CompanyConfig,
         previous_results: list[AgentResult],
-        evidence: list[Evidence],
         *,
         current_step_summary: str,
         current_findings: list[dict[str, Any]],
@@ -233,7 +226,6 @@ class AgentScopeReActRuntime:
             self._run_step_review_chat_async(
                 company_config,
                 previous_results,
-                evidence,
                 current_step_summary=current_step_summary,
                 current_findings=current_findings,
                 chat_messages=chat_messages,
@@ -245,7 +237,6 @@ class AgentScopeReActRuntime:
         self,
         company_config: CompanyConfig,
         previous_results: list[AgentResult],
-        evidence: list[Evidence],
         *,
         current_step_summary: str,
         current_findings: list[dict[str, Any]],
@@ -257,11 +248,10 @@ class AgentScopeReActRuntime:
             "review_chat": True,
             "instruction_zh": (
                 "尽调复核对话：用户对当前这一步 Agent 的输出进行校验或要求修订。"
-                "用清晰中文回复（除非用户用其他语言）。可指出逻辑/证据缺口、建议如何改写 summary/findings，不要编造证据 ID。"
+                "用清晰中文回复（除非用户用其他语言）。可指出逻辑/来源缺口、建议如何改写 summary/findings，不要编造未出现的来源。"
             ),
             "target_company": company_config.target_company.model_dump(mode="json"),
             "scope": company_config.scope.model_dump(mode="json"),
-            "available_evidence": [item.model_dump(mode="json") for item in evidence],
             "previous_agent_results": [
                 {
                     "agent": result.agent,

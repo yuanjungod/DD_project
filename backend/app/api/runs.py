@@ -82,7 +82,6 @@ async def _dispatch_agent_background(
     pause_after_each_step: bool,
     resume_from_step_index: int,
     completed_steps: list[dict],
-    completed_evidence: list[dict],
 ) -> None:
     await asyncio.to_thread(
         _execute_agent_pipeline_blocking,
@@ -96,7 +95,6 @@ async def _dispatch_agent_background(
         pause_after_each_step=pause_after_each_step,
         resume_from_step_index=resume_from_step_index,
         completed_steps=completed_steps,
-        completed_evidence=completed_evidence,
     )
 
 
@@ -112,7 +110,6 @@ def _execute_agent_pipeline_blocking(
     pause_after_each_step: bool,
     resume_from_step_index: int,
     completed_steps: list[dict],
-    completed_evidence: list[dict],
 ) -> None:
     db = SessionLocal()
     client = AgentServiceClient()
@@ -130,7 +127,6 @@ def _execute_agent_pipeline_blocking(
                     pause_after_each_step=pause_after_each_step,
                     resume_from_step_index=resume_from_step_index,
                     completed_steps=completed_steps,
-                    completed_evidence=completed_evidence,
                 )
             )
         except Exception as exc:  # noqa: BLE001
@@ -236,7 +232,7 @@ async def _execute_start_agent_run(
 
     loaded = (
         db.query(AgentRun)
-        .options(joinedload(AgentRun.steps), joinedload(AgentRun.evidence), joinedload(AgentRun.report))
+        .options(joinedload(AgentRun.steps), joinedload(AgentRun.report))
         .filter(AgentRun.id == run_id)
         .first()
     )
@@ -256,7 +252,6 @@ async def _execute_start_agent_run(
         pause_after_each_step=pause_gate,
         resume_from_step_index=0,
         completed_steps=[],
-        completed_evidence=[],
     )
     return loaded
 
@@ -285,7 +280,7 @@ def list_runs(
 ) -> list[AgentRun]:
     query = (
         db.query(AgentRun)
-        .options(joinedload(AgentRun.steps), joinedload(AgentRun.evidence), joinedload(AgentRun.report))
+        .options(joinedload(AgentRun.steps), joinedload(AgentRun.report))
         .order_by(AgentRun.started_at.desc())
     )
     project_ids = accessible_project_ids(db, user)
@@ -303,7 +298,7 @@ def list_project_runs(
     ensure_project_access(db, user, project_id)
     return (
         db.query(AgentRun)
-        .options(joinedload(AgentRun.steps), joinedload(AgentRun.evidence), joinedload(AgentRun.report))
+        .options(joinedload(AgentRun.steps), joinedload(AgentRun.report))
         .filter(AgentRun.project_id == project_id)
         .order_by(AgentRun.started_at.desc())
         .all()
@@ -318,7 +313,7 @@ def get_run(
 ) -> AgentRun:
     run = (
         db.query(AgentRun)
-        .options(joinedload(AgentRun.steps), joinedload(AgentRun.evidence), joinedload(AgentRun.report))
+        .options(joinedload(AgentRun.steps), joinedload(AgentRun.report))
         .filter(AgentRun.id == run_id)
         .first()
     )
@@ -384,10 +379,6 @@ def get_agent_step_output_folder(
             {"name": path.name, "path": str(path), "content": _read_text_if_exists(path)}
             for path in sorted((folder / "findings").glob("*.md"))
         ],
-        "evidence_files": [
-            {"name": path.name, "path": str(path), "json": _read_json_if_exists(path)}
-            for path in sorted((folder / "resources" / "evidence").glob("*.json"))
-        ],
     }
 
 
@@ -426,7 +417,7 @@ async def continue_step_gated(
         raise HTTPException(status_code=404, detail="Project not found")
 
     snapshot = dict(build_workflow_snapshot(db, project.company_config, project_id=project.id))
-    completed_steps_payload, evidence_payload = completed_slice_for_agent_service(db, run_id)
+    completed_steps_payload = completed_slice_for_agent_service(db, run_id)
 
     row.status = "running"
     db.commit()
@@ -448,12 +439,11 @@ async def continue_step_gated(
         pause_after_each_step=True,
         resume_from_step_index=resume_ix,
         completed_steps=completed_steps_payload,
-        completed_evidence=evidence_payload,
     )
 
     loaded = (
         db.query(AgentRun)
-        .options(joinedload(AgentRun.steps), joinedload(AgentRun.evidence), joinedload(AgentRun.report))
+        .options(joinedload(AgentRun.steps), joinedload(AgentRun.report))
         .filter(AgentRun.id == run_id)
         .first()
     )

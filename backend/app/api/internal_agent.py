@@ -6,7 +6,7 @@ import hmac
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -19,7 +19,6 @@ router = APIRouter(prefix="/internal/agent-runs", tags=["internal"], include_in_
 class RunProgressPayload(BaseModel):
     project_id: str
     step: dict[str, Any]
-    evidence_delta: list[dict[str, Any]] = Field(default_factory=list)
 
 
 def _verify_callback_secret(secret_header: str | None) -> None:
@@ -49,7 +48,6 @@ def receive_run_progress(
             run_id=run_id,
             project_id=body.project_id,
             step_payload=body.step,
-            evidence_delta=body.evidence_delta,
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

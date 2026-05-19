@@ -24,9 +24,6 @@ ROOT = Path(__file__).resolve().parents[3]
 AGENT_CONFIG_DIR = ROOT / "agent_service" / "configs"
 SCENARIO_TEMPLATES_DIR = AGENT_CONFIG_DIR / "scenario_templates"
 AGENT_TEMPLATES_PATH = AGENT_CONFIG_DIR / "agent_templates.yaml"
-PROMPT_DIR = ROOT / "agent_service" / "prompts"
-LEGACY_AGENTS_YAML = AGENT_CONFIG_DIR / "agents.yaml"
-WORKFLOWS_YAML = AGENT_CONFIG_DIR / "workflows.yaml"
 
 _WORKFLOW_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 
@@ -85,20 +82,6 @@ def _merge_react_config(existing: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
-def _skill_package_ids_for_agent(agent_name: str) -> list[str]:
-    mapping = {
-        "CoordinatorAgent": ["skill_due_diligence_core"],
-        "CompanyProfileAgent": ["skill_due_diligence_core"],
-        "WebResearchAgent": ["skill_due_diligence_core"],
-        "FinancialAnalysisAgent": ["skill_due_diligence_core", "skill_financial_signal_analysis"],
-        "LegalRiskAgent": ["skill_due_diligence_core", "skill_legal_risk_review"],
-        "IndustryAnalysisAgent": ["skill_due_diligence_core", "skill_market_competition_analysis"],
-        "EvidenceVerifierAgent": ["skill_due_diligence_core"],
-        "ReportWriterAgent": ["skill_due_diligence_core", "skill_report_writing"],
-    }
-    return mapping.get(agent_name, ["skill_due_diligence_core"])
-
-
 def _resource_ids_for_tools(tool_ids: list[str]) -> list[str]:
     resource_ids: list[str] = []
     if any(tool in tool_ids for tool in ("search", "web_fetch")):
@@ -108,36 +91,6 @@ def _resource_ids_for_tools(tool_ids: list[str]) -> list[str]:
     if "vector_retrieval" in tool_ids:
         resource_ids.append("resource_vector_store")
     return resource_ids
-
-
-def _read_prompt(prompt_file: str) -> str:
-    if not prompt_file:
-        return ""
-    path = PROMPT_DIR / prompt_file
-    return path.read_text(encoding="utf-8") if path.exists() else ""
-
-
-def _bootstrap_entries_from_legacy_agents_yaml() -> list[dict[str, Any]]:
-    agents = _load_yaml(LEGACY_AGENTS_YAML).get("agents", [])
-    rows: list[dict[str, Any]] = []
-    for agent in agents:
-        aid = agent["name"]
-        tool_ids = agent.get("tools") or agent.get("tool_ids") or []
-        rows.append(
-            {
-                "id": aid,
-                "name": agent.get("name", aid),
-                "role": agent.get("role", ""),
-                "prompt": _read_prompt(agent.get("prompt", "")),
-                "skill_package_ids": _skill_package_ids_for_agent(aid),
-                "tool_ids": tool_ids,
-                "skill_ids": tool_ids,
-                "resource_ids": _resource_ids_for_tools(tool_ids),
-                "react_config": _default_react_config(),
-                "enabled": True,
-            }
-        )
-    return rows
 
 
 def _normalize_agent_record(raw: dict[str, Any]) -> dict[str, Any]:
@@ -166,55 +119,12 @@ def _normalize_agent_record(raw: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
-def ordered_agents_from_workflows_yaml(workflow: dict[str, Any]) -> list[str]:
-    return [
-        workflow["coordinator"],
-        *workflow.get("research_agents", []),
-        *workflow.get("analysis_agents", []),
-        workflow["verifier"],
-        workflow["reporter"],
-    ]
-
-
-def graph_from_agent_ids(agent_ids: list[str]) -> dict[str, Any]:
-    nodes = [
-        {
-            "id": f"node_{index + 1:02d}",
-            "agent_template_id": agent_id,
-            "stage": _stage_for_index(index, len(agent_ids)),
-        }
-        for index, agent_id in enumerate(agent_ids)
-    ]
-    edges = [
-        {"from": nodes[index]["id"], "to": nodes[index + 1]["id"]}
-        for index in range(len(nodes) - 1)
-    ]
-    return {
-        "nodes": nodes,
-        "edges": edges,
-        "entry_node": nodes[0]["id"] if nodes else "",
-        "report_node": nodes[-1]["id"] if nodes else "",
-    }
-
-
-def _stage_for_index(index: int, total: int) -> str:
-    if index == 0:
-        return "coordination"
-    if index == total - 2:
-        return "verification"
-    if index == total - 1:
-        return "reporting"
-    return "execution"
-
-
 def _migration_agent_catalog() -> dict[str, dict[str, Any]]:
-    rows: list[dict[str, Any]]
-    if AGENT_TEMPLATES_PATH.exists():
-        loaded = yaml.safe_load(AGENT_TEMPLATES_PATH.read_text(encoding="utf-8"))
-        raw_list: Any = loaded.get("agents", []) if isinstance(loaded, dict) else []
-        rows = [dict(item) for item in raw_list] if isinstance(raw_list, list) else []
-    else:
-        rows = _bootstrap_entries_from_legacy_agents_yaml()
+    if not AGENT_TEMPLATES_PATH.exists():
+        return {}
+    loaded = yaml.safe_load(AGENT_TEMPLATES_PATH.read_text(encoding="utf-8"))
+    raw_list: Any = loaded.get("agents", []) if isinstance(loaded, dict) else []
+    rows = [dict(item) for item in raw_list] if isinstance(raw_list, list) else []
     by_id: dict[str, dict[str, Any]] = {}
     for raw in rows:
         norm = _normalize_agent_record(copy.deepcopy(dict(raw)))
@@ -222,42 +132,8 @@ def _migration_agent_catalog() -> dict[str, dict[str, Any]]:
     return by_id
 
 
-def _workflow_bundle_documents_exist() -> bool:
-    if not SCENARIO_TEMPLATES_DIR.is_dir():
-        return False
-    for path in sorted(SCENARIO_TEMPLATES_DIR.glob("*.yaml")):
-        if path.name.startswith("_"):
-            continue
-        doc = _load_yaml(path)
-        if doc.get("workflow"):
-            return True
-    return False
-
-
-def ensure_workflow_template_bundles_migrated() -> None:
+def ensure_scenario_templates_dir() -> None:
     SCENARIO_TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
-    if _workflow_bundle_documents_exist():
-        return
-    catalog = _migration_agent_catalog()
-    for workflow_row in _load_yaml(WORKFLOWS_YAML).get("workflows", []):
-        wf_id = workflow_row["id"]
-        ordered = ordered_agents_from_workflows_yaml(workflow_row)
-        missing = [aid for aid in ordered if aid not in catalog]
-        if missing:
-            raise RuntimeError(f"Migrating workflows: missing agents in catalog for {wf_id}: {missing}")
-        bundle = {
-            "version": 1,
-            "workflow": {
-                "id": wf_id,
-                "name": workflow_row["name"],
-                "description": workflow_row.get("description", ""),
-                "scenario": workflow_row.get("scenario", "standard"),
-                "status": "published",
-                "version": 1,
-                "graph": graph_from_agent_ids(ordered),
-            },
-        }
-        save_workflow_bundle(wf_id, bundle, validate_agent_refs=False)
 
 
 def _assert_safe_workflow_id(workflow_id: str) -> None:
@@ -339,7 +215,7 @@ def _bundle_to_read(path: Path, bundle: dict[str, Any]) -> WorkflowTemplateRead:
 
 
 def list_workflow_bundle_paths() -> list[Path]:
-    ensure_workflow_template_bundles_migrated()
+    ensure_scenario_templates_dir()
     if not SCENARIO_TEMPLATES_DIR.is_dir():
         return []
     return sorted(
@@ -390,7 +266,7 @@ def _save_agent_catalog_rows(rows: list[dict[str, Any]]) -> None:
 
 
 def union_agent_by_id() -> dict[str, dict[str, Any]]:
-    ensure_workflow_template_bundles_migrated()
+    ensure_scenario_templates_dir()
     merged: dict[str, dict[str, Any]] = {}
     for row in _load_agent_catalog_rows():
         norm = _normalize_agent_record(copy.deepcopy(row))
@@ -417,7 +293,7 @@ def _pick_agents_for_graph(agent_ids: list[str], pool: dict[str, dict[str, Any]]
 
 
 def create_workflow_template(payload: WorkflowTemplateCreate) -> WorkflowTemplateRead:
-    ensure_workflow_template_bundles_migrated()
+    ensure_scenario_templates_dir()
     data = payload.model_dump(exclude_none=True)
     wf_id = data.get("id") or new_id("workflow_tpl")
     _assert_safe_workflow_id(wf_id)

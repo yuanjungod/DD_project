@@ -8,40 +8,26 @@ from agent_service.api.schemas import (
     AgentResult,
     AgentStep,
     CompanyConfig,
-    Evidence,
     RunResult,
     StepReviewChatRequest,
     StepReviewChatResponse,
 )
 from agent_service.callback_client import notify_run_progress
 from agent_service.session_history import build_session_recorder, open_session_recorder_for_resume
-from agent_service.tools.stores import EvidenceStoreTool
 from agent_service.workflows.agent_outputs import write_agent_step_output_folder
-from agent_service.workflows.config_loader import (
-    AgentConfig,
-    AgentDefinition,
-    WorkflowConfig,
-    WorkflowDefinition,
-    load_agent_config,
-    load_workflow_config,
-)
+from agent_service.workflows.config_loader import AgentDefinition, WorkflowDefinition
 
 
 class DueDiligenceWorkflow:
-    def __init__(self) -> None:
-        self._agent_config: AgentConfig | None = None
-        self._workflow_config: WorkflowConfig | None = None
-
     def step_review_chat(self, payload: StepReviewChatRequest) -> StepReviewChatResponse:
         snapshot = payload.workflow_snapshot
+        if not snapshot:
+            raise ValueError("workflow_snapshot is required")
         agent_definitions = self._agent_definitions_from_snapshot(snapshot)
-        definition = agent_definitions.get(payload.agent_name) if agent_definitions else None
+        definition = agent_definitions.get(payload.agent_name)
         if definition is None:
-            if snapshot:
-                raise ValueError(f"Workflow snapshot missing agent definition: {payload.agent_name}")
-            definition = self._legacy_agent_config().get_agent(payload.agent_name)
-        evidence_store = EvidenceStoreTool(id_prefix="review")
-        runner = ConfiguredAgentRunner(definition, evidence_store)
+            raise ValueError(f"Workflow snapshot missing agent definition: {payload.agent_name}")
+        runner = ConfiguredAgentRunner(definition)
         cur = payload.current_step
         findings: list[dict[str, Any]] = []
         if cur.result and cur.result.findings:
@@ -70,24 +56,18 @@ class DueDiligenceWorkflow:
         pause_after_each_step: bool = False,
         resume_from_step_index: int = 0,
         completed_steps: list[AgentStep] | None = None,
-        completed_evidence: list[Evidence] | None = None,
     ) -> RunResult:
         run_id = run_id_override or f"run_{uuid4().hex[:12]}"
         done_steps = list(completed_steps or [])
-        done_evidence = list(completed_evidence or [])
         if resume_from_step_index != len(done_steps):
             raise ValueError(
                 f"resume_from_step_index ({resume_from_step_index}) must equal len(completed_steps) ({len(done_steps)})"
             )
 
-        workflow = (
-            self._workflow_from_snapshot(workflow_snapshot)
-            if workflow_snapshot
-            else self._legacy_workflow_config().get_workflow(company_config.scope.workflow_id)
-        )
+        if not workflow_snapshot:
+            raise ValueError("workflow_snapshot is required")
+        workflow = self._workflow_from_snapshot(workflow_snapshot)
         agent_definitions = self._agent_definitions_from_snapshot(workflow_snapshot)
-        evidence_store = EvidenceStoreTool(id_prefix=run_id)
-        evidence_store.seed(done_evidence)
         steps: list[AgentStep] = list(done_steps)
         results: list[AgentResult] = []
         for st in steps:
@@ -130,16 +110,14 @@ class DueDiligenceWorkflow:
 
         for step_idx in range(resume_from_step_index, len(ordered_agents)):
             agent_name = ordered_agents[step_idx]
-            definition = (
-                agent_definitions.get(agent_name) if agent_definitions else self._legacy_agent_config().get_agent(agent_name)
-            )
+            definition = agent_definitions.get(agent_name)
             if definition is None:
                 raise ValueError(f"Workflow snapshot missing agent definition: {agent_name}")
-            runner = ConfiguredAgentRunner(definition, evidence_store)
+            runner = ConfiguredAgentRunner(definition)
             step = AgentStep(id=f"{run_id}_step_{step_idx + 1:03d}", agent=agent_name, status="running")
             steps.append(step)
             recorder.append_event({"type": "step_started", "step_id": step.id, "agent": agent_name})
-            notify_run_progress(project_id, run_id, step, evidence_delta=[])
+            notify_run_progress(project_id, run_id, step)
             inject_ctx = continuation_context if step_idx == 0 and resume_from_step_index == 0 else None
             try:
                 result = runner.run(company_config, results, continuation_context=inject_ctx)
@@ -174,13 +152,12 @@ class DueDiligenceWorkflow:
             )
             step.result = result
             results.append(result)
-            notify_run_progress(project_id, run_id, step, evidence_delta=list(result.evidence))
+            notify_run_progress(project_id, run_id, step)
             recorder.append_event(
                 {
                     "type": "step_completed",
                     "step_id": step.id,
                     "agent": agent_name,
-                    "evidence_count": len(result.evidence),
                     "findings_count": len(result.findings),
                     "output_dir": output_dir,
                     "output_readme_path": output_readme_path,
@@ -232,7 +209,6 @@ class DueDiligenceWorkflow:
             workflow.coordinator,
             *workflow.research_agents,
             *workflow.analysis_agents,
-            workflow.verifier,
             workflow.reporter,
         ]
         ordered: list[str] = []
@@ -265,10 +241,10 @@ class DueDiligenceWorkflow:
             scenario=workflow.get("scenario", "standard"),
             ordered_agents=agent_ids,
             coordinator=agent_ids[0],
-            research_agents=agent_ids[1:-2] if len(agent_ids) >= 3 else agent_ids[1:],
+            research_agents=agent_ids[1:-1] if len(agent_ids) >= 2 else agent_ids[1:],
             analysis_agents=[],
-            verifier=agent_ids[-2] if len(agent_ids) >= 3 else "",
-            reporter=agent_ids[-1] if len(agent_ids) >= 3 else "",
+            verifier="",
+            reporter=agent_ids[-1] if len(agent_ids) >= 2 else "",
         )
 
     def _agent_ids_from_graph(self, graph: dict[str, Any]) -> list[str]:
@@ -350,13 +326,3 @@ class DueDiligenceWorkflow:
                 react_config=agent.get("react_config", {}),
             )
         return definitions
-
-    def _legacy_agent_config(self) -> AgentConfig:
-        if self._agent_config is None:
-            self._agent_config = load_agent_config()
-        return self._agent_config
-
-    def _legacy_workflow_config(self) -> WorkflowConfig:
-        if self._workflow_config is None:
-            self._workflow_config = load_workflow_config()
-        return self._workflow_config

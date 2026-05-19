@@ -22,17 +22,8 @@ def write_agent_step_output_folder(
     """Persist one agent's handoff folder and return (folder, README path)."""
 
     folder = agent_step_output_dir(project_id=project_id, run_id=run_id, step_id=step_id, agent_name=result.agent)
-    evidence_dir = folder / "resources" / "evidence"
     findings_dir = folder / "findings"
-    evidence_dir.mkdir(parents=True, exist_ok=True)
     findings_dir.mkdir(parents=True, exist_ok=True)
-
-    for evidence in result.evidence:
-        evidence_path = evidence_dir / f"{_safe_segment(evidence.id or 'evidence')}.json"
-        evidence_path.write_text(
-            json.dumps(evidence.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
 
     for index, finding in enumerate(result.findings, start=1):
         finding_path = findings_dir / f"{index:02d}_{_safe_segment(finding.title or 'finding')}.md"
@@ -43,24 +34,6 @@ def write_agent_step_output_folder(
     result.output_readme_path = str(readme_path)
     (folder / "result.json").write_text(
         json.dumps(result.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    (folder / "resources" / "index.json").write_text(
-        json.dumps(
-            {
-                "evidence": [
-                    {
-                        "id": evidence.id,
-                        "title": evidence.title,
-                        "path": str(evidence_dir / f"{_safe_segment(evidence.id or 'evidence')}.json"),
-                    }
-                    for evidence in result.evidence
-                ]
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-        + "\n",
         encoding="utf-8",
     )
     (folder / _MARKER_FILE).write_text(
@@ -98,9 +71,6 @@ def read_agent_output_folder(folder_path: str) -> dict[str, Any]:
     }
     if result.is_file():
         payload["result"] = json.loads(result.read_text(encoding="utf-8"))
-    resource_index = folder / "resources" / "index.json"
-    if resource_index.is_file():
-        payload["resources"] = json.loads(resource_index.read_text(encoding="utf-8"))
     return payload
 
 
@@ -122,7 +92,6 @@ def _readme_markdown(step_id: str, result: AgentResult) -> str:
         f"- Step ID: `{step_id}`",
         f"- Status: `{result.status}`",
         f"- Result JSON: `result.json`",
-        f"- Evidence resources: `resources/evidence/`",
         f"- Findings: `findings/`",
         "",
         "## Summary",
@@ -136,29 +105,19 @@ def _readme_markdown(step_id: str, result: AgentResult) -> str:
         for index, finding in enumerate(result.findings, start=1):
             lines.append(f"{index}. **{finding.title}** [{finding.risk_level}, confidence={finding.confidence}]")
             lines.append(f"   - {finding.description}")
-            if finding.evidence_ids:
-                lines.append(f"   - Evidence IDs: {', '.join(finding.evidence_ids)}")
     else:
         lines.append("(no findings)")
-    lines.extend(["", "## Resources", ""])
-    if result.evidence:
-        for evidence in result.evidence:
-            lines.append(f"- `{evidence.id}` {evidence.title} -> `resources/evidence/{_safe_segment(evidence.id)}.json`")
-    else:
-        lines.append("(no evidence resources)")
     lines.append("")
     return "\n".join(lines)
 
 
 def _finding_markdown(index: int, finding: dict[str, Any]) -> str:
-    evidence_ids = finding.get("evidence_ids") or []
     return "\n".join(
         [
             f"# Finding {index}: {finding.get('title', '')}",
             "",
             f"- Risk level: `{finding.get('risk_level', 'unknown')}`",
             f"- Confidence: `{finding.get('confidence', '')}`",
-            f"- Evidence IDs: {', '.join(evidence_ids) if evidence_ids else '(none)'}",
             "",
             finding.get("description", ""),
             "",

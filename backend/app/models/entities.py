@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -120,7 +120,6 @@ class AgentRun(Base):
     project: Mapped[Project] = relationship(back_populates="runs")
     diligence_session: Mapped["DiligenceSession | None"] = relationship(back_populates="runs")
     steps: Mapped[list["AgentStep"]] = relationship(back_populates="run", cascade="all, delete-orphan")
-    evidence: Mapped[list["Evidence"]] = relationship(back_populates="run", cascade="all, delete-orphan")
     report: Mapped["Report | None"] = relationship(back_populates="run", cascade="all, delete-orphan")
 
 
@@ -150,24 +149,6 @@ class AgentStepChatMessage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     step: Mapped["AgentStep"] = relationship(back_populates="chat_messages")
-
-
-class Evidence(Base):
-    __tablename__ = "evidence"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    run_id: Mapped[str] = mapped_column(ForeignKey("agent_runs.id"), nullable=False)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
-    title: Mapped[str] = mapped_column(String, nullable=False)
-    source_type: Mapped[str] = mapped_column(String, nullable=False)
-    source_url: Mapped[str | None] = mapped_column(String, nullable=True)
-    file_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    excerpt: Mapped[str] = mapped_column(Text, nullable=False)
-    confidence: Mapped[float] = mapped_column(Float, nullable=False)
-    collected_by: Mapped[str] = mapped_column(String, nullable=False)
-    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
-
-    run: Mapped[AgentRun] = relationship(back_populates="evidence")
 
 
 class Report(Base):

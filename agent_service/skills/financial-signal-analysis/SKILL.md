@@ -6,4 +6,4 @@ description: Guides financial diligence over funding, revenue signals, cash flow
 
 # Financial Signal Analysis
 
-Separate facts from estimates. Do not infer precise numbers unless evidence provides them. Highlight missing disclosure.
+Separate facts from estimates. Do not infer precise numbers unless sources provide them. Highlight missing disclosure.

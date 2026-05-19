@@ -1,7 +1,6 @@
 from app.models.entities import (
     AgentRun,
     AgentStep,
-    Evidence,
     Project,
     ProjectAccess,
     Report,
@@ -13,7 +12,6 @@ from app.models.entities import (
 __all__ = [
     "AgentRun",
     "AgentStep",
-    "Evidence",
     "Project",
     "ProjectAccess",
     "Report",

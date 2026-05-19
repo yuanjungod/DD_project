@@ -60,10 +60,6 @@ def project_uploads_dir(project_id: str) -> Path:
     return d
 
 
-def legacy_migration_sentinel_path() -> Path:
-    return data_root() / ".migrated_resources_from_sqlite_v1"
-
-
 def platform_uploads_dir() -> Path:
     """Shared library blobs (not tied to a single project application)."""
     d = data_root() / "platform" / "uploads"

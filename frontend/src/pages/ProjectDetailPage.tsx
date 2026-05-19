@@ -101,14 +101,6 @@ function outputFileEntries(folder: AgentStepOutputFolder): OutputFileEntry[] {
       content: finding.content,
     });
   }
-  for (const evidence of folder.evidence_files ?? []) {
-    entries.push({
-      id: `resources/evidence/${evidence.name}`,
-      label: `resources/evidence/${evidence.name}`,
-      path: evidence.path,
-      content: jsonPreview(evidence.json),
-    });
-  }
   return entries;
 }
 
@@ -741,7 +733,7 @@ export function ProjectDetailPage({ section = "overview" }: { section?: ProjectD
               配置资源
             </Link>
           </SectionCard>
-          <SectionCard title="模型运行输出" description="启动 Run、查看每个 Agent 的步骤状态、输出目录、README、findings 与 evidence 文件。">
+          <SectionCard title="模型运行输出" description="启动 Run、查看每个 Agent 的步骤状态、输出目录、README 与 findings。">
             <p className="muted">
               当前 Run：{activeRun ? `${activeRun.id} · ${activeRun.status}` : "暂无"}
             </p>

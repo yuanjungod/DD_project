@@ -1,13 +1,13 @@
 # Findings
 
 ## Initial Findings
-- Workflow/scenario and Agent definitions are now separated: scenario graphs live under `agent_service/configs/scenario_templates/*.yaml`, reusable Agent definitions live in `agent_service/configs/agent_templates.yaml`, and legacy `agents.yaml`/`workflows.yaml` are fallback seed inputs only.
-- Normal backend runs build `workflow_snapshot` from the published scenario file plus separate agent catalog; fallback execution still uses legacy `agents.yaml`/`workflows.yaml` when no snapshot is supplied.
+- Workflow/scenario and Agent definitions are separated: scenario graphs live under `agent_service/configs/scenario_templates/*.yaml`, reusable Agent definitions live in `agent_service/configs/agent_templates.yaml`.
+- Normal backend runs and agent_service execution both require a `workflow_snapshot` built from the published scenario file plus the agent catalog.
 - Frontend has `frontend/src/data/workflows.ts` static workflow labels while actual workflow templates are listed from `/workflow-templates`, creating drift when templates are added/renamed.
 - Tools and skills are still DB-catalog-backed in snapshots; resources are already file-backed via `catalog/resource_configs` plus data overlay.
 
 ## Agent Output Folder Task
-- `AgentResult` currently carries `agent/status/summary/findings/evidence` only; no durable output folder address is exposed.
+- `AgentResult` carries `agent/status/summary/findings` plus `output_dir` / `output_readme_path` for per-step handoff folders.
 - `DueDiligenceWorkflow.run` keeps prior step outputs in `results` and passes them to `ConfiguredAgentRunner.run`; this is the right place to write a folder after each completed step, then append the result with `output_dir`.
 - `AgentScopeReActRuntime._build_task_message` currently injects `previous_agent_results` as summary/findings only; this should include output folder addresses and an explicit `previous_agent_output_folders` list.
 - Session history already stores final/partial `RunResult` JSON, so adding `output_dir` to `AgentResult` should be persisted through existing DB JSON fields and callback payloads.

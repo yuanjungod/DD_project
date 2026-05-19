@@ -4,7 +4,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.models.entities import AgentRun, AgentStep, AgentStepChatMessage, Evidence, Report
+from app.models.entities import AgentRun, AgentStep, AgentStepChatMessage, Report
 
 
 def _attach_run_children(db: Session, project_id: str, run: AgentRun, result: dict) -> None:
@@ -17,23 +17,6 @@ def _attach_run_children(db: Session, project_id: str, run: AgentRun, result: di
                 status=step["status"],
                 summary=step.get("summary", ""),
                 result=step.get("result") or {},
-            )
-        )
-
-    for item in result.get("evidence", []):
-        db.add(
-            Evidence(
-                id=item["id"],
-                run_id=run.id,
-                project_id=project_id,
-                title=item["title"],
-                source_type=item["source_type"],
-                source_url=item.get("source_url"),
-                file_id=item.get("file_id"),
-                excerpt=item["excerpt"],
-                confidence=item["confidence"],
-                collected_by=item["collected_by"],
-                metadata_json=item.get("metadata", {}),
             )
         )
 
@@ -52,9 +35,8 @@ def _attach_run_children(db: Session, project_id: str, run: AgentRun, result: di
 
 
 def _clear_run_derived_records(db: Session, run_id: str) -> None:
-    """Remove persisted steps/evidence/report for a run so finalize can replay agent truth."""
+    """Remove persisted steps/report for a run so finalize can replay agent truth."""
     db.query(AgentStep).filter(AgentStep.run_id == run_id).delete(synchronize_session=False)
-    db.query(Evidence).filter(Evidence.run_id == run_id).delete(synchronize_session=False)
     report = db.query(Report).filter(Report.run_id == run_id).first()
     if report is not None:
         db.delete(report)
@@ -121,9 +103,8 @@ def upsert_incremental_run_progress(
     run_id: str,
     project_id: str,
     step_payload: dict,
-    evidence_delta: list[dict],
 ) -> None:
-    """Apply one step update and optional evidence upserts from agent-service callbacks."""
+    """Apply one step update from agent-service callbacks."""
     run = db.get(AgentRun, run_id)
     if run is None or run.project_id != project_id:
         raise ValueError("Run not found or project mismatch")
@@ -152,36 +133,6 @@ def upsert_incremental_run_progress(
                 result=result_val,
             )
         )
-
-    for raw in evidence_delta:
-        eid = raw["id"]
-        metadata = raw.get("metadata", {})
-        row = db.get(Evidence, eid)
-        fields = {
-            "title": raw["title"],
-            "source_type": raw["source_type"],
-            "source_url": raw.get("source_url"),
-            "file_id": raw.get("file_id"),
-            "excerpt": raw["excerpt"],
-            "confidence": float(raw["confidence"]),
-            "collected_by": raw["collected_by"],
-            "metadata_json": metadata if isinstance(metadata, dict) else {},
-        }
-        if row:
-            if row.run_id != run_id:
-                raise ValueError("Evidence id bound to another run")
-            row.project_id = project_id
-            for key, val in fields.items():
-                setattr(row, key, val)
-        else:
-            db.add(
-                Evidence(
-                    id=eid,
-                    run_id=run_id,
-                    project_id=project_id,
-                    **fields,
-                )
-            )
 
     db.commit()
 

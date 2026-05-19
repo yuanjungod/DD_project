@@ -6,12 +6,12 @@ from sqlalchemy.orm import Session
 from app.models.entities import SkillPackage, ToolConfig
 from app.services.skill_files import load_skill_packages_from_disk, sync_all_skill_packages_to_disk
 from app.services.tool_files import load_tool_configs_from_disk, sync_tool_configs_to_disk
-from app.services.workflow_template_files import ensure_workflow_template_bundles_migrated
+from app.services.workflow_template_files import ensure_scenario_templates_dir
 
 def seed_configuration_catalog(db: Session) -> None:
     """Seed DB-backed mirrors. Scenario graphs and agent definitions are separate file-backed catalogs."""
     ensure_configuration_schema(db)
-    ensure_workflow_template_bundles_migrated()
+    ensure_scenario_templates_dir()
 
     disk_tools = load_tool_configs_from_disk()
     if disk_tools:
@@ -26,10 +26,6 @@ def seed_configuration_catalog(db: Session) -> None:
     db.commit()
     sync_tool_configs_to_disk(db.query(ToolConfig).all())
     sync_all_skill_packages_to_disk(db.query(SkillPackage).all())
-
-    from app.services.resource_fs_migration import migrate_if_needed
-
-    migrate_if_needed(db.get_bind(), db)
 
 
 def ensure_configuration_schema(db: Session) -> None:
@@ -80,8 +76,8 @@ def _default_skill_packages() -> list[SkillPackage]:
         (
             "skill_due_diligence_core",
             "due-diligence-core",
-            "Guides evidence-first due diligence work with source-backed claims, confidence, conflicts, and report-ready findings.",
-            "# Due Diligence Core\n\nAlways ground material claims in evidence IDs. Mark uncertainty explicitly. Preserve conflicts instead of hiding them.",
+            "Guides source-backed due diligence work with confidence, conflicts, and report-ready findings.",
+            "# Due Diligence Core\n\nGround material claims in tool results or prior agent output folders. Mark uncertainty explicitly. Preserve conflicts instead of hiding them.",
         ),
         (
             "skill_legal_risk_review",
@@ -93,7 +89,7 @@ def _default_skill_packages() -> list[SkillPackage]:
             "skill_financial_signal_analysis",
             "financial-signal-analysis",
             "Guides financial diligence over funding, revenue signals, cash flow hints, disclosure gaps, and business model quality.",
-            "# Financial Signal Analysis\n\nSeparate facts from estimates. Do not infer precise numbers unless evidence provides them. Highlight missing disclosure.",
+            "# Financial Signal Analysis\n\nSeparate facts from estimates. Do not infer precise numbers unless sources provide them. Highlight missing disclosure.",
         ),
         (
             "skill_market_competition_analysis",
@@ -104,8 +100,8 @@ def _default_skill_packages() -> list[SkillPackage]:
         (
             "skill_report_writing",
             "due-diligence-report-writing",
-            "Guides concise due diligence report writing with executive summaries, risk levels, evidence IDs, and open diligence gaps.",
-            "# Due Diligence Report Writing\n\nEvery section must include evidence IDs. Do not hide uncertainty. Use the requested report language.",
+            "Guides concise due diligence report writing with executive summaries, risk levels, and open diligence gaps.",
+            "# Due Diligence Report Writing\n\nReference prior agent output folders where relevant. Do not hide uncertainty. Use the requested report language.",
         ),
     ]
     return [

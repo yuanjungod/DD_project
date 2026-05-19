@@ -21,7 +21,7 @@ export function RunHistoryPage() {
       <header className="page-hero">
         <p className="eyebrow">Audit Trail</p>
         <h1>跑的历史记录</h1>
-        <p>集中查看所有可访问项目的 Agent run、状态、证据数量和报告结果。</p>
+        <p>集中查看所有可访问项目的 Agent run、状态与步骤数量。</p>
       </header>
       {error ? <div className="error">{error}</div> : null}
       <SectionCard title="Run 历史">
@@ -30,7 +30,6 @@ export function RunHistoryPage() {
           <span>项目</span>
           <span>状态</span>
           <span>Agent</span>
-          <span>证据</span>
           <span>时间</span>
           {runs.map((run) => (
             <Fragment key={run.id}>
@@ -42,7 +41,6 @@ export function RunHistoryPage() {
                 {run.status}
               </span>
               <span>{run.steps.length}</span>
-              <span>{run.evidence.length}</span>
               <span>{formatApiDateTimeLocal(run.started_at)}</span>
             </Fragment>
           ))}

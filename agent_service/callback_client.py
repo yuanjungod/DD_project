@@ -5,7 +5,7 @@ from typing import Any
 
 import httpx
 
-from agent_service.api.schemas import AgentStep, Evidence
+from agent_service.api.schemas import AgentStep
 from agent_service.settings import get_agent_settings
 
 logger = logging.getLogger(__name__)
@@ -15,8 +15,6 @@ def notify_run_progress(
     project_id: str,
     run_id: str,
     step: AgentStep,
-    *,
-    evidence_delta: list[Evidence] | None = None,
 ) -> None:
     settings = get_agent_settings()
     base = settings.platform_callback_base_url.strip()
@@ -27,7 +25,6 @@ def notify_run_progress(
     payload: dict[str, Any] = {
         "project_id": project_id,
         "step": step.model_dump(mode="json"),
-        "evidence_delta": [e.model_dump(mode="json") for e in (evidence_delta or [])],
     }
 
     try:

@@ -12,7 +12,6 @@ The due diligence workflow is intentionally split into generic agent configurati
 | `FinancialAnalysisAgent` | Analyze funding, financial signals, operating scale, and business model. | Financial observations and risks. |
 | `LegalRiskAgent` | Identify litigation, penalties, sanctions, IP, and compliance risks. | Legal and compliance risk findings. |
 | `IndustryAnalysisAgent` | Compare the company with competitors and market dynamics. | Industry position and competitive analysis. |
-| `EvidenceVerifierAgent` | Validate evidence coverage, confidence, and conflicts. | Evidence quality summary. |
 | `ReportWriterAgent` | Produce the final structured report. | Due diligence report sections. |
 
 ## Agent Rules
@@ -21,17 +20,17 @@ Every agent must follow these rules:
 
 - Do not invent facts.
 - Mark uncertain findings with low confidence.
-- Attach evidence IDs to material conclusions.
+- Ground material conclusions in tool results or prior agent output folders.
 - Keep conflicting information visible instead of hiding it.
 - Return structured JSON that conforms to the shared schema.
 
 ## Workflow
 
-Workflow templates are seeded from `agent_service/configs/workflows.yaml` and then managed in the backend configuration catalog. A company project selects one published template through `scope.workflow_template_id`, so the same agent flow can be reused for many companies while different scenarios can choose different agent sequences.
+Workflow templates are file-backed under `agent_service/configs/scenario_templates/` and managed through the backend configuration catalog. A company project selects one published template through `scope.workflow_template_id`, so the same agent flow can be reused for many companies while different scenarios can choose different agent sequences.
 
 Current templates:
 
-- `standard_due_diligence`: full company, web, financial, legal, industry, verification, and report flow.
+- `standard_due_diligence`: full company, web, financial, legal, industry, and report flow.
 - `legal_compliance_due_diligence`: legal/compliance-focused flow.
 - `financial_investment_due_diligence`: finance/investment-focused flow.
 - `market_entry_due_diligence`: market and competitor-focused flow.
@@ -43,7 +42,7 @@ The agent service writes a **session JSON** for each `POST /runs` (on by default
 Each agent template can bind:
 
 - `skill_package_ids`: `SKILL.md` packages that inject procedural guidance and bundled resources into the agent context.
-- `tool_ids`: executable tools the agent may call, such as search, web fetch, file reader, vector retrieval, evidence store, and report store.
+- `tool_ids`: executable tools the agent may call, such as search, web fetch, file reader, vector retrieval, and report store.
 - `resource_ids`: data resources exposed in the AgentScope ReAct system prompt.
 - `react_config`: AgentScope ReAct settings such as `max_iters` and `parallel_tool_calls`.
 
@@ -71,7 +70,7 @@ Default model config:
 }
 ```
 
-When the workflow graph comes from the snapshot rather than YAML defaults alone, coordinator, research agents, verifier, and reporter identifiers may differ while the **overall stage order** (plan, research, analysis, verify, report) stays the same.
+When the workflow graph comes from the snapshot rather than YAML defaults alone, coordinator, research agents, and reporter identifiers may differ while the **overall stage order** (plan, research, analysis, report) stays the same.
 
 ```mermaid
 flowchart TD
@@ -82,12 +81,11 @@ flowchart TD
   Coordinator --> Financial[FinancialAnalysisAgent]
   Coordinator --> Legal[LegalRiskAgent]
   Coordinator --> Industry[IndustryAnalysisAgent]
-  CompanyProfile --> EvidenceVerifier[EvidenceVerifierAgent]
-  WebResearch --> EvidenceVerifier
-  Financial --> EvidenceVerifier
-  Legal --> EvidenceVerifier
-  Industry --> EvidenceVerifier
-  EvidenceVerifier --> ReportWriter[ReportWriterAgent]
+  CompanyProfile --> ReportWriter[ReportWriterAgent]
+  WebResearch --> ReportWriter
+  Financial --> ReportWriter
+  Legal --> ReportWriter
+  Industry --> ReportWriter
   ReportWriter --> Report[Structured_Report]
 ```
 
@@ -99,7 +97,7 @@ Runs are intentionally **split across HTTP hops** so the platform API does not b
 2. **Agent_service** **`POST /runs`** accepts **`run_id`** in the JSON body when the backend allocates it in advance so the **`RunResult.run_id`** matches the pending row before persistence.
 3. **Incremental progress**: after each logical step transitions to **`running`** and again after that step completes the workflow calls **`notify_run_progress`**, which **`POST`**s to **`{PLATFORM_CALLBACK_BASE_URL}/internal/agent-runs/{run_id}/progress`** with header **`X-Agent-Callback-Secret`** (**must equal** **`AGENT_CALLBACK_SECRET`** on the backend). Callback failures are logged only—they **do not abort** the diligence run.
 
-The **frontend workbench polls** the run (`GET /runs/{id}`) and refreshes project evidence while status is `running`, so users see steps and evidence grow when callbacks are enabled.
+The **frontend workbench polls** the run (`GET /runs/{id}`) while status is `running`, so users see steps grow when callbacks are enabled.
 
 ## Tool Groups
 
@@ -109,7 +107,7 @@ The **frontend workbench polls** the run (`GET /runs/{id}`) and refreshes projec
 | `web_fetch` | Fetch and normalize web page content. |
 | `file_reader` | Extract content from uploaded files. |
 | `vector_retrieval` | Retrieve relevant chunks from indexed project resources. |
-| `evidence_store` | Create and update evidence records. |
 | `report_store` | Persist report sections and versions. |
+| `agent_output_reader` | Read a prior agent handoff folder by `folder_path`. |
 
 The MVP implements deterministic versions of these tools. Production integrations should keep the same tool names and return compatible schemas.
