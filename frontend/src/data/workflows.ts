@@ -1,5 +1,7 @@
 import type { WorkflowTemplate } from "../types/domain";
 
+export { resolveGraphAgentOrder, resolveGraphNodeIds } from "../domain/workflowGraph";
+
 const scenarioFocusAreas: Record<string, string[]> = {
   standard: ["业务", "财务", "法律", "股权", "舆情", "合规"],
   legal_compliance: ["法律", "合规", "诉讼", "行政处罚", "知识产权", "监管"],

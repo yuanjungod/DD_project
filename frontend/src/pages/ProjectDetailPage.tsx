@@ -20,6 +20,7 @@ import {
 import { ProjectResourcesPanel } from "../components/ProjectResourcesPanel";
 import { SectionCard } from "../components/SectionCard";
 import { workflowName } from "../data/workflows";
+import { resolveGraphAgentOrder } from "../domain/workflowGraph";
 import type {
   AgentRun,
   AgentStep,
@@ -197,7 +198,7 @@ function ProjectAppNav({ projectId }: { projectId: string }) {
 function workflowAgentIds(project: Project | null, workflowTemplates: WorkflowTemplate[]): string[] {
   const workflowId = project?.company_config.scope.workflow_template_id ?? project?.company_config.scope.workflow_id;
   const workflow = workflowTemplates.find((item) => item.id === workflowId);
-  return (workflow?.graph.nodes ?? []).map((node) => node.agent_template_id).filter(Boolean);
+  return resolveGraphAgentOrder(workflow?.graph);
 }
 
 function splitFileIds(value: unknown): string[] {

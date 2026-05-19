@@ -1,21 +1,22 @@
 from __future__ import annotations
 
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
 
-from app.models.entities import SkillPackage, ToolConfig
 from app.services.platform_resource_catalog import load_resource_configs_by_ids
+from app.services.workflow_graph import resolve_graph_agent_order
 from app.services.project_agent_overrides_store import project_agent_override_records
+from app.services.skill_catalog import load_skill_packages_by_ids
+from app.services.tool_catalog import load_tool_configs_by_ids
 from app.services.workflow_template_files import get_published_workflow_bundle, resolve_agents_for_snapshot
 
 
-def build_workflow_snapshot(db: Session, company_config: dict, *, project_id: str | None = None) -> dict:
+def build_workflow_snapshot(company_config: dict, *, project_id: str | None = None) -> dict:
     scope = company_config.get("scope", {})
     workflow_id = scope.get("workflow_template_id") or scope.get("workflow_id") or "standard_due_diligence"
     bundle = get_published_workflow_bundle(workflow_id)
     workflow_section = bundle["workflow"]
 
-    agent_ids = [node.get("agent_template_id", "") for node in workflow_section["graph"].get("nodes", [])]
+    agent_ids = resolve_graph_agent_order(workflow_section.get("graph") or {})
     agents, missing_agents = resolve_agents_for_snapshot(bundle, agent_ids)
     if missing_agents:
         raise HTTPException(status_code=400, detail=f"Workflow has missing or disabled agents: {missing_agents}")
@@ -25,8 +26,8 @@ def build_workflow_snapshot(db: Session, company_config: dict, *, project_id: st
     skill_package_ids = sorted({skill_id for agent in agents for skill_id in (agent.get("skill_package_ids") or [])})
     tool_ids = sorted({tool_id for agent in agents for tool_id in (agent.get("tool_ids") or agent.get("skill_ids") or [])})
     resource_ids = sorted({resource_id for agent in agents for resource_id in (agent.get("resource_ids") or [])})
-    skill_packages = db.query(SkillPackage).filter(SkillPackage.id.in_(skill_package_ids), SkillPackage.enabled.is_(True)).all()
-    tools = db.query(ToolConfig).filter(ToolConfig.id.in_(tool_ids), ToolConfig.enabled.is_(True)).all()
+    skill_packages = load_skill_packages_by_ids(skill_package_ids)
+    tools = load_tool_configs_by_ids(tool_ids)
     disk_resources = load_resource_configs_by_ids(resource_ids)
 
     return {

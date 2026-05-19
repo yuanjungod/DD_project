@@ -43,17 +43,28 @@ export const PLATFORM_RESOURCE_TYPE_OPTIONS: { id: PlatformResourceType; label: 
 
 export const KNOWN_PLATFORM_RESOURCE_TYPES = PLATFORM_RESOURCE_TYPE_OPTIONS.map((o) => o.id);
 
-/** 「平台可用资源」页顶部标签（不含「全部」）；Agent 编排里勾选资源仍可使用含「全部」的 ResourceListFilter。 */
-export type ResourceConfigsTabFilter = PlatformResourceType | "other";
+/** 「平台资源」页顶部标签（不含「全部」）；Agent 编排里勾选资源仍可使用含「全部」的 ResourceListFilter。 */
+export type ResourceConfigsTabFilter = PlatformResourceType | "other" | "tools";
 
 export type ResourceListFilter = ResourceConfigsTabFilter | "all";
+
+/** 平台资源页一级标签：连接器资源类型 + 执行工具（只读目录）。 */
+export const PLATFORM_CONFIG_TAB_OPTIONS: { id: ResourceConfigsTabFilter; label: string }[] = [
+  ...PLATFORM_RESOURCE_TYPE_OPTIONS.map((o) => ({ id: o.id, label: o.label })),
+  { id: "tools", label: "执行工具" },
+];
 
 export function isKnownPlatformResourceType(t: string): t is PlatformResourceType {
   return KNOWN_PLATFORM_RESOURCE_TYPES.includes(t as PlatformResourceType);
 }
 
+export function isToolsConfigTab(filter: string): filter is "tools" {
+  return filter === "tools";
+}
+
 export function resourceListFilterLabel(filter: ResourceListFilter): string {
   if (filter === "all") return "全部类型";
   if (filter === "other") return "其他类型";
+  if (filter === "tools") return "执行工具";
   return PLATFORM_RESOURCE_TYPE_OPTIONS.find((o) => o.id === filter)?.label ?? filter;
 }

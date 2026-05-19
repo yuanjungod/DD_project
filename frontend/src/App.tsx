@@ -10,7 +10,6 @@ import { ProjectsPage } from "./pages/ProjectsPage";
 import { ResourceConfigsPage } from "./pages/ResourceConfigsPage";
 import { RunHistoryPage } from "./pages/RunHistoryPage";
 import { SkillsPage } from "./pages/SkillsPage";
-import { ToolConfigsPage } from "./pages/ToolConfigsPage";
 import { WorkflowsHubPage } from "./pages/WorkflowsHubPage";
 import type { AuthSession, User } from "./types/domain";
 
@@ -68,7 +67,7 @@ export function App() {
                   <Route path="/workflow-templates" element={<Navigate to="/workflows" replace />} />
                   <Route path="/agent-templates" element={<Navigate to={{ pathname: "/workflows", search: "?tab=agents" }} replace />} />
                   <Route path="/skills" element={<SkillsPage />} />
-                  <Route path="/tools" element={<ToolConfigsPage />} />
+                  <Route path="/tools" element={<Navigate to="/resource-configs?tab=tools" replace />} />
                   <Route path="/resource-configs" element={<ResourceConfigsPage />} />
                   <Route path="/projects/new" element={<NewProjectPage />} />
                   <Route path="/projects" element={<ProjectsPage />} />

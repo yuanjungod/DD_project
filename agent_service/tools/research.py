@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from agent_service.api.schemas import CompanyConfig
+from agent_service.tools.base import ToolExecutionContext
 
 
 class MockSearchTool:
@@ -23,6 +24,11 @@ class MockSearchTool:
             "metadata": {"query": query, "industry": company.industry},
         }
 
+    def execute(self, payload: dict[str, Any], context: ToolExecutionContext) -> dict[str, Any]:
+        company_config = context.company_config
+        query = payload.get("query") or f"{company_config.target_company.name} {context.agent_role}"
+        return {"source": self.run(str(query), company_config, context.agent_name)}
+
 
 class MockWebFetchTool:
     def run(self, url: str, company_config: CompanyConfig, agent_name: str) -> dict[str, Any]:
@@ -37,6 +43,11 @@ class MockWebFetchTool:
             "metadata": {"url": url},
         }
 
+    def execute(self, payload: dict[str, Any], context: ToolExecutionContext) -> dict[str, Any]:
+        company_config = context.company_config
+        url = payload.get("url") or company_config.target_company.website
+        return {"source": self.run(str(url), company_config, context.agent_name)}
+
 
 class MockFileReaderTool:
     def run(self, file_id: str, company_config: CompanyConfig, agent_name: str) -> dict[str, Any]:
@@ -50,6 +61,11 @@ class MockFileReaderTool:
             "metadata": {"file_id": file_id},
         }
 
+    def execute(self, payload: dict[str, Any], context: ToolExecutionContext) -> dict[str, Any]:
+        visible = context.visible_uploaded_file_ids()
+        file_id = payload.get("file_id") or next(iter(visible), "")
+        return {"source": self.run(str(file_id), context.company_config, context.agent_name)}
+
 
 class MockVectorRetrievalTool:
     def run(self, query: str, company_config: CompanyConfig, agent_name: str) -> dict[str, Any]:
@@ -61,3 +77,10 @@ class MockVectorRetrievalTool:
             "collected_by": agent_name,
             "metadata": {"query": query},
         }
+
+    def execute(self, payload: dict[str, Any], context: ToolExecutionContext) -> dict[str, Any]:
+        company_config = context.company_config
+        query = payload.get("query") or (
+            f"{company_config.target_company.name} {' '.join(company_config.scope.focus_areas)}"
+        )
+        return {"source": self.run(str(query), company_config, context.agent_name)}

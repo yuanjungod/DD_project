@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import {
   createResourceConfig,
@@ -6,18 +7,25 @@ import {
   deleteResourceConfig,
   listLibraryUploads,
   listResourceConfigs,
+  listToolConfigs,
   updateResourceConfig,
   uploadLibraryFile,
 } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
 import {
   type PlatformResourceType,
+  PLATFORM_CONFIG_TAB_OPTIONS,
   PLATFORM_RESOURCE_TYPE_OPTIONS,
   type ResourceConfigsTabFilter,
   isKnownPlatformResourceType,
+  isToolsConfigTab,
   resourceListFilterLabel,
 } from "../domain/platformResourceRegistry";
-import type { LibraryFile, ResourceConfig } from "../types/domain";
+import type { LibraryFile, ResourceConfig, ToolConfig } from "../types/domain";
+
+function initialListFilter(searchParams: URLSearchParams): ResourceConfigsTabFilter {
+  return searchParams.get("tab") === "tools" ? "tools" : "web";
+}
 
 function labelsFor(tp: PlatformResourceType): Record<string, string> {
   switch (tp) {
@@ -218,8 +226,11 @@ function formatLibraryBytes(n: number): string {
 }
 
 export function ResourceConfigsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const [tools, setTools] = useState<ToolConfig[]>([]);
   const [resources, setResources] = useState<ResourceConfig[]>([]);
-  const [listFilter, setListFilter] = useState<ResourceConfigsTabFilter>("web");
+  const [listFilter, setListFilter] = useState<ResourceConfigsTabFilter>(() => initialListFilter(searchParams));
   const [deletingId, setDeletingId] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [disablingId, setDisablingId] = useState("");
@@ -242,10 +253,13 @@ export function ResourceConfigsPage() {
 
   const fieldLabels = useMemo(() => labelsFor(ptype), [ptype]);
 
+  const showToolsPanel = isToolsConfigTab(listFilter);
+
   const filteredResources = useMemo(() => {
+    if (showToolsPanel) return [];
     if (listFilter === "other") return resources.filter((r) => !isKnownPlatformResourceType(r.type));
     return resources.filter((r) => r.type === listFilter);
-  }, [resources, listFilter]);
+  }, [resources, listFilter, showToolsPanel]);
 
   const showOtherTab = useMemo(() => resources.some((r) => !isKnownPlatformResourceType(r.type)), [resources]);
 
@@ -283,9 +297,28 @@ export function ResourceConfigsPage() {
     setResources(await listResourceConfigs());
   }
 
+  async function refreshTools() {
+    setTools(await listToolConfigs());
+  }
+
+  function selectListFilter(filter: ResourceConfigsTabFilter) {
+    setListFilter(filter);
+    if (filter === "tools") {
+      setSearchParams({ tab: "tools" });
+    } else {
+      setSearchParams({});
+    }
+    if (editingId) resetEditorForm();
+  }
+
   useEffect(() => {
     refresh().catch((err: unknown) => setError(String(err)));
   }, []);
+
+  useEffect(() => {
+    if (!showToolsPanel) return;
+    refreshTools().catch((err: unknown) => setError(String(err)));
+  }, [showToolsPanel]);
 
   useEffect(() => {
     if (!showFileLibraryPanel) return;
@@ -293,13 +326,13 @@ export function ResourceConfigsPage() {
   }, [showFileLibraryPanel]);
 
   useEffect(() => {
-    if (editingId) return;
+    if (editingId || showToolsPanel) return;
     if (listFilter !== "other" && isKnownPlatformResourceType(listFilter)) {
       setPtype(listFilter);
       setFields(emptyFields(listFilter));
       setEditUnknownType(null);
     }
-  }, [listFilter, editingId]);
+  }, [listFilter, editingId, showToolsPanel]);
 
   async function handleLibraryUpload() {
     if (!libraryPick) return;
@@ -454,23 +487,20 @@ export function ResourceConfigsPage() {
     <div className="page-stack">
       <header className="page-hero">
         <p className="eyebrow">Platform resources</p>
-        <h1>平台可用资源</h1>
+        <h1>平台资源</h1>
         <p>
-          本页只做<strong>可用资源的目录登记</strong>：维护有哪些类型的资源、如何使用与说明，不与具体工具实现绑定。
-          <strong>文件库</strong>
-          类型可在上方完成<strong>上传 / 删除</strong>
-          ，并用条目表单补充<strong>用途说明</strong>
-          ；其他类型通过条目填写<strong>名称、描述与登记字段</strong>
-          即可。右侧按类型筛选已登记条目。
+          按类型浏览平台可用的<strong>连接器资源</strong>与<strong>执行工具</strong>。
+          资源条目可登记说明；<strong>文件库</strong> 支持上传共享文件；<strong>执行工具</strong> 为只读目录（
+          <code>tools.yaml</code>），在「场景与 Agent」中通过 <code>tool_ids</code> 引用。
         </p>
-        <nav className="resource-kind-tabs" aria-label="按资源类型筛选">
-          {PLATFORM_RESOURCE_TYPE_OPTIONS.map((o) => (
+        <nav className="resource-kind-tabs" aria-label="平台资源类型">
+          {PLATFORM_CONFIG_TAB_OPTIONS.map((o) => (
             <button
               key={o.id}
               type="button"
               className={`resource-kind-tab ${listFilter === o.id ? "is-active" : ""}`}
               aria-current={listFilter === o.id ? "true" : undefined}
-              onClick={() => setListFilter(o.id)}
+              onClick={() => selectListFilter(o.id)}
             >
               {o.label}
             </button>
@@ -480,7 +510,7 @@ export function ResourceConfigsPage() {
               type="button"
               className={`resource-kind-tab ${listFilter === "other" ? "is-active" : ""}`}
               aria-current={listFilter === "other" ? "true" : undefined}
-              onClick={() => setListFilter("other")}
+              onClick={() => selectListFilter("other")}
             >
               其他类型
             </button>
@@ -488,6 +518,32 @@ export function ResourceConfigsPage() {
         </nav>
       </header>
       {error ? <div className="error">{error}</div> : null}
+      {showToolsPanel ? (
+        <SectionCard
+          title="平台工具目录"
+          description={`共 ${tools.length} 个；仅展示，修改请编辑 tools.yaml 或通过运维流程发布。`}
+        >
+          <ul className="list platform-tools-list">
+            {tools.map((tool) => (
+              <li key={tool.id}>
+                <div className="platform-tool-row">
+                  <span className={`status ${tool.enabled ? "published" : "draft"}`}>
+                    {tool.enabled ? "enabled" : "disabled"}
+                  </span>
+                  <div className="platform-tool-row__main">
+                    <strong>{tool.name}</strong>
+                    <code className="platform-tool-row__id">{tool.id}</code>
+                    <p className="muted">{tool.description || "无描述"}</p>
+                    <small className="muted platform-tool-row__impl">{tool.implementation}</small>
+                    {tool.requires_api_key ? <span className="resource-status-badge">需 API Key</span> : null}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {tools.length === 0 ? <p className="muted">暂无工具配置。</p> : null}
+        </SectionCard>
+      ) : (
       <div className="grid resource-configs-layout">
         <SectionCard
           title={
@@ -724,6 +780,7 @@ export function ResourceConfigsPage() {
           ) : null}
         </SectionCard>
       </div>
+      )}
     </div>
   );
 }

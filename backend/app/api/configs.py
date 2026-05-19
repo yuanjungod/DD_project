@@ -4,13 +4,11 @@ import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
-from sqlalchemy.orm import Session
 from agentscope.tool import Toolkit
 import frontmatter
 
 from app.core.auth import require_roles
-from app.core.database import get_db
-from app.models.entities import SkillPackage, ToolConfig, User
+from app.models.entities import User
 from app.schemas import (
     AgentTemplateCreate,
     AgentTemplateRead,
@@ -38,9 +36,16 @@ from app.services.workflow_template_files import list_workflow_reads_for_api as 
 from app.services.workflow_template_files import publish_workflow_template as publish_workflow_on_disk
 from app.services.workflow_template_files import update_agent as update_agent_on_disk
 from app.services.workflow_template_files import update_workflow_template as update_workflow_on_disk
-from app.services.skill_files import skill_package_disk_path, sync_skill_package_to_disk
+from app.services.skill_files import skill_package_disk_path
 from app.services.skill_zip_import import skill_package_create_from_zip
-from app.services.tool_files import sync_tool_configs_to_disk
+from app.services.skill_catalog import (
+    create_skill_package,
+    ensure_unique_skill_catalog_fields,
+    get_skill_package,
+    list_skill_packages,
+    update_skill_package,
+)
+from app.services.tool_catalog import create_tool_config, list_tool_configs, update_tool_config
 from app.services.platform_resource_catalog import (
     BuiltinOnlyResourceConfigError,
     create_resource_config_overlay,
@@ -53,15 +58,19 @@ from app.services.platform_resource_catalog import (
 router = APIRouter(tags=["configuration"])
 
 
+def _skill_read(record) -> SkillPackageRead:
+    return SkillPackageRead.model_validate(record)
+
+
+def _tool_read(record) -> ToolConfigRead:
+    return ToolConfigRead.model_validate(record)
+
+
 @router.get("/skills", response_model=list[SkillPackageRead])
 def list_skills(
-    db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
-) -> list[SkillPackage]:
-    query = db.query(SkillPackage)
-    if user.role != "admin":
-        query = query.filter(SkillPackage.enabled.is_(True))
-    return query.order_by(SkillPackage.name).all()
+) -> list[SkillPackageRead]:
+    return [_skill_read(row) for row in list_skill_packages(only_enabled=user.role != "admin")]
 
 
 @router.post("/skills/debug", response_model=SkillDebugRead)
@@ -81,9 +90,8 @@ def debug_skill_draft(
 async def import_skill_zip(
     file: UploadFile = File(...),
     directory_name: str | None = Form(None),
-    db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
-) -> SkillPackage:
+) -> SkillPackageRead:
     fname = file.filename or ""
     if not fname.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="请上传扩展名为 .zip 的 Skill 压缩包（单包内含 SKILL.md）")
@@ -92,61 +100,41 @@ async def import_skill_zip(
         raise HTTPException(status_code=400, detail="上传文件为空")
     override = directory_name.strip() if directory_name and directory_name.strip() else None
     payload = skill_package_create_from_zip(raw, directory_name_override=override)
-    payload = _ensure_unique_skill_catalog_fields(db, payload)
-    item = SkillPackage(**_create_payload(payload))
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    sync_skill_package_to_disk(item)
-    return item
+    payload = ensure_unique_skill_catalog_fields(payload)
+    return _skill_read(create_skill_package(payload))
 
 
 @router.get("/skills/{skill_id}", response_model=SkillPackageRead)
 def get_skill(
     skill_id: str,
-    db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin", "analyst", "viewer")),
-) -> SkillPackage:
-    return _get_or_404(db, SkillPackage, skill_id, "Skill package")
+) -> SkillPackageRead:
+    return _skill_read(get_skill_package(skill_id))
 
 
 @router.post("/skills", response_model=SkillPackageRead)
 def create_skill(
     payload: SkillPackageCreate,
-    db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
-) -> SkillPackage:
-    item = SkillPackage(**_create_payload(payload))
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    sync_skill_package_to_disk(item)
-    return item
+) -> SkillPackageRead:
+    return _skill_read(create_skill_package(payload))
 
 
 @router.patch("/skills/{skill_id}", response_model=SkillPackageRead)
 def update_skill(
     skill_id: str,
     payload: SkillPackageUpdate,
-    db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
-) -> SkillPackage:
-    item = _get_or_404(db, SkillPackage, skill_id, "Skill package")
-    previous_directory_name = item.directory_name
-    _apply_updates(item, payload)
-    db.commit()
-    db.refresh(item)
-    sync_skill_package_to_disk(item, previous_directory_name=previous_directory_name)
-    return item
+) -> SkillPackageRead:
+    return _skill_read(update_skill_package(skill_id, payload))
 
 
 @router.post("/skills/{skill_id}/debug", response_model=SkillDebugRead)
 def debug_skill(
     skill_id: str,
-    db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
 ) -> SkillDebugRead:
-    item = _get_or_404(db, SkillPackage, skill_id, "Skill package")
+    item = get_skill_package(skill_id)
     return _debug_skill_package(
         directory_name=item.directory_name,
         skill_md=item.skill_md,
@@ -156,43 +144,27 @@ def debug_skill(
 
 
 @router.get("/tools/configs", response_model=list[ToolConfigRead])
-def list_tool_configs(
-    db: Session = Depends(get_db),
+def list_tool_configs_route(
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
-) -> list[ToolConfig]:
-    query = db.query(ToolConfig)
-    if user.role != "admin":
-        query = query.filter(ToolConfig.enabled.is_(True))
-    return query.order_by(ToolConfig.name).all()
+) -> list[ToolConfigRead]:
+    return [_tool_read(row) for row in list_tool_configs(only_enabled=user.role != "admin")]
 
 
 @router.post("/tools/configs", response_model=ToolConfigRead)
-def create_tool_config(
+def create_tool_config_route(
     payload: ToolConfigCreate,
-    db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
-) -> ToolConfig:
-    item = ToolConfig(**_create_payload(payload))
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    _sync_tool_catalog_to_disk(db)
-    return item
+) -> ToolConfigRead:
+    return _tool_read(create_tool_config(payload))
 
 
 @router.patch("/tools/configs/{tool_id}", response_model=ToolConfigRead)
-def update_tool_config(
+def update_tool_config_route(
     tool_id: str,
     payload: ToolConfigUpdate,
-    db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
-) -> ToolConfig:
-    item = _get_or_404(db, ToolConfig, tool_id, "Tool config")
-    _apply_updates(item, payload)
-    db.commit()
-    db.refresh(item)
-    _sync_tool_catalog_to_disk(db)
-    return item
+) -> ToolConfigRead:
+    return _tool_read(update_tool_config(tool_id, payload))
 
 
 @router.get("/resources/configs", response_model=list[ResourceConfigRead])
@@ -314,47 +286,6 @@ def delete_workflow_template(
 ) -> Response:
     delete_workflow_on_disk(workflow_id)
     return Response(status_code=204)
-
-
-def _create_payload(payload):
-    data = payload.model_dump(exclude_none=True)
-    return data
-
-
-def _sync_tool_catalog_to_disk(db: Session) -> None:
-    sync_tool_configs_to_disk(db.query(ToolConfig).all())
-
-
-def _ensure_unique_skill_catalog_fields(db: Session, payload: SkillPackageCreate) -> SkillPackageCreate:
-    name = payload.name
-    base_name = name
-    suffix = 2
-    while db.query(SkillPackage.id).filter(SkillPackage.name == name).limit(1).first():
-        name = f"{base_name}-{suffix}"
-        suffix += 1
-
-    dname = payload.directory_name
-    base_d = dname
-    suffix = 2
-    while db.query(SkillPackage.id).filter(SkillPackage.directory_name == dname).limit(1).first():
-        dname = f"{base_d}-{suffix}"
-        suffix += 1
-
-    if name == payload.name and dname == payload.directory_name:
-        return payload
-    return payload.model_copy(update={"name": name, "directory_name": dname})
-
-
-def _apply_updates(item, payload) -> None:
-    for key, value in payload.model_dump(exclude_unset=True).items():
-        setattr(item, key, value)
-
-
-def _get_or_404(db: Session, model, item_id: str, label: str):
-    item = db.get(model, item_id)
-    if not item:
-        raise HTTPException(status_code=404, detail=f"{label} not found")
-    return item
 
 
 def _debug_skill_package(

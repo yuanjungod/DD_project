@@ -1,77 +1,19 @@
 from __future__ import annotations
 
-from sqlalchemy import inspect, text
-from sqlalchemy.orm import Session
-
-from app.models.entities import SkillPackage, ToolConfig
-from app.services.skill_files import load_skill_packages_from_disk, sync_all_skill_packages_to_disk
-from app.services.tool_files import load_tool_configs_from_disk, sync_tool_configs_to_disk
+from app.services.skill_files import load_skill_packages_from_disk, sync_skill_package_to_disk
 from app.services.workflow_template_files import ensure_scenario_templates_dir
+from app.services.catalog_records import SkillPackageRecord
 
-def seed_configuration_catalog(db: Session) -> None:
-    """Seed DB-backed mirrors. Scenario graphs and agent definitions are separate file-backed catalogs."""
-    ensure_configuration_schema(db)
+
+def seed_configuration_catalog() -> None:
+    """Ensure file-backed configuration catalogs exist on disk."""
     ensure_scenario_templates_dir()
-
-    disk_tools = load_tool_configs_from_disk()
-    if disk_tools:
-        _upsert_tool_configs(db, disk_tools)
-
-    disk_skill_packages = load_skill_packages_from_disk()
-    if disk_skill_packages:
-        _upsert_skill_packages(db, disk_skill_packages)
-    elif db.query(SkillPackage).count() == 0:
-        db.add_all(_default_skill_packages())
-
-    db.commit()
-    sync_tool_configs_to_disk(db.query(ToolConfig).all())
-    sync_all_skill_packages_to_disk(db.query(SkillPackage).all())
+    if not load_skill_packages_from_disk():
+        for package in _default_skill_packages():
+            sync_skill_package_to_disk(package)
 
 
-def ensure_configuration_schema(db: Session) -> None:
-    skill_columns = _table_columns(db, "skill_packages")
-    if skill_columns and "package_files" not in skill_columns:
-        try:
-            db.execute(text("ALTER TABLE skill_packages ADD COLUMN package_files JSON DEFAULT '{}'"))
-            db.commit()
-        except Exception:
-            db.rollback()
-
-
-def _upsert_tool_configs(db: Session, disk_tools: list[ToolConfig]) -> None:
-    for disk_tool in disk_tools:
-        existing = db.get(ToolConfig, disk_tool.id)
-        if existing is None:
-            db.add(disk_tool)
-            continue
-        existing.name = disk_tool.name
-        existing.description = disk_tool.description
-        existing.implementation = disk_tool.implementation
-        existing.input_schema = disk_tool.input_schema or {}
-        existing.output_schema = disk_tool.output_schema or {}
-        existing.requires_api_key = disk_tool.requires_api_key
-        existing.enabled = disk_tool.enabled
-
-
-def _upsert_skill_packages(db: Session, disk_skill_packages: list[SkillPackage]) -> None:
-    for disk_package in disk_skill_packages:
-        existing = db.get(SkillPackage, disk_package.id) or (
-            db.query(SkillPackage).filter(SkillPackage.name == disk_package.name).first()
-        )
-        if existing is None:
-            db.add(disk_package)
-            continue
-        existing.id = disk_package.id
-        existing.name = disk_package.name
-        existing.description = disk_package.description
-        existing.directory_name = disk_package.directory_name
-        existing.skill_md = disk_package.skill_md
-        existing.package_files = disk_package.package_files or {}
-        existing.resources_manifest = disk_package.resources_manifest or {}
-        existing.enabled = disk_package.enabled
-
-
-def _default_skill_packages() -> list[SkillPackage]:
+def _default_skill_packages() -> list[SkillPackageRecord]:
     packages = [
         (
             "skill_due_diligence_core",
@@ -105,7 +47,7 @@ def _default_skill_packages() -> list[SkillPackage]:
         ),
     ]
     return [
-        SkillPackage(
+        SkillPackageRecord(
             id=package_id,
             name=directory_name,
             description=description,
@@ -121,10 +63,3 @@ def _default_skill_packages() -> list[SkillPackage]:
 
 def _skill_md(name: str, description: str, body: str) -> str:
     return f"---\nname: {name}\ndescription: {description}\n---\n\n{body}\n"
-
-
-def _table_columns(db: Session, table_name: str) -> set[str]:
-    try:
-        return {column["name"] for column in inspect(db.bind).get_columns(table_name)}
-    except Exception:
-        return set()

@@ -10,6 +10,7 @@ import yaml
 from fastapi import HTTPException
 
 from app.models.entities import new_id
+from app.services.workflow_graph import resolve_graph_agent_order
 from app.schemas.dto import (
     AgentTemplateBase,
     AgentTemplateCreate,
@@ -177,7 +178,7 @@ def save_workflow_bundle(workflow_id: str, bundle: dict[str, Any], *, validate_a
     wf = bundle.get("workflow", {})
     if wf.get("id") != workflow_id:
         wf["id"] = workflow_id
-    graph_ids = _agent_ids_from_graph(wf.get("graph") or {})
+    graph_ids = resolve_graph_agent_order(wf.get("graph") or {})
     if validate_agent_refs:
         pool = union_agent_by_id()
         missing = [aid for aid in graph_ids if aid and aid not in pool]
@@ -274,10 +275,6 @@ def union_agent_by_id() -> dict[str, dict[str, Any]]:
     return merged
 
 
-def _agent_ids_from_graph(graph: dict[str, Any]) -> list[str]:
-    return [node.get("agent_template_id", "") for node in graph.get("nodes", [])]
-
-
 def _pick_agents_for_graph(agent_ids: list[str], pool: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     picked: list[dict[str, Any]] = []
     missing: list[str] = []
@@ -301,7 +298,7 @@ def create_workflow_template(payload: WorkflowTemplateCreate) -> WorkflowTemplat
     if path.exists():
         raise HTTPException(status_code=409, detail=f"Workflow id already exists: {wf_id}")
     graph = data["graph"]
-    agent_ids = _agent_ids_from_graph(graph)
+    agent_ids = resolve_graph_agent_order(graph)
     pool = union_agent_by_id()
     _pick_agents_for_graph(agent_ids, pool)
     bundle = {
@@ -330,7 +327,7 @@ def update_workflow_template(workflow_id: str, payload: WorkflowTemplateUpdate) 
         elif value is not None:
             wf[key] = value
     if "graph" in updates and updates["graph"] is not None:
-        agent_ids = _agent_ids_from_graph(updates["graph"])
+        agent_ids = resolve_graph_agent_order(updates["graph"])
         pool = union_agent_by_id()
         _pick_agents_for_graph(agent_ids, pool)
     path = save_workflow_bundle(workflow_id, bundle)

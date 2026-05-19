@@ -12,6 +12,7 @@ import {
 } from "../api/client";
 import { AgentTemplatesPanel } from "../components/AgentTemplatesPanel";
 import { SectionCard } from "../components/SectionCard";
+import { resolveGraphAgentOrder } from "../domain/workflowGraph";
 import type { AgentTemplate, Scenario, WorkflowGraph, WorkflowTemplate } from "../types/domain";
 
 function splitList(value: string): string[] {
@@ -298,8 +299,8 @@ export function WorkflowsHubPage() {
                         </small>
                       </div>
                       <ol className="agent-chain">
-                        {workflow.graph.nodes.map((node) => (
-                          <li key={node.id}>{node.agent_template_id}</li>
+                        {resolveGraphAgentOrder(workflow.graph).map((agentId, index) => (
+                          <li key={`${workflow.id}-${agentId}-${index}`}>{agentId}</li>
                         ))}
                       </ol>
                       <div className="row-actions">

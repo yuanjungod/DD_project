@@ -16,6 +16,7 @@ from agent_service.callback_client import notify_run_progress
 from agent_service.session_history import build_session_recorder, open_session_recorder_for_resume
 from agent_service.workflows.agent_outputs import write_agent_step_output_folder
 from agent_service.workflows.config_loader import AgentDefinition, WorkflowDefinition
+from agent_service.workflows.graph_order import resolve_graph_agent_order
 
 
 class DueDiligenceWorkflow:
@@ -186,7 +187,7 @@ class DueDiligenceWorkflow:
         if workflow_snapshot and "workflow" in workflow_snapshot:
             w = workflow_snapshot["workflow"]
             graph = w.get("graph") or {}
-            ids = self._agent_ids_from_graph(graph)
+            ids = resolve_graph_agent_order(graph)
             return {
                 "source": "workflow_snapshot",
                 "workflow_id": w.get("id"),
@@ -228,7 +229,7 @@ class DueDiligenceWorkflow:
         graph = workflow.get("graph")
         if not isinstance(graph, dict):
             raise ValueError("workflow_snapshot.workflow must contain a 'graph' object")
-        agent_ids = self._agent_ids_from_graph(graph)
+        agent_ids = resolve_graph_agent_order(graph)
         if not agent_ids:
             raise ValueError(
                 "Workflow snapshot graph must include at least one node with agent_template_id. "
@@ -246,32 +247,6 @@ class DueDiligenceWorkflow:
             verifier="",
             reporter=agent_ids[-1] if len(agent_ids) >= 2 else "",
         )
-
-    def _agent_ids_from_graph(self, graph: dict[str, Any]) -> list[str]:
-        nodes = [node for node in graph.get("nodes", []) if isinstance(node, dict)]
-        if not nodes:
-            return []
-        by_node_id = {str(node.get("id")): node for node in nodes if node.get("id")}
-        ordered_node_ids: list[str] = []
-        current = str(graph.get("entry_node") or nodes[0].get("id") or "")
-        outgoing: dict[str, str] = {}
-        for edge in graph.get("edges", []):
-            if isinstance(edge, dict) and edge.get("from") and edge.get("to"):
-                outgoing[str(edge["from"])] = str(edge["to"])
-        seen: set[str] = set()
-        while current and current in by_node_id and current not in seen:
-            ordered_node_ids.append(current)
-            seen.add(current)
-            current = outgoing.get(current, "")
-        for node in nodes:
-            node_id = str(node.get("id") or "")
-            if node_id and node_id not in seen:
-                ordered_node_ids.append(node_id)
-        return [
-            str(by_node_id[node_id].get("agent_template_id"))
-            for node_id in ordered_node_ids
-            if by_node_id[node_id].get("agent_template_id")
-        ]
 
     def _agent_definitions_from_snapshot(self, snapshot: dict | None) -> dict[str, AgentDefinition]:
         if not snapshot:

@@ -372,6 +372,30 @@ label {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.platform-tools-list li {
+  align-items: flex-start;
+}
+
+.platform-tool-row {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.platform-tool-row__main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.platform-tool-row__id {
+  font-size: 12px;
+}
+
+.platform-tool-row__impl {
+  word-break: break-all;
+}
+
 .grid.three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }

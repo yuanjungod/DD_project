@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from app.core.auth import get_current_user
 from app.models.entities import User
 from app.schemas import ScenarioRead
+from app.services.workflow_graph import resolve_graph_agent_order
 from app.services.workflow_template_files import list_workflow_reads_for_api, scenario_agent_display_names
 
 
@@ -26,7 +27,7 @@ async def list_scenarios(_: User = Depends(get_current_user)) -> list[ScenarioRe
 
 
 def _agents_from_graph(graph: dict) -> list[str]:
-    agent_ids = [node.get("agent_template_id", "") for node in graph.get("nodes", [])]
+    agent_ids = resolve_graph_agent_order(graph)
     mapping = scenario_agent_display_names(agent_ids)
     return [mapping.get(aid, aid) for aid in agent_ids]
 

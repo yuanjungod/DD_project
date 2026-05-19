@@ -1,23 +1,23 @@
 from __future__ import annotations
 
 import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from app.models.entities import SkillPackage
-
+from app.services.catalog_records import SkillPackageRecord
 
 ROOT = Path(__file__).resolve().parents[3]
 SKILLS_DIR = ROOT / "agent_service" / "skills"
 
 
 def sync_skill_package_to_disk(
-    skill_package: SkillPackage,
+    skill_package: SkillPackageRecord,
     previous_directory_name: str | None = None,
 ) -> Path:
-    """Write a skill package from the DB catalog into the project skills dir."""
+    """Write a skill package into agent_service/skills/."""
 
     SKILLS_DIR.mkdir(parents=True, exist_ok=True)
     skill_dir = _safe_skill_dir(skill_package.directory_name)
@@ -39,19 +39,13 @@ def sync_skill_package_to_disk(
     return skill_dir
 
 
-def sync_all_skill_packages_to_disk(skill_packages: list[SkillPackage]) -> None:
-    SKILLS_DIR.mkdir(parents=True, exist_ok=True)
-    for skill_package in skill_packages:
-        sync_skill_package_to_disk(skill_package)
-
-
-def load_skill_packages_from_disk() -> list[SkillPackage]:
-    """Load checked-in skill packages from agent_service/skills as the bootstrap source."""
+def load_skill_packages_from_disk() -> list[SkillPackageRecord]:
+    """Load skill packages from agent_service/skills/."""
 
     if not SKILLS_DIR.is_dir():
         return []
 
-    packages: list[SkillPackage] = []
+    packages: list[SkillPackageRecord] = []
     for skill_md_path in sorted(SKILLS_DIR.glob("*/SKILL.md")):
         skill_dir = skill_md_path.parent
         skill_md = skill_md_path.read_text(encoding="utf-8")
@@ -67,8 +61,10 @@ def load_skill_packages_from_disk() -> list[SkillPackage]:
             rel = child.relative_to(skill_dir).as_posix()
             file_names.append(rel)
             package_files[rel] = child.read_text(encoding="utf-8")
+        stat = skill_md_path.stat()
+        loaded_at = datetime.utcfromtimestamp(stat.st_mtime)
         packages.append(
-            SkillPackage(
+            SkillPackageRecord(
                 id=package_id,
                 name=name,
                 description=str(metadata.get("description") or ""),
@@ -82,6 +78,8 @@ def load_skill_packages_from_disk() -> list[SkillPackage]:
                     "assets": [],
                 },
                 enabled=bool(metadata.get("enabled", True)),
+                created_at=loaded_at,
+                updated_at=loaded_at,
             )
         )
     return packages

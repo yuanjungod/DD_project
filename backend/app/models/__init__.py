@@ -4,8 +4,6 @@ from app.models.entities import (
     Project,
     ProjectAccess,
     Report,
-    SkillPackage,
-    ToolConfig,
     User,
 )
 
@@ -15,7 +13,5 @@ __all__ = [
     "Project",
     "ProjectAccess",
     "Report",
-    "SkillPackage",
-    "ToolConfig",
     "User",
 ]

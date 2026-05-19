@@ -6,14 +6,14 @@ from typing import Any
 
 import yaml
 
-from app.models.entities import ToolConfig
+from app.services.catalog_records import ToolConfigRecord
 
 ROOT = Path(__file__).resolve().parents[3]
 TOOLS_YAML = ROOT / "agent_service" / "configs" / "tools.yaml"
 
 
-def load_tool_configs_from_disk() -> list[ToolConfig]:
-    """Load tool config rows from agent_service/configs/tools.yaml."""
+def load_tool_configs_from_disk() -> list[ToolConfigRecord]:
+    """Load tool configs from agent_service/configs/tools.yaml."""
 
     if not TOOLS_YAML.exists():
         return []
@@ -22,12 +22,13 @@ def load_tool_configs_from_disk() -> list[ToolConfig]:
     raw_tools = data.get("tools", {})
     if not isinstance(raw_tools, dict):
         return []
-    now = datetime.utcnow()
-    rows: list[ToolConfig] = []
+    stat = TOOLS_YAML.stat()
+    loaded_at = datetime.utcfromtimestamp(stat.st_mtime)
+    rows: list[ToolConfigRecord] = []
     for tool_id, config in sorted(raw_tools.items()):
         cfg = config if isinstance(config, dict) else {}
         rows.append(
-            ToolConfig(
+            ToolConfigRecord(
                 id=str(tool_id),
                 name=str(cfg.get("name") or tool_id),
                 description=str(cfg.get("description") or ""),
@@ -36,15 +37,15 @@ def load_tool_configs_from_disk() -> list[ToolConfig]:
                 output_schema=_dict_or_empty(cfg.get("output_schema")),
                 requires_api_key=bool(cfg.get("requires_api_key", False)),
                 enabled=bool(cfg.get("enabled", True)),
-                created_at=now,
-                updated_at=now,
+                created_at=loaded_at,
+                updated_at=loaded_at,
             )
         )
     return rows
 
 
-def sync_tool_configs_to_disk(tool_configs: list[ToolConfig]) -> Path:
-    """Persist DB tool catalog rows back to the checked-in YAML shape."""
+def sync_tool_configs_to_disk(tool_configs: list[ToolConfigRecord]) -> Path:
+    """Persist tool catalog to agent_service/configs/tools.yaml."""
 
     TOOLS_YAML.parent.mkdir(parents=True, exist_ok=True)
     document = {
@@ -62,7 +63,7 @@ def sync_tool_configs_to_disk(tool_configs: list[ToolConfig]) -> Path:
         }
     }
     text = yaml.safe_dump(document, sort_keys=False, allow_unicode=True, default_flow_style=False, width=4096)
-    header = "# Tool config catalog — file-backed source mirrored into the backend DB at startup.\n\n"
+    header = "# Tool config catalog — file-backed source of truth for the platform.\n\n"
     TOOLS_YAML.write_text(header + text, encoding="utf-8")
     return TOOLS_YAML
 

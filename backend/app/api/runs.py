@@ -181,7 +181,7 @@ async def _execute_start_agent_run(
 ) -> AgentRun:
     """Create session + pending run row and enqueue agent dispatch."""
     project = ensure_project_write_access(db, user, project_id)
-    workflow_snapshot = build_workflow_snapshot(db, project.company_config, project_id=project.id)
+    workflow_snapshot = build_workflow_snapshot(project.company_config, project_id=project.id)
     run_id = f"run_{uuid4().hex[:12]}"
 
     continuation_context: dict | None = None
@@ -416,7 +416,7 @@ async def continue_step_gated(
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    snapshot = dict(build_workflow_snapshot(db, project.company_config, project_id=project.id))
+    snapshot = dict(build_workflow_snapshot(project.company_config, project_id=project.id))
     completed_steps_payload = completed_slice_for_agent_service(db, run_id)
 
     row.status = "running"
@@ -484,7 +484,7 @@ def agent_step_review_chat(
     proj_records = project_resource_records_for_merge(project.id)
     merged_cfg = merged_company_config_with_project_resources(dict(project.company_config), proj_records)
 
-    snapshot = dict(build_workflow_snapshot(db, project.company_config, project_id=project.id))
+    snapshot = dict(build_workflow_snapshot(project.company_config, project_id=project.id))
 
     append_agent_step_chat_message(db, step_id=step_id, role="user", content=msg)
 

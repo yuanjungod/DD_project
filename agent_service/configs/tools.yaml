@@ -1,4 +1,4 @@
-# Tool config catalog — file-backed source mirrored into the backend DB at startup.
+# Tool config catalog — file-backed source of truth for the platform.
 
 tools:
   file_reader:
@@ -37,6 +37,14 @@ tools:
     name: web_fetch
     description: Fetch and normalize webpage content.
     implementation: agent_service.tools.research.MockWebFetchTool
+    input_schema: {}
+    output_schema: {}
+    requires_api_key: false
+    enabled: true
+  agent_output_reader:
+    name: agent_output_reader
+    description: Read a previous agent handoff folder by folder_path and return README, result, and resource index.
+    implementation: agent_service.workflows.agent_outputs.read_agent_output_folder
     input_schema: {}
     output_schema: {}
     requires_api_key: false

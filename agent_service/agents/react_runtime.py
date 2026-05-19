@@ -327,26 +327,9 @@ class AgentScopeReActRuntime:
         }
 
     def _tool_configs(self) -> list[dict[str, Any]]:
-        handoff_tool = {
-            "id": "agent_output_reader",
-            "name": "agent_output_reader",
-            "description": "Read a previous agent handoff folder by folder_path and return README, result, and resource index.",
-            "implementation": "agent_service.workflows.agent_outputs.read_agent_output_folder",
-        }
-        if self.definition.tool_configs:
-            ids = {tool.get("id") for tool in self.definition.tool_configs}
-            return [*self.definition.tool_configs, handoff_tool] if handoff_tool["id"] not in ids else self.definition.tool_configs
-        tools = [
-            {
-                "id": tool_id,
-                "name": tool_id,
-                "description": f"Configured due diligence tool {tool_id}",
-                "implementation": f"agent_service.tools.{tool_id}",
-            }
-            for tool_id in self.definition.tools
-        ]
-        ids = {tool.get("id") for tool in tools}
-        return [*tools, handoff_tool] if handoff_tool["id"] not in ids else tools
+        from agent_service.tools.registry import ToolRegistry
+
+        return ToolRegistry.for_agent_definition(self.definition).tool_configs
 
 
 def build_react_system_prompt(definition: AgentDefinition, base_prompt: str) -> str:

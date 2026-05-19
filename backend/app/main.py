@@ -27,7 +27,7 @@ def create_app() -> FastAPI:
     ensure_schema_patches(engine)
     with SessionLocal() as db:
         seed_default_users(db)
-        seed_configuration_catalog(db)
+    seed_configuration_catalog()
     app = FastAPI(title=settings.app_name, version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
