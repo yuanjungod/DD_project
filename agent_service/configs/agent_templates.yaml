@@ -1,6 +1,4 @@
-# Legacy migration input. Runtime agent definitions are embedded in
-# agent_service/configs/workflow_templates/*.yaml (and optional _shared_agents.yaml).
-# Workflow graphs reference agents by `id`.
+# Agent templates — reusable agent definitions. Scenario templates reference these by id.
 
 version: 1
 agents:
@@ -29,6 +27,39 @@ agents:
   skill_ids:
   - evidence_store
   resource_ids: []
+  react_config:
+    max_iters: 6
+    parallel_tool_calls: false
+    model:
+      baseUrl: http://127.0.0.1:8081/v1
+      apiKey: yuanjun
+      api: anthropic-messages
+      models:
+      - id: kimi-code
+        name: kimi-code(Custom Provider)
+        reasoning: true
+        input:
+        - text
+        - image
+        cost:
+          input: 0
+          output: 0
+          cacheRead: 0
+          cacheWrite: 0
+        contextWindow: 128000
+        maxTokens: 4096
+  enabled: true
+- id: agent_tpl_6a0a5de72005
+  name: 测试
+  role: 乔布斯助手
+  prompt: '按照乔布斯风格和我对话
+
+    你的输出写在markdown文件里面'
+  skill_package_ids: []
+  tool_ids: []
+  skill_ids: []
+  resource_ids: []
+  platform_upload_file_ids: []
   react_config:
     max_iters: 6
     parallel_tool_calls: false

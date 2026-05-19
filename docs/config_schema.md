@@ -6,22 +6,27 @@ This document describes the configuration contract shared by the frontend, backe
 
 | Variable | Service | Role |
 | --- | --- | --- |
-| `DATABASE_URL` | backend | SQLAlchemy URL (defaults to SQLite under the backend working directory if unset). |
+| `DD_DATA_ROOT` | backend + agent | Shared writable file-data root. Defaults to `data/dd_store` resolved from the repository root. |
+| `DATABASE_URL` | backend | SQLAlchemy URL. If unset, SQLite is stored at `DD_DATA_ROOT/platform/dd_platform.db`. Relative SQLite URLs are resolved from the repository root. |
 | `AGENT_SERVICE_URL` | backend | Base URL for **`POST /runs`** (default `http://127.0.0.1:8011`). |
 | `AGENT_CALLBACK_SECRET` | backend + agent | Shared secret for **`X-Agent-Callback-Secret`** on **`POST /internal/agent-runs/.../progress`**. |
 | `PLATFORM_CALLBACK_BASE_URL` | agent | Backend base URL for incremental progress (default `http://127.0.0.1:8010`). Set empty or unreachable to disable callbacks (UI then only updates after finalization). |
+| `DD_SESSION_HISTORY_DIR` | agent | Optional session/output root. If unset, sessions live under `DD_DATA_ROOT/agent_service/sessions`. Relative paths are resolved from the repository root. |
+| `DD_SEED_DEFAULT_USERS` | backend | Seed development users on startup when the users table is empty (default `true`). |
+| `DD_DEFAULT_USERS_CONFIG` | backend | Optional path to the seed user YAML. Defaults to `catalog/default_users.yaml`; relative paths are resolved from the repository root. |
 | `VITE_API_BASE_URL` | frontend | When set, all `fetch` calls use this absolute base (skips the dev proxy). |
 | `VITE_DEV_PROXY_TARGET` | frontend (Vite config only) | Override proxy target for **`/api` → backend** during `npm run dev` (default `http://127.0.0.1:8010`). |
+| `VITE_DEFAULT_LOGIN_EMAIL` / `VITE_DEFAULT_LOGIN_PASSWORD` | frontend | Optional login form prefill values for local development. |
 
-Conventions in README: **backend listening on `8010`**, **agent_service on `8011`**, **Vite on `5173`**. In development, the UI defaults to relative **`/api`**, which Vite proxies to the backend so the browser does not open cross-origin requests to `8010`.
+Backend and agent service both read environment overrides from the repository-root **`.env`** file, independent of the process working directory. Conventions in README: **backend listening on `8010`**, **agent_service on `8011`**, **Vite on `5173`**. In development, the UI defaults to relative **`/api`**, which Vite proxies to the backend so the browser does not open cross-origin requests to `8010`.
 
 ## File-backed runtime catalogs
 
-Authoritative workflow and agent definitions live in **`agent_service/configs/workflow_templates/{workflow_id}.yaml`**. Each bundle contains the workflow graph plus the agent definitions used by that graph; optional shared agents created outside a bundle live in **`agent_service/configs/workflow_templates/_shared_agents.yaml`**.
+Authoritative scenario/workflow definitions live in **`agent_service/configs/scenario_templates/{workflow_id}.yaml`**. Each scenario file contains only workflow metadata and the graph of `agent_template_id` references. Reusable agent definitions live separately in **`agent_service/configs/agent_templates.yaml`**.
 
-Legacy files **`agent_service/configs/workflows.yaml`**, **`agent_service/configs/agents.yaml`**, and **`agent_service/configs/agent_templates.yaml`** are migration/dev fallback inputs only. They seed workflow bundles when no bundle files exist and are not the steady-state runtime source for backend-created runs.
+Legacy files **`agent_service/configs/workflows.yaml`** and **`agent_service/configs/agents.yaml`** are migration/dev fallback inputs only. They can seed scenario templates when no scenario files exist and are not the steady-state runtime source for backend-created runs.
 
-Skill packages are file-backed under **`agent_service/skills/<directory_name>/`**. The backend mirrors those files into the DB catalog at startup and writes API edits back to the same directory. Tool configs are mirrored through **`agent_service/configs/tools.yaml`**. Resource configs are already file-backed through **`catalog/resource_configs/`** plus **`data/dd_store/platform/resource_configs/`** overlays.
+Skill packages are file-backed under **`agent_service/skills/<directory_name>/`**. The backend mirrors those files into the DB catalog at startup and writes API edits back to the same directory. Tool configs are mirrored through **`agent_service/configs/tools.yaml`**. Resource configs are already file-backed through **`catalog/resource_configs/`** plus **`DD_DATA_ROOT/platform/resource_configs/`** overlays. Development seed users are file-backed through **`catalog/default_users.yaml`** unless **`DD_DEFAULT_USERS_CONFIG`** points elsewhere.
 
 ## Company Configuration
 
@@ -53,7 +58,7 @@ Skill packages are file-backed under **`agent_service/skills/<directory_name>/`*
 }
 ```
 
-`workflow_template_id` is the preferred pointer for company projects; `workflow_id` remains a compatibility alias. The backend builds the run snapshot from the published bundle on disk.
+`workflow_template_id` is the preferred pointer for company projects; `workflow_id` remains a compatibility alias. The backend builds the run snapshot from the published scenario file and the separate agent catalog on disk.
 
 ## Evidence
 
@@ -81,10 +86,10 @@ Reusable workflows are managed through the backend configuration catalog:
 - `SkillPackage` (file-backed, DB-mirrored): Anthropic/Cursor-style skill package with `SKILL.md`, directory name, editable package files, and optional bundled resources such as references, scripts, and assets. Skill packages live under `agent_service/skills/<directory_name>/`. Admins may **`POST /skills/import-zip`** (`multipart/form-data`: **`file`** = single-skill `.zip` with one top-level folder containing `SKILL.md`; optional **`directory_name`** form field overrides the disk directory slug).
 - `ToolConfig` (file-backed, DB-mirrored): executable capability such as search, web fetch, file reading, vector retrieval, evidence storage, or report storage; persisted under `agent_service/configs/tools.yaml`.
 - `ResourceConfig`: data resource available to agents, such as public web, uploaded files, vector stores, databases, or external APIs.
-- `AgentTemplate` (file-backed): **definitions** are embedded in each workflow bundle (`workflow_templates/<id>.yaml`) and optionally in **`workflow_templates/_shared_agents.yaml`**. Each record has `id`, `name`, `role`, inline `prompt`, `skill_package_ids`, `tool_ids`, `skill_ids`, `resource_ids`, `react_config`, and `enabled`. Agent-specific output requirements live in the agent prompt / bound Skills, not in a separate output contract field. Workflow graphs reference agents by **`id`**. The Admin UI uses **`GET/POST/PATCH /agent-templates`**; **`GET`** returns the union across bundles + shared file, **`POST`** appends to **`_shared_agents.yaml`**, and **`PATCH`** updates every file that contains that agent id.
-- `WorkflowTemplate` (file-backed): one bundle per workflow under **`agent_service/configs/workflow_templates/{workflow_id}.yaml`**. Each file has a `workflow` object (ordered `graph`, `scenario`, `status`, `version`, etc.) plus the `agents` array used for that graph. **`GET/POST/PATCH /workflow-templates`** and publish/clone operate on these files; only **`published`** templates are listed for non-admin callers and for run snapshots.
+- `AgentTemplate` (file-backed): definitions are stored in **`agent_service/configs/agent_templates.yaml`**. Each record has `id`, `name`, `role`, inline `prompt`, `skill_package_ids`, `tool_ids`, `skill_ids`, `resource_ids`, `react_config`, and `enabled`. Agent-specific output requirements live in the agent prompt / bound Skills, not in a separate output contract field. Workflow graphs reference agents by **`id`**. The Admin UI uses **`GET/POST/PATCH /agent-templates`**; **`POST`** and **`PATCH`** write this catalog.
+- `WorkflowTemplate` (file-backed scenario): one scenario file per workflow under **`agent_service/configs/scenario_templates/{workflow_id}.yaml`**. Each file has a `workflow` object (ordered `graph`, `scenario`, `status`, `version`, etc.) and no embedded agent definitions. **`GET/POST/PATCH /workflow-templates`** and publish/clone operate on these files; only **`published`** templates are listed for non-admin callers and for run snapshots.
 
-Only **`published`** workflow templates should be selected by downstream company projects. When a run starts, the backend creates a **workflow snapshot** from the current file-backed bundle/catalog mirrors. The snapshot sent to the agent service includes `skill_packages` (with `package_files`), executable `tools`, `resources`, and each agent's `react_config`. By default, `react_config.model` uses the local Anthropic Messages-compatible `kimi-code` provider at `http://127.0.0.1:8081/v1`.
+Only **`published`** workflow templates should be selected by downstream company projects. When a run starts, the backend creates a **workflow snapshot** from the current file-backed scenario, agent catalog, and DB/file-backed skill/tool/resource mirrors. The snapshot sent to the agent service includes `skill_packages` (with `package_files`), executable `tools`, `resources`, and each agent's `react_config`. By default, `react_config.model` uses the local Anthropic Messages-compatible `kimi-code` provider at `http://127.0.0.1:8081/v1`.
 
 ## Run and time fields
 
@@ -107,8 +112,8 @@ Only **`published`** workflow templates should be selected by downstream company
     }
   ],
   "evidence": [],
-  "output_dir": "/path/to/sessions/proj_x/run_y_outputs/run_y_step_003_LegalRiskAgent",
-  "output_readme_path": "/path/to/sessions/proj_x/run_y_outputs/run_y_step_003_LegalRiskAgent/README.md"
+  "output_dir": "/path/to/data/dd_store/agent_service/sessions/proj_x/run_y_outputs/run_y_step_003_LegalRiskAgent",
+  "output_readme_path": "/path/to/data/dd_store/agent_service/sessions/proj_x/run_y_outputs/run_y_step_003_LegalRiskAgent/README.md"
 }
 ```
 

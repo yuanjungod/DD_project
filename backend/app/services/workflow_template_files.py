@@ -22,16 +22,15 @@ from app.schemas.dto import (
 
 ROOT = Path(__file__).resolve().parents[3]
 AGENT_CONFIG_DIR = ROOT / "agent_service" / "configs"
-WORKFLOW_TEMPLATES_DIR = AGENT_CONFIG_DIR / "workflow_templates"
-SHARED_AGENTS_PATH = WORKFLOW_TEMPLATES_DIR / "_shared_agents.yaml"
+SCENARIO_TEMPLATES_DIR = AGENT_CONFIG_DIR / "scenario_templates"
+AGENT_TEMPLATES_PATH = AGENT_CONFIG_DIR / "agent_templates.yaml"
 PROMPT_DIR = ROOT / "agent_service" / "prompts"
 LEGACY_AGENTS_YAML = AGENT_CONFIG_DIR / "agents.yaml"
 WORKFLOWS_YAML = AGENT_CONFIG_DIR / "workflows.yaml"
-LEGACY_AGENT_CATALOG_PATH = AGENT_CONFIG_DIR / "agent_templates.yaml"
 
 _WORKFLOW_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 
-# Shipped bundles under agent_service/configs/workflow_templates — must not be removed via API.
+# Shipped scenario templates under agent_service/configs/scenario_templates — must not be removed via API.
 _PROTECTED_WORKFLOW_TEMPLATE_IDS = frozenset(
     {
         "standard_due_diligence",
@@ -43,7 +42,7 @@ _PROTECTED_WORKFLOW_TEMPLATE_IDS = frozenset(
 
 
 def workflow_templates_dir() -> Path:
-    return WORKFLOW_TEMPLATES_DIR
+    return SCENARIO_TEMPLATES_DIR
 
 
 def _utc_from_mtime(path: Path) -> datetime:
@@ -210,8 +209,8 @@ def _stage_for_index(index: int, total: int) -> str:
 
 def _migration_agent_catalog() -> dict[str, dict[str, Any]]:
     rows: list[dict[str, Any]]
-    if LEGACY_AGENT_CATALOG_PATH.exists():
-        loaded = yaml.safe_load(LEGACY_AGENT_CATALOG_PATH.read_text(encoding="utf-8"))
+    if AGENT_TEMPLATES_PATH.exists():
+        loaded = yaml.safe_load(AGENT_TEMPLATES_PATH.read_text(encoding="utf-8"))
         raw_list: Any = loaded.get("agents", []) if isinstance(loaded, dict) else []
         rows = [dict(item) for item in raw_list] if isinstance(raw_list, list) else []
     else:
@@ -224,9 +223,9 @@ def _migration_agent_catalog() -> dict[str, dict[str, Any]]:
 
 
 def _workflow_bundle_documents_exist() -> bool:
-    if not WORKFLOW_TEMPLATES_DIR.is_dir():
+    if not SCENARIO_TEMPLATES_DIR.is_dir():
         return False
-    for path in sorted(WORKFLOW_TEMPLATES_DIR.glob("*.yaml")):
+    for path in sorted(SCENARIO_TEMPLATES_DIR.glob("*.yaml")):
         if path.name.startswith("_"):
             continue
         doc = _load_yaml(path)
@@ -236,7 +235,7 @@ def _workflow_bundle_documents_exist() -> bool:
 
 
 def ensure_workflow_template_bundles_migrated() -> None:
-    WORKFLOW_TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
+    SCENARIO_TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
     if _workflow_bundle_documents_exist():
         return
     catalog = _migration_agent_catalog()
@@ -246,7 +245,6 @@ def ensure_workflow_template_bundles_migrated() -> None:
         missing = [aid for aid in ordered if aid not in catalog]
         if missing:
             raise RuntimeError(f"Migrating workflows: missing agents in catalog for {wf_id}: {missing}")
-        agents_payload = [copy.deepcopy(catalog[aid]) for aid in ordered]
         bundle = {
             "version": 1,
             "workflow": {
@@ -258,9 +256,8 @@ def ensure_workflow_template_bundles_migrated() -> None:
                 "version": 1,
                 "graph": graph_from_agent_ids(ordered),
             },
-            "agents": agents_payload,
         }
-        save_workflow_bundle(wf_id, bundle)
+        save_workflow_bundle(wf_id, bundle, validate_agent_refs=False)
 
 
 def _assert_safe_workflow_id(workflow_id: str) -> None:
@@ -270,7 +267,7 @@ def _assert_safe_workflow_id(workflow_id: str) -> None:
 
 def workflow_bundle_path(workflow_id: str) -> Path:
     _assert_safe_workflow_id(workflow_id)
-    return WORKFLOW_TEMPLATES_DIR / f"{workflow_id}.yaml"
+    return SCENARIO_TEMPLATES_DIR / f"{workflow_id}.yaml"
 
 
 def load_workflow_bundle(workflow_id: str) -> dict[str, Any]:
@@ -283,9 +280,7 @@ def load_workflow_bundle(workflow_id: str) -> dict[str, Any]:
 def _normalize_bundle(doc: dict[str, Any]) -> dict[str, Any]:
     wf = doc.get("workflow")
     if not isinstance(wf, dict):
-        raise HTTPException(status_code=400, detail="Bundle missing workflow section")
-    if "agents" not in doc or not isinstance(doc["agents"], list):
-        doc["agents"] = []
+        raise HTTPException(status_code=400, detail="Scenario template missing workflow section")
     wf.setdefault("description", "")
     wf.setdefault("scenario", "standard")
     wf.setdefault("status", "draft")
@@ -296,25 +291,23 @@ def _normalize_bundle(doc: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Workflow missing id")
     if "name" not in wf or not wf["name"]:
         raise HTTPException(status_code=400, detail="Workflow missing name")
-    doc["agents"] = [_normalize_agent_record(dict(a)) for a in doc["agents"]]
+    doc["agents"] = []
     return doc
 
 
-def save_workflow_bundle(workflow_id: str, bundle: dict[str, Any]) -> Path:
+def save_workflow_bundle(workflow_id: str, bundle: dict[str, Any], *, validate_agent_refs: bool = True) -> Path:
     _assert_safe_workflow_id(workflow_id)
     path = workflow_bundle_path(workflow_id)
     wf = bundle.get("workflow", {})
     if wf.get("id") != workflow_id:
         wf["id"] = workflow_id
     graph_ids = _agent_ids_from_graph(wf.get("graph") or {})
-    agents = [_normalize_agent_record(copy.deepcopy(dict(a))) for a in bundle.get("agents", [])]
-    by_agent = {a["id"] for a in agents}
-    missing = [aid for aid in graph_ids if aid and aid not in by_agent]
-    if missing:
-        raise HTTPException(status_code=400, detail=f"Agents missing for workflow graph: {missing}")
-    for row in agents:
-        AgentTemplateBase.model_validate({k: v for k, v in row.items() if k != "id"})
-    document = {"version": bundle.get("version", 1), "workflow": wf, "agents": agents}
+    if validate_agent_refs:
+        pool = union_agent_by_id()
+        missing = [aid for aid in graph_ids if aid and aid not in pool]
+        if missing:
+            raise HTTPException(status_code=400, detail=f"Unknown agents referenced by scenario graph: {missing}")
+    document = {"version": bundle.get("version", 1), "workflow": wf}
     path.parent.mkdir(parents=True, exist_ok=True)
     text = yaml.safe_dump(
         document,
@@ -323,7 +316,7 @@ def save_workflow_bundle(workflow_id: str, bundle: dict[str, Any]) -> Path:
         default_flow_style=False,
         width=4096,
     )
-    header = "# Workflow template bundle — one YAML per workflow; agents used by this graph are embedded below.\n\n"
+    header = "# Scenario template — workflow graph only. Agent definitions live in agent_service/configs/agent_templates.yaml.\n\n"
     path.write_text(header + text, encoding="utf-8")
     return path
 
@@ -347,11 +340,11 @@ def _bundle_to_read(path: Path, bundle: dict[str, Any]) -> WorkflowTemplateRead:
 
 def list_workflow_bundle_paths() -> list[Path]:
     ensure_workflow_template_bundles_migrated()
-    if not WORKFLOW_TEMPLATES_DIR.is_dir():
+    if not SCENARIO_TEMPLATES_DIR.is_dir():
         return []
     return sorted(
         p
-        for p in WORKFLOW_TEMPLATES_DIR.glob("*.yaml")
+        for p in SCENARIO_TEMPLATES_DIR.glob("*.yaml")
         if not p.name.startswith("_") and _load_yaml(p).get("workflow")
     )
 
@@ -368,22 +361,22 @@ def list_workflow_reads_for_api(*, include_drafts: bool) -> list[WorkflowTemplat
     return [read for _, read in items]
 
 
-def _load_shared_agent_rows() -> list[dict[str, Any]]:
-    if not SHARED_AGENTS_PATH.exists():
+def _load_agent_catalog_rows() -> list[dict[str, Any]]:
+    if not AGENT_TEMPLATES_PATH.exists():
         return []
-    doc = _load_yaml(SHARED_AGENTS_PATH)
+    doc = _load_yaml(AGENT_TEMPLATES_PATH)
     raw = doc.get("agents", [])
     return [dict(x) for x in raw] if isinstance(raw, list) else []
 
 
-def _save_shared_agent_rows(rows: list[dict[str, Any]]) -> None:
-    WORKFLOW_TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
+def _save_agent_catalog_rows(rows: list[dict[str, Any]]) -> None:
+    AGENT_TEMPLATES_PATH.parent.mkdir(parents=True, exist_ok=True)
     payloads = [_normalize_agent_record(copy.deepcopy(row)) for row in rows]
     for row in payloads:
         AgentTemplateBase.model_validate({k: v for k, v in row.items() if k != "id"})
     ids = [row["id"] for row in payloads]
     if len(ids) != len(set(ids)):
-        raise HTTPException(status_code=400, detail="Duplicate agent ids in shared catalog")
+        raise HTTPException(status_code=400, detail="Duplicate agent ids in agent catalog")
     document = {"version": 1, "agents": payloads}
     text = yaml.safe_dump(
         document,
@@ -392,21 +385,16 @@ def _save_shared_agent_rows(rows: list[dict[str, Any]]) -> None:
         default_flow_style=False,
         width=4096,
     )
-    header = "# Shared agent templates — optional library not tied to a single workflow graph.\n\n"
-    SHARED_AGENTS_PATH.write_text(header + text, encoding="utf-8")
+    header = "# Agent templates — reusable agent definitions. Scenario templates reference these by id.\n\n"
+    AGENT_TEMPLATES_PATH.write_text(header + text, encoding="utf-8")
 
 
 def union_agent_by_id() -> dict[str, dict[str, Any]]:
     ensure_workflow_template_bundles_migrated()
     merged: dict[str, dict[str, Any]] = {}
-    for row in _load_shared_agent_rows():
+    for row in _load_agent_catalog_rows():
         norm = _normalize_agent_record(copy.deepcopy(row))
         merged[norm["id"]] = norm
-    for path in list_workflow_bundle_paths():
-        bundle = _normalize_bundle(copy.deepcopy(_load_yaml(path)))
-        for agent in bundle.get("agents", []):
-            norm = _normalize_agent_record(copy.deepcopy(dict(agent)))
-            merged[norm["id"]] = norm
     return merged
 
 
@@ -439,7 +427,7 @@ def create_workflow_template(payload: WorkflowTemplateCreate) -> WorkflowTemplat
     graph = data["graph"]
     agent_ids = _agent_ids_from_graph(graph)
     pool = union_agent_by_id()
-    agents = _pick_agents_for_graph(agent_ids, pool)
+    _pick_agents_for_graph(agent_ids, pool)
     bundle = {
         "version": 1,
         "workflow": {
@@ -451,7 +439,6 @@ def create_workflow_template(payload: WorkflowTemplateCreate) -> WorkflowTemplat
             "status": data.get("status") or "draft",
             "version": int(data.get("version") or 1),
         },
-        "agents": agents,
     }
     path = save_workflow_bundle(wf_id, bundle)
     return _bundle_to_read(path, _normalize_bundle(copy.deepcopy(_load_yaml(path))))
@@ -469,7 +456,7 @@ def update_workflow_template(workflow_id: str, payload: WorkflowTemplateUpdate) 
     if "graph" in updates and updates["graph"] is not None:
         agent_ids = _agent_ids_from_graph(updates["graph"])
         pool = union_agent_by_id()
-        bundle["agents"] = _pick_agents_for_graph(agent_ids, pool)
+        _pick_agents_for_graph(agent_ids, pool)
     path = save_workflow_bundle(workflow_id, bundle)
     return _bundle_to_read(path, _normalize_bundle(copy.deepcopy(_load_yaml(path))))
 
@@ -505,7 +492,6 @@ def clone_workflow_template(workflow_id: str) -> WorkflowTemplateRead:
     bundle = {
         "version": 1,
         "workflow": wf,
-        "agents": copy.deepcopy(source.get("agents", [])),
     }
     path = save_workflow_bundle(new_id_str, bundle)
     return _bundle_to_read(path, _normalize_bundle(copy.deepcopy(_load_yaml(path))))
@@ -522,7 +508,7 @@ def get_published_workflow_bundle(workflow_id: str) -> dict[str, Any]:
 
 
 def resolve_agents_for_snapshot(bundle: dict[str, Any], agent_ids: list[str]) -> tuple[list[dict[str, Any]], list[str]]:
-    by_id = {a["id"]: a for a in bundle.get("agents", [])}
+    by_id = union_agent_by_id()
     found: list[dict[str, Any]] = []
     missing: list[str] = []
     for aid in agent_ids:
@@ -540,19 +526,9 @@ def scenario_agent_display_names(agent_ids: list[str]) -> dict[str, str]:
 
 
 def _agent_mtime_from_disk(agent_id: str) -> datetime:
-    times: list[float] = []
-    if SHARED_AGENTS_PATH.exists():
-        for row in _load_shared_agent_rows():
-            if row.get("id") == agent_id:
-                times.append(SHARED_AGENTS_PATH.stat().st_mtime)
-                break
-    for path in list_workflow_bundle_paths():
-        bundle = _normalize_bundle(copy.deepcopy(_load_yaml(path)))
-        if any(a.get("id") == agent_id for a in bundle.get("agents", [])):
-            times.append(path.stat().st_mtime)
-    if not times:
+    if not AGENT_TEMPLATES_PATH.exists():
         return datetime.now(timezone.utc)
-    return datetime.fromtimestamp(max(times), tz=timezone.utc)
+    return datetime.fromtimestamp(AGENT_TEMPLATES_PATH.stat().st_mtime, tz=timezone.utc)
 
 
 def list_union_agent_reads(*, only_enabled_non_admin: bool) -> list[AgentTemplateRead]:
@@ -587,9 +563,9 @@ def create_agent(payload: AgentTemplateCreate) -> AgentTemplateRead:
     names = {r["name"] for r in pool.values()}
     if norm["name"] in names:
         raise HTTPException(status_code=409, detail=f"Agent name already exists: {norm['name']}")
-    rows = _load_shared_agent_rows()
+    rows = _load_agent_catalog_rows()
     rows.append(norm)
-    _save_shared_agent_rows(rows)
+    _save_agent_catalog_rows(rows)
     mt = _agent_mtime_from_disk(norm["id"])
     nas = mt.replace(tzinfo=None)
     base_fields = AgentTemplateBase.model_validate({k: v for k, v in norm.items() if k != "id"})
@@ -607,33 +583,16 @@ def update_agent(agent_id: str, payload: AgentTemplateUpdate) -> AgentTemplateRe
     if agent_id not in pool:
         raise HTTPException(status_code=404, detail="Agent template not found")
 
-    touched = False
-    shared = _load_shared_agent_rows()
-    for i, row in enumerate(shared):
+    rows = _load_agent_catalog_rows()
+    for i, row in enumerate(rows):
         if row.get("id") == agent_id:
             current = dict(row)
             for key, value in updates.items():
                 current[key] = value
             current["id"] = agent_id
-            shared[i] = _normalize_agent_record(current)
-            touched = True
-    if touched:
-        _save_shared_agent_rows(shared)
-
-    for path in list_workflow_bundle_paths():
-        bundle = _normalize_bundle(copy.deepcopy(_load_yaml(path)))
-        changed = False
-        for i, row in enumerate(bundle.get("agents", [])):
-            if row.get("id") != agent_id:
-                continue
-            current = dict(row)
-            for key, value in updates.items():
-                current[key] = value
-            current["id"] = agent_id
-            bundle["agents"][i] = _normalize_agent_record(current)
-            changed = True
-        if changed:
-            save_workflow_bundle(bundle["workflow"]["id"], bundle)
+            rows[i] = _normalize_agent_record(current)
+            _save_agent_catalog_rows(rows)
+            break
 
     pool_after = union_agent_by_id()
     final = pool_after.get(agent_id)

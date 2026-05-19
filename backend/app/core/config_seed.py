@@ -9,7 +9,7 @@ from app.services.tool_files import load_tool_configs_from_disk, sync_tool_confi
 from app.services.workflow_template_files import ensure_workflow_template_bundles_migrated
 
 def seed_configuration_catalog(db: Session) -> None:
-    """Seed DB-backed catalog entries. Workflow + embedded agent defs live under workflow_templates/*.yaml."""
+    """Seed DB-backed mirrors. Scenario graphs and agent definitions are separate file-backed catalogs."""
     ensure_configuration_schema(db)
     ensure_workflow_template_bundles_migrated()
 

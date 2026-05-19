@@ -20,8 +20,7 @@ def _utc_iso() -> str:
 
 def _sessions_root() -> Path:
     settings = get_agent_settings()
-    configured = getattr(settings, "session_history_dir", "").strip()
-    base = Path(configured).expanduser().resolve() if configured else Path(__file__).resolve().parent / "sessions"
+    base = settings.resolved_session_history_dir
     base.mkdir(parents=True, exist_ok=True)
     return base
 

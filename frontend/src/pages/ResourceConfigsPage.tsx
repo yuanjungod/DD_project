@@ -519,7 +519,7 @@ export function ResourceConfigsPage() {
             <div className="resource-file-library-panel">
               <p className="resource-file-library-panel__title">平台共享文件</p>
               <p className="muted resource-file-library-panel__hint">
-                文件保存在 <code>data/dd_store/platform/uploads</code>
+                文件保存在 <code>DD_DATA_ROOT/platform/uploads</code>
                 。在此处<strong>上传 / 删除</strong>
                 即可维护文件本体；下方表单用于登记一条「文件库」类资源的<strong>名称与用途说明</strong>
                 （可选，与工具无关）。

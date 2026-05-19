@@ -38,7 +38,7 @@ Current templates:
 
 At run time, the backend sends an immutable **workflow snapshot** to the agent service. The snapshot includes the workflow graph, agent templates, Anthropic-style skill packages, executable tools, resource configs, and AgentScope ReAct parameters used by that run.
 
-The agent service writes a **session JSON** for each `POST /runs` (on by default): `agent_service/sessions/<project_id>/<run_id>.json` (override root with `DD_SESSION_HISTORY_DIR`). The file includes `company_config`, `workflow_meta`, `agents_ordered`, an **events** timeline, and on completion the full **`result`** (same data as the HTTP response). Set `DD_SESSION_HISTORY_ENABLED=false` to turn this off. Read-only HTTP: `GET /sessions`, `GET /sessions/{project_id}`, `GET /sessions/{project_id}/{run_id}`.
+The agent service writes a **session JSON** for each `POST /runs` (on by default): `data/dd_store/agent_service/sessions/<project_id>/<run_id>.json` by default. Set `DD_DATA_ROOT` to move writable data with the backend, or override only this root with `DD_SESSION_HISTORY_DIR`. The file includes `company_config`, `workflow_meta`, `agents_ordered`, an **events** timeline, and on completion the full **`result`** (same data as the HTTP response). Set `DD_SESSION_HISTORY_ENABLED=false` to turn this off. Read-only HTTP: `GET /sessions`, `GET /sessions/{project_id}`, `GET /sessions/{project_id}/{run_id}`.
 
 Each agent template can bind:
 

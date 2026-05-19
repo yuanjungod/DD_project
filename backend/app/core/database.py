@@ -1,13 +1,23 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.config import settings
 
 
-connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
-engine = create_engine(settings.database_url, connect_args=connect_args)
+DATABASE_URL = settings.resolved_database_url
+
+if DATABASE_URL.startswith("sqlite"):
+    sqlite_path = make_url(DATABASE_URL).database
+    if sqlite_path and sqlite_path != ":memory:":
+        Path(sqlite_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
+
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

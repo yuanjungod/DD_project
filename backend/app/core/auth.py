@@ -5,38 +5,60 @@ from collections.abc import Iterable
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
+import yaml
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import decode_access_token, hash_password
 from app.models.entities import Project, ProjectAccess, User
+from app.services.fs_layout import default_users_config_path
 
 
 bearer_scheme = HTTPBearer(auto_error=False)
+VALID_USER_ROLES = {"admin", "analyst", "viewer"}
+
+
+def _load_default_user_seeds() -> list[dict[str, str]]:
+    path = default_users_config_path()
+    if not path.is_file():
+        return []
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    rows = raw.get("users") if isinstance(raw, dict) else raw
+    if not isinstance(rows, list):
+        raise ValueError(f"Default users config must contain a users list: {path}")
+
+    seeds: list[dict[str, str]] = []
+    for idx, row in enumerate(rows, start=1):
+        if not isinstance(row, dict):
+            raise ValueError(f"Default user #{idx} must be an object: {path}")
+        email = str(row.get("email", "")).strip()
+        name = str(row.get("name", "")).strip()
+        password = str(row.get("password", ""))
+        role = str(row.get("role", "analyst")).strip()
+        if not email or not name or not password:
+            raise ValueError(f"Default user #{idx} must include email, name, and password: {path}")
+        if role not in VALID_USER_ROLES:
+            raise ValueError(f"Default user #{idx} has invalid role {role!r}: {path}")
+        seeds.append({"email": email, "name": name, "password": password, "role": role})
+    return seeds
 
 
 def seed_default_users(db: Session) -> None:
+    if not settings.seed_default_users:
+        return
     if db.query(User).count() > 0:
         return
     users = [
         User(
-            email="admin@example.com",
-            name="Admin",
-            password_hash=hash_password("admin123"),
-            role="admin",
-        ),
-        User(
-            email="analyst@example.com",
-            name="Analyst",
-            password_hash=hash_password("analyst123"),
-            role="analyst",
-        ),
-        User(
-            email="viewer@example.com",
-            name="Viewer",
-            password_hash=hash_password("viewer123"),
-            role="viewer",
-        ),
+            email=seed["email"],
+            name=seed["name"],
+            password_hash=hash_password(seed["password"]),
+            role=seed["role"],
+        )
+        for seed in _load_default_user_seeds()
     ]
+    if not users:
+        return
     db.add_all(users)
     db.commit()
 

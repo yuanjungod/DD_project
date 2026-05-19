@@ -8,10 +8,13 @@ type LoginPageProps = {
   onLogin: (session: AuthSession) => void;
 };
 
+const defaultLoginEmail = import.meta.env.VITE_DEFAULT_LOGIN_EMAIL || "admin@example.com";
+const defaultLoginPassword = import.meta.env.VITE_DEFAULT_LOGIN_PASSWORD || "admin123";
+
 export function LoginPage({ onLogin }: LoginPageProps) {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("admin@example.com");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState(defaultLoginEmail);
+  const [password, setPassword] = useState(defaultLoginPassword);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -35,7 +38,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       <section className="login-panel">
         <p className="eyebrow">Permissioned Due Diligence</p>
         <h1>登录尽调平台</h1>
-        <p className="muted">默认账号：admin@example.com / admin123。管理员可查看全部项目，分析师可创建并运行项目，只读用户只能查看。</p>
+        <p className="muted">
+          默认账号：{defaultLoginEmail} / {defaultLoginPassword}。管理员可查看全部项目，分析师可创建并运行项目，只读用户只能查看。
+        </p>
         {error ? <div className="error">{error}</div> : null}
         <form className="form" onSubmit={handleSubmit}>
           <label>

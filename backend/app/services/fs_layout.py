@@ -6,23 +6,27 @@ from pathlib import Path
 
 from app.core.config import settings
 
-# backend/app/services/fs_layout.py → parents[3] == repository root (contains catalog/)
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-
 
 def repo_root() -> Path:
-    return _REPO_ROOT
+    return settings.repo_root
 
 
 def data_root() -> Path:
-    p = Path(settings.filesystem_data_root)
-    if not p.is_absolute():
-        p = _REPO_ROOT / p
-    return p.resolve()
+    return settings.resolved_data_root
 
 
 def builtin_resource_configs_dir() -> Path:
-    return _REPO_ROOT / "catalog" / "resource_configs"
+    return repo_root() / "catalog" / "resource_configs"
+
+
+def default_users_config_path() -> Path:
+    configured = settings.default_users_config_path.strip()
+    if configured:
+        path = Path(configured).expanduser()
+        if not path.is_absolute():
+            path = repo_root() / path
+        return path.resolve()
+    return repo_root() / "catalog" / "default_users.yaml"
 
 
 def platform_resource_configs_overlay_dir() -> Path:

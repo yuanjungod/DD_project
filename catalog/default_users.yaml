@@ -1,0 +1,14 @@
+# Development seed users. These are created only when the users table is empty.
+users:
+  - email: admin@example.com
+    name: Admin
+    password: admin123
+    role: admin
+  - email: analyst@example.com
+    name: Analyst
+    password: analyst123
+    role: analyst
+  - email: viewer@example.com
+    name: Viewer
+    password: viewer123
+    role: viewer

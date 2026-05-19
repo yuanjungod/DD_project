@@ -1,0 +1,18 @@
+# Scenario template — workflow graph only. Agent definitions live in agent_service/configs/agent_templates.yaml.
+
+version: 1
+workflow:
+  id: workflow_tpl_a37fcc4ab87a
+  name: Test
+  description: ''
+  scenario: custom
+  status: published
+  version: 2
+  graph:
+    nodes:
+    - id: node_1
+      agent_template_id: agent_tpl_6a0a5de72005
+      stage: coordination
+    edges: []
+    entry_node: node_1
+    report_node: node_1

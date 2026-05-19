@@ -1,0 +1,48 @@
+# Scenario template — workflow graph only. Agent definitions live in agent_service/configs/agent_templates.yaml.
+
+version: 1
+workflow:
+  id: market_entry_due_diligence
+  name: 市场进入尽调
+  description: 适用于进入新市场或寻找合作标的，重点关注行业、竞品、产品和公开声誉。
+  scenario: market_entry
+  status: published
+  version: 1
+  graph:
+    nodes:
+    - id: node_01
+      agent_template_id: CoordinatorAgent
+      stage: coordination
+    - id: node_02
+      agent_template_id: CompanyProfileAgent
+      stage: execution
+    - id: node_03
+      agent_template_id: WebResearchAgent
+      stage: execution
+    - id: node_04
+      agent_template_id: IndustryAnalysisAgent
+      stage: execution
+    - id: node_05
+      agent_template_id: LegalRiskAgent
+      stage: execution
+    - id: node_06
+      agent_template_id: EvidenceVerifierAgent
+      stage: verification
+    - id: node_07
+      agent_template_id: ReportWriterAgent
+      stage: reporting
+    edges:
+    - from: node_01
+      to: node_02
+    - from: node_02
+      to: node_03
+    - from: node_03
+      to: node_04
+    - from: node_04
+      to: node_05
+    - from: node_05
+      to: node_06
+    - from: node_06
+      to: node_07
+    entry_node: node_01
+    report_node: node_07

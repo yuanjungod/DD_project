@@ -10,7 +10,7 @@ An MVP due diligence platform with:
 
 ```text
 backend/        FastAPI application
-agent_service/  AgentScope workflow service (+ configs/, prompts/, workflow_templates/*.yaml bundles)
+agent_service/  AgentScope workflow service (+ configs/, prompts/, scenario_templates/*.yaml, agent_templates.yaml)
 frontend/       React + Vite workbench
 shared/         Shared JSON schemas and example payloads
 docs/           Architecture, agent flow, configuration schema
@@ -47,11 +47,18 @@ npm run dev
 
 开发模式下请求默认走 **`http://127.0.0.1:5173/api/*`**，由 Vite **代理到** `http://127.0.0.1:8010`，避免浏览器直连跨域端口失败。若要改后端地址，可在启动前设置 **`VITE_DEV_PROXY_TARGET`**（仅 dev 代理目标），或设置 **`VITE_API_BASE_URL`** 为完整后端 URL（将跳过 `/api` 代理）。
 
-The backend defaults to SQLite at `backend/dd_platform.db`. Set `DATABASE_URL` to use PostgreSQL.
+Writable runtime data defaults to `data/dd_store/` from the repository root:
+
+- SQLite: `data/dd_store/platform/dd_platform.db` (set `DATABASE_URL` to use PostgreSQL or another explicit database).
+- Project resources/uploads: `data/dd_store/projects/<project_id>/...`.
+- Platform uploads/config overlays: `data/dd_store/platform/...`.
+- Agent run sessions and per-step outputs: `data/dd_store/agent_service/sessions/...`.
+
+Set `DD_DATA_ROOT` to move all writable file data together.
 
 ## MVP Flow
 
-Default users are created on backend startup:
+Development users are loaded from `catalog/default_users.yaml` and created on backend startup only when the users table is empty:
 
 - Admin: `admin@example.com` / `admin123`
 - Analyst: `analyst@example.com` / `analyst123`

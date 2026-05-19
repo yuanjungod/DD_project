@@ -38,10 +38,15 @@ def main() -> None:
 
 def _load_workflow_snapshot(company_config: CompanyConfig) -> dict:
     workflow_id = company_config.scope.workflow_template_id or company_config.scope.workflow_id
-    bundle_path = ROOT / "agent_service" / "configs" / "workflow_templates" / f"{workflow_id}.yaml"
-    bundle = _load_yaml(bundle_path)
-    workflow = bundle["workflow"]
-    agents = list(bundle.get("agents") or [])
+    scenario_path = ROOT / "agent_service" / "configs" / "scenario_templates" / f"{workflow_id}.yaml"
+    scenario_doc = _load_yaml(scenario_path)
+    workflow = scenario_doc["workflow"]
+    agent_catalog = {
+        row["id"]: row
+        for row in _load_yaml(ROOT / "agent_service" / "configs" / "agent_templates.yaml").get("agents", [])
+    }
+    agent_ids = [node.get("agent_template_id", "") for node in workflow["graph"].get("nodes", [])]
+    agents = [agent_catalog[agent_id] for agent_id in agent_ids if agent_id in agent_catalog]
     skill_package_ids = sorted({skill_id for agent in agents for skill_id in (agent.get("skill_package_ids") or [])})
     tool_ids = sorted({tool_id for agent in agents for tool_id in (agent.get("tool_ids") or agent.get("skill_ids") or [])})
     return {

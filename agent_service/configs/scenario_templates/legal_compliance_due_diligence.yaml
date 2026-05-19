@@ -1,0 +1,48 @@
+# Scenario template — workflow graph only. Agent definitions live in agent_service/configs/agent_templates.yaml.
+
+version: 1
+workflow:
+  id: legal_compliance_due_diligence
+  name: 法律合规重点尽调
+  description: 适用于合规、诉讼、处罚、制裁、知识产权和监管风险优先的场景。
+  scenario: legal_compliance
+  status: published
+  version: 1
+  graph:
+    nodes:
+    - id: node_01
+      agent_template_id: CoordinatorAgent
+      stage: coordination
+    - id: node_02
+      agent_template_id: CompanyProfileAgent
+      stage: execution
+    - id: node_03
+      agent_template_id: WebResearchAgent
+      stage: execution
+    - id: node_04
+      agent_template_id: LegalRiskAgent
+      stage: execution
+    - id: node_05
+      agent_template_id: IndustryAnalysisAgent
+      stage: execution
+    - id: node_06
+      agent_template_id: EvidenceVerifierAgent
+      stage: verification
+    - id: node_07
+      agent_template_id: ReportWriterAgent
+      stage: reporting
+    edges:
+    - from: node_01
+      to: node_02
+    - from: node_02
+      to: node_03
+    - from: node_03
+      to: node_04
+    - from: node_04
+      to: node_05
+    - from: node_05
+      to: node_06
+    - from: node_06
+      to: node_07
+    entry_node: node_01
+    report_node: node_07

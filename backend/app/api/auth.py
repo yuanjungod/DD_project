@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.auth import get_current_user, require_roles
+from app.core.auth import VALID_USER_ROLES, get_current_user, require_roles
 from app.core.database import get_db
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.entities import User
@@ -40,7 +40,7 @@ def create_user(
     db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
 ) -> User:
-    if payload.role not in {"admin", "analyst", "viewer"}:
+    if payload.role not in VALID_USER_ROLES:
         raise HTTPException(status_code=400, detail="Invalid role")
     if db.query(User).filter(User.email == payload.email).first():
         raise HTTPException(status_code=409, detail="Email already exists")

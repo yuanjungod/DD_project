@@ -1,5 +1,5 @@
-# Legacy dev fallback only. Runtime workflow templates are file-backed in
-# agent_service/configs/workflow_templates/*.yaml; this file only seeds bundles
+# Legacy dev fallback only. Runtime scenario templates are file-backed in
+# agent_service/configs/scenario_templates/*.yaml; this file only seeds scenarios
 # when that directory is empty.
 default_workflow_id: standard_due_diligence
 

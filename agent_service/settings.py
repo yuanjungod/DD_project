@@ -1,15 +1,28 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_DEFAULT_DATA_ROOT = "data/dd_store"
+_ENV_FILE = _REPO_ROOT / ".env"
+
+
+def _resolve_repo_path(raw: str) -> Path:
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        path = _REPO_ROOT / path
+    return path.resolve()
 
 
 class AgentSettings(BaseSettings):
     """Runtime config for the standalone agent service."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_FILE, env_file_encoding="utf-8", extra="ignore")
 
     platform_callback_base_url: str = Field(
         default="http://127.0.0.1:8010",
@@ -24,13 +37,33 @@ class AgentSettings(BaseSettings):
     session_history_enabled: bool = Field(
         default=True,
         validation_alias="DD_SESSION_HISTORY_ENABLED",
-        description="Persist each POST /runs execution as agent_service/sessions/<project>/<run>.json",
+        description="Persist each POST /runs execution as data/dd_store/agent_service/sessions/<project>/<run>.json",
     )
     session_history_dir: str = Field(
         default="",
         validation_alias="DD_SESSION_HISTORY_DIR",
-        description="Optional absolute path for session JSON files (default: <agent_service>/sessions).",
+        description="Optional path for session JSON files. Relative paths resolve from the repository root.",
     )
+    data_root: str = Field(
+        default=_DEFAULT_DATA_ROOT,
+        validation_alias=AliasChoices("DD_DATA_ROOT", "FILESYSTEM_DATA_ROOT"),
+        description="Shared writable data root used when DD_SESSION_HISTORY_DIR is not set.",
+    )
+
+    @property
+    def repo_root(self) -> Path:
+        return _REPO_ROOT
+
+    @property
+    def resolved_data_root(self) -> Path:
+        return _resolve_repo_path(self.data_root)
+
+    @property
+    def resolved_session_history_dir(self) -> Path:
+        configured = self.session_history_dir.strip()
+        if configured:
+            return _resolve_repo_path(configured)
+        return self.resolved_data_root / "agent_service" / "sessions"
 
 
 @lru_cache
