@@ -3,15 +3,25 @@ import { useSearchParams } from "react-router-dom";
 
 import {
   createResourceConfig,
-  deleteLibraryUpload,
   deleteResourceConfig,
-  listLibraryUploads,
   listResourceConfigs,
   listToolConfigs,
   updateResourceConfig,
   uploadLibraryFile,
 } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
+import {
+  buildConnection,
+  buildFileStoreConnection,
+  emptyFields,
+  fieldsFromConnection,
+  fileIdFromConfig,
+  fileNameFromConfig,
+  formatFileStoreSize,
+  labelsFor,
+  resourceNameFromUpload,
+  summarizeConnection,
+} from "../domain/resourceCatalogForm";
 import {
   type PlatformResourceType,
   PLATFORM_CONFIG_TAB_OPTIONS,
@@ -21,208 +31,10 @@ import {
   isToolsConfigTab,
   resourceListFilterLabel,
 } from "../domain/platformResourceRegistry";
-import type { LibraryFile, ResourceConfig, ToolConfig } from "../types/domain";
+import type { ResourceConfig, ToolConfig } from "../types/domain";
 
 function initialListFilter(searchParams: URLSearchParams): ResourceConfigsTabFilter {
   return searchParams.get("tab") === "tools" ? "tools" : "web";
-}
-
-function labelsFor(tp: PlatformResourceType): Record<string, string> {
-  switch (tp) {
-    case "web":
-      return {
-        domains: "允许域名范围（每行一条，可含通配，可选）",
-        rate_limit_rpm: "速率上限参考（请求/分钟，可选）",
-        notes: "合规与抓取策略说明（可选）",
-      };
-    case "file_store":
-      return {
-        notes: "文件用途或策略说明（可选）",
-      };
-    case "vector_store":
-      return {
-        index_name: "索引名（可选登记）",
-        embedding_model: "Embedding 模型（可选登记）",
-        vector_dim: "向量维度（可选登记）",
-        notes: "命名空间 / 环境与用法补充（可选）",
-      };
-    case "database":
-      return {
-        dialect: "方言（postgres / mysql / …，可选登记）",
-        secret_ref: "密钥引用 ID（勿写明文口令，可选登记）",
-        schema: "默认 schema（可选）",
-        notes: "权限与安全说明（可选）",
-      };
-    case "api":
-      return {
-        base_url: "Base URL（可选登记）",
-        auth_type: "认证方式备注（bearer / api_key_header / none）",
-        auth_header_name: "Header 名（若适用，可选）",
-        notes: "环境与限流说明（可选）",
-      };
-    case "metrics_platform":
-      return {
-        provider: "系统（snowflake / databricks / custom，可选登记）",
-        entity_key_field: "主体键字段（可选登记）",
-        grain: "粒度（可选登记）",
-        freshness_sla_hours: "数据新鲜度 SLA（小时，可选登记）",
-        taxonomy_ref: "指标目录 / 数据字典链接（可选）",
-        notes: "权限与脱敏说明（可选）",
-      };
-    default:
-      return {};
-  }
-}
-
-function emptyFields(tp: PlatformResourceType): Record<string, string> {
-  const keys = Object.keys(labelsFor(tp));
-  return Object.fromEntries(keys.map((k) => [k, ""]));
-}
-
-function fieldsFromConnection(tp: PlatformResourceType, c: Record<string, unknown>): Record<string, string> {
-  const base = emptyFields(tp);
-  switch (tp) {
-    case "web": {
-      const domains = c.allowed_domains;
-      const lines = Array.isArray(domains) ? domains.map((x) => String(x)).join("\n") : "";
-      return {
-        ...base,
-        domains: lines,
-        rate_limit_rpm: c.rate_limit_rpm != null ? String(c.rate_limit_rpm) : "",
-        notes: typeof c.notes === "string" ? c.notes : "",
-      };
-    }
-    case "file_store":
-      return {
-        ...base,
-        notes: typeof c.notes === "string" ? c.notes : "",
-      };
-    case "vector_store":
-      return {
-        ...base,
-        index_name: String(c.index_name ?? ""),
-        embedding_model: String(c.embedding_model ?? ""),
-        vector_dim: c.vector_dim != null ? String(c.vector_dim) : "",
-        notes: typeof c.notes === "string" ? c.notes : "",
-      };
-    case "database":
-      return {
-        ...base,
-        dialect: String(c.dialect ?? ""),
-        secret_ref: String(c.secret_ref ?? ""),
-        schema: typeof c.schema === "string" ? c.schema : "",
-        notes: typeof c.notes === "string" ? c.notes : "",
-      };
-    case "api":
-      return {
-        ...base,
-        base_url: String(c.base_url ?? ""),
-        auth_type: typeof c.auth_type === "string" ? c.auth_type : "",
-        auth_header_name: typeof c.auth_header_name === "string" ? c.auth_header_name : "",
-        notes: typeof c.notes === "string" ? c.notes : "",
-      };
-    case "metrics_platform":
-      return {
-        ...base,
-        provider: String(c.provider ?? ""),
-        entity_key_field: String(c.entity_key_field ?? ""),
-        grain: String(c.grain ?? ""),
-        freshness_sla_hours: c.freshness_sla_hours != null ? String(c.freshness_sla_hours) : "",
-        taxonomy_ref: typeof c.taxonomy_ref === "string" ? c.taxonomy_ref : "",
-        notes: typeof c.notes === "string" ? c.notes : "",
-      };
-    default:
-      return base;
-  }
-}
-
-function buildConnection(tp: PlatformResourceType, f: Record<string, string>): Record<string, unknown> {
-  const trim = (s: string) => s.trim();
-  switch (tp) {
-    case "web": {
-      const lines = (f.domains ?? "")
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean);
-      const out: Record<string, unknown> = { allowed_domains: lines };
-      if (trim(f.rate_limit_rpm)) {
-        const n = Number(trim(f.rate_limit_rpm));
-        if (!Number.isNaN(n)) out.rate_limit_rpm = n;
-      }
-      if (trim(f.notes)) out.notes = trim(f.notes);
-      return out;
-    }
-    case "file_store":
-      return trim(f.notes) ? { notes: trim(f.notes) } : {};
-    case "vector_store":
-      return {
-        index_name: trim(f.index_name),
-        embedding_model: trim(f.embedding_model),
-        vector_dim: trim(f.vector_dim) ? Number(trim(f.vector_dim)) : undefined,
-        notes: trim(f.notes) || undefined,
-      };
-    case "database":
-      return {
-        dialect: trim(f.dialect),
-        secret_ref: trim(f.secret_ref),
-        schema: trim(f.schema) || undefined,
-        notes: trim(f.notes) || undefined,
-      };
-    case "api":
-      return {
-        base_url: trim(f.base_url),
-        auth_type: trim(f.auth_type) || "none",
-        auth_header_name: trim(f.auth_header_name) || undefined,
-        notes: trim(f.notes) || undefined,
-      };
-    case "metrics_platform":
-      return {
-        provider: trim(f.provider),
-        entity_key_field: trim(f.entity_key_field),
-        grain: trim(f.grain),
-        freshness_sla_hours: trim(f.freshness_sla_hours) ? Number(trim(f.freshness_sla_hours)) : undefined,
-        taxonomy_ref: trim(f.taxonomy_ref) || undefined,
-        notes: trim(f.notes) || undefined,
-      };
-    default:
-      return {};
-  }
-}
-
-function summarizeConnection(row: ResourceConfig): string {
-  const c = row.connection_config ?? {};
-  switch (row.type) {
-    case "web": {
-      const d = c.allowed_domains;
-      if (Array.isArray(d) && d.length) return `${d.length} 个域名`;
-      break;
-    }
-    case "vector_store":
-      return [c.index_name, c.embedding_model].filter(Boolean).join(" · ") || "—";
-    case "api":
-      return String(c.base_url || "—");
-    case "metrics_platform":
-      return [c.provider, c.grain].filter(Boolean).join(" · ") || "—";
-    case "file_store": {
-      if (typeof c.notes === "string" && c.notes.trim()) return c.notes.trim();
-      return "平台共享文件 · 用途见条目说明";
-    }
-    default:
-      break;
-  }
-  try {
-    const s = JSON.stringify(c);
-    return s.length > 120 ? `${s.slice(0, 120)}…` : s || "—";
-  } catch {
-    return "—";
-  }
-}
-
-function formatLibraryBytes(n: number): string {
-  if (!Number.isFinite(n) || n < 0) return "—";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function ResourceConfigsPage() {
@@ -243,12 +55,8 @@ export function ResourceConfigsPage() {
   const [editUnknownType, setEditUnknownType] = useState<string | null>(null);
   const [connectionRawJson, setConnectionRawJson] = useState("{}");
 
-  const [libraryFiles, setLibraryFiles] = useState<LibraryFile[]>([]);
   const [libraryPick, setLibraryPick] = useState<File | null>(null);
-  const [libraryBusy, setLibraryBusy] = useState(false);
-  const [libraryBannerError, setLibraryBannerError] = useState("");
-  const [libraryBannerOk, setLibraryBannerOk] = useState("");
-  const [deletingLibraryId, setDeletingLibraryId] = useState("");
+  const [lastUploadedFilename, setLastUploadedFilename] = useState("");
   const libraryInputRef = useRef<HTMLInputElement>(null);
 
   const fieldLabels = useMemo(() => labelsFor(ptype), [ptype]);
@@ -263,7 +71,7 @@ export function ResourceConfigsPage() {
 
   const showOtherTab = useMemo(() => resources.some((r) => !isKnownPlatformResourceType(r.type)), [resources]);
 
-  /** 仅当选中「文件库」类型标签时展示上传区，避免切到向量库等仍因 ptype 为 file_store 而误显文件列表 */
+  /** 仅当选中「文件库」类型标签时展示上传区，避免切到其他类型仍因 ptype 为 file_store 而误显文件列表 */
   const showFileLibraryPanel = listFilter === "file_store";
 
   const typeSelectLocked =
@@ -280,6 +88,9 @@ export function ResourceConfigsPage() {
     setForm({ id: "", name: "", description: "" });
     setFormEnabled(true);
     setConnectionRawJson("{}");
+    setLibraryPick(null);
+    setLastUploadedFilename("");
+    if (libraryInputRef.current) libraryInputRef.current.value = "";
     if (listFilter !== "other" && isKnownPlatformResourceType(listFilter)) {
       setPtype(listFilter);
       setFields(emptyFields(listFilter));
@@ -287,10 +98,6 @@ export function ResourceConfigsPage() {
       setPtype("web");
       setFields(emptyFields("web"));
     }
-  }
-
-  async function refreshLibraryFiles() {
-    setLibraryFiles(await listLibraryUploads());
   }
 
   async function refresh() {
@@ -321,11 +128,6 @@ export function ResourceConfigsPage() {
   }, [showToolsPanel]);
 
   useEffect(() => {
-    if (!showFileLibraryPanel) return;
-    refreshLibraryFiles().catch((err: unknown) => setError(String(err)));
-  }, [showFileLibraryPanel]);
-
-  useEffect(() => {
     if (editingId || showToolsPanel) return;
     if (listFilter !== "other" && isKnownPlatformResourceType(listFilter)) {
       setPtype(listFilter);
@@ -334,44 +136,12 @@ export function ResourceConfigsPage() {
     }
   }, [listFilter, editingId, showToolsPanel]);
 
-  async function handleLibraryUpload() {
-    if (!libraryPick) return;
-    setLibraryBannerError("");
-    setLibraryBannerOk("");
-    setLibraryBusy(true);
-    try {
-      const row = await uploadLibraryFile(libraryPick);
-      setLibraryBannerOk(`已上传「${libraryPick.name}」→ ${row.id}（可在应用 Run 的资源合并中使用该 file_id）。`);
-      setLibraryPick(null);
-      if (libraryInputRef.current) libraryInputRef.current.value = "";
-      await refreshLibraryFiles();
-    } catch (err: unknown) {
-      setLibraryBannerError(String(err));
-    } finally {
-      setLibraryBusy(false);
-    }
-  }
-
-  async function handleDeleteLibraryRow(row: LibraryFile) {
-    const ok = window.confirm(`确定从平台文件库删除「${row.original_filename}」（${row.id}）吗？删除后合并资源时将不再包含该文件。`);
-    if (!ok) return;
-    setLibraryBannerError("");
-    setLibraryBannerOk("");
-    setDeletingLibraryId(row.id);
-    try {
-      await deleteLibraryUpload(row.id);
-      setLibraryBannerOk(`已删除 ${row.id}`);
-      await refreshLibraryFiles();
-    } catch (err: unknown) {
-      setLibraryBannerError(String(err));
-    } finally {
-      setDeletingLibraryId("");
-    }
-  }
-
   function beginEdit(resource: ResourceConfig) {
     setError("");
     setEditingId(resource.id);
+    setLibraryPick(null);
+    setLastUploadedFilename("");
+    if (libraryInputRef.current) libraryInputRef.current.value = "";
     if (isKnownPlatformResourceType(resource.type)) {
       setListFilter(resource.type);
     } else {
@@ -414,6 +184,11 @@ export function ResourceConfigsPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    const editingResource = editingId ? resources.find((item) => item.id === editingId) : undefined;
+    const previousFileId =
+      editingResource?.type === "file_store" ? fileIdFromConfig(editingResource.connection_config ?? {}) : "";
+    let originalFilename = editingResource ? fileNameFromConfig(editingResource.connection_config ?? {}) : "";
+
     try {
       let connection_config: Record<string, unknown>;
       let effectiveType: string;
@@ -428,14 +203,62 @@ export function ResourceConfigsPage() {
           throw new Error(e instanceof Error ? e.message : "connection_config JSON 无效");
         }
       } else {
-        effectiveType = ptype;
-        connection_config = buildConnection(ptype, fields);
+        effectiveType = typeSelectLocked && listFilter !== "other" && isKnownPlatformResourceType(listFilter) ? listFilter : ptype;
+        connection_config = buildConnection(effectiveType as PlatformResourceType, fields);
+      }
+
+      const isFileStoreFlow = effectiveType === "file_store" && !editUnknownType;
+      let fileId = isFileStoreFlow ? previousFileId : "";
+      let uploadedSizeBytes: number | undefined;
+
+      if (isFileStoreFlow) {
+        if (libraryPick) {
+          if (libraryPick.size === 0) {
+            setError("文件为空（0 字节），请选择有内容的文件。");
+            return;
+          }
+          setSavingEdit(true);
+          const uploaded = await uploadLibraryFile(libraryPick);
+          fileId = uploaded.id;
+          originalFilename = uploaded.original_filename;
+          uploadedSizeBytes = uploaded.size_bytes;
+          setLastUploadedFilename(uploaded.original_filename);
+          setForm((prev) => ({
+            ...prev,
+            name: prev.name.trim() || resourceNameFromUpload(uploaded.original_filename),
+          }));
+          setLibraryPick(null);
+          if (libraryInputRef.current) libraryInputRef.current.value = "";
+        }
+
+        if (!editingId && !fileId) {
+          setError("请选择要上传的文件。");
+          return;
+        }
+
+        connection_config = {
+          ...connection_config,
+          ...(fileId ? { file_id: fileId } : {}),
+          ...(originalFilename ? { original_filename: originalFilename } : {}),
+          ...(uploadedSizeBytes != null
+            ? { size_bytes: uploadedSizeBytes }
+            : typeof editingResource?.connection_config?.size_bytes === "number"
+              ? { size_bytes: editingResource.connection_config.size_bytes }
+              : {}),
+        };
+      }
+
+      const resolvedName =
+        form.name.trim() || (isFileStoreFlow ? resourceNameFromUpload(originalFilename || lastUploadedFilename) : "");
+      if (!resolvedName) {
+        setError(isFileStoreFlow ? "请填写名称，或留空以使用文件名。" : "请填写名称。");
+        return;
       }
 
       if (editingId) {
         setSavingEdit(true);
         await updateResourceConfig(editingId, {
-          name: form.name,
+          name: resolvedName,
           description: form.description,
           type: effectiveType,
           connection_config,
@@ -443,9 +266,10 @@ export function ResourceConfigsPage() {
         });
         resetEditorForm();
       } else {
+        setSavingEdit(true);
         await createResourceConfig({
           id: (form.id || "").trim() || undefined,
-          name: form.name,
+          name: resolvedName,
           type: effectiveType,
           description: form.description,
           connection_config,
@@ -464,10 +288,14 @@ export function ResourceConfigsPage() {
   async function handleDelete(resource: ResourceConfig) {
     if (!resource.deletable) return;
     const isRevertBuiltin = Boolean(resource.builtin_base);
+    const linkedFileId = resource.type === "file_store" ? fileIdFromConfig(resource.connection_config ?? {}) : "";
+    const linkedFileName = fileNameFromConfig(resource.connection_config ?? {});
     const ok = window.confirm(
       isRevertBuiltin
         ? `确定移除「${resource.name}」（${resource.id}）的数据目录覆盖吗？将恢复为仓库内置版本。`
-        : `确定删除「${resource.name}」（${resource.id}）吗？该资源条目将从平台移除且不可恢复。`,
+        : linkedFileId
+          ? `确定删除文件资源「${resource.name}」吗？将同时删除资源登记与平台文件${linkedFileName ? `「${linkedFileName}」` : ""}（${linkedFileId}）。`
+          : `确定删除「${resource.name}」（${resource.id}）吗？该资源条目将从平台移除且不可恢复。`,
     );
     if (!ok) return;
     setError("");
@@ -483,6 +311,11 @@ export function ResourceConfigsPage() {
     }
   }
 
+  const editingResource = editingId ? resources.find((item) => item.id === editingId) : undefined;
+  const editingFileId = editingResource ? fileIdFromConfig(editingResource.connection_config ?? {}) : "";
+  const editingFileName = editingResource ? fileNameFromConfig(editingResource.connection_config ?? {}) : "";
+  const editingFileSize = editingResource ? formatFileStoreSize(editingResource.connection_config ?? {}) : "";
+
   return (
     <div className="page-stack">
       <header className="page-hero">
@@ -490,7 +323,7 @@ export function ResourceConfigsPage() {
         <h1>平台资源</h1>
         <p>
           按类型浏览平台可用的<strong>连接器资源</strong>与<strong>执行工具</strong>。
-          资源条目可登记说明；<strong>文件库</strong> 支持上传共享文件；<strong>执行工具</strong> 为只读目录（
+          资源条目可登记说明；<strong>文件库</strong> 选择文件后一次保存即完成上传与登记；<strong>执行工具</strong> 为只读目录（
           <code>tools.yaml</code>），在「场景与 Agent」中通过 <code>tool_ids</code> 引用。
         </p>
         <nav className="resource-kind-tabs" aria-label="平台资源类型">
@@ -556,9 +389,11 @@ export function ResourceConfigsPage() {
           description={
             editingId
               ? `正在编辑 ${editingId}。保存写入数据目录（内置 ID 会产生覆盖文件）。`
-              : typeSelectLocked
-                ? `当前类型为「${resourceListFilterLabel(listFilter)}」。保存后加入右侧该类型的已登记列表。`
-                : "选择类型后填写名称与说明；登记字段均可选填，用于记录资源概况。内置同名 ID 若已存在会因冲突被拒绝。"
+              : typeSelectLocked && showFileLibraryPanel
+                ? `选择文件并填写说明，点击「上传并保存」即写入平台文件库与资源登记。`
+                : typeSelectLocked
+                  ? `当前类型为「${resourceListFilterLabel(listFilter)}」。保存后加入右侧该类型的已登记列表。`
+                  : "选择类型后填写名称与说明；登记字段均可选填，用于记录资源概况。内置同名 ID 若已存在会因冲突被拒绝。"
           }
         >
           {editingId ? (
@@ -571,59 +406,32 @@ export function ResourceConfigsPage() {
               </button>
             </div>
           ) : null}
-          {showFileLibraryPanel ? (
-            <div className="resource-file-library-panel">
-              <p className="resource-file-library-panel__title">平台共享文件</p>
-              <p className="muted resource-file-library-panel__hint">
-                文件保存在 <code>DD_DATA_ROOT/platform/uploads</code>
-                。在此处<strong>上传 / 删除</strong>
-                即可维护文件本体；下方表单用于登记一条「文件库」类资源的<strong>名称与用途说明</strong>
-                （可选，与工具无关）。
-              </p>
-              {libraryBannerError ? <div className="error">{libraryBannerError}</div> : null}
-              {libraryBannerOk ? <p className="resource-file-library-panel__ok">{libraryBannerOk}</p> : null}
-              <div className="inline-form resource-file-library-upload-row">
+          <form className="form resource-registry-form" onSubmit={(e) => void handleSubmit(e)}>
+            {showFileLibraryPanel ? (
+              <>
                 <label className="resource-file-library-file-label">
-                  <span className="muted resource-file-library-file-caption">文件</span>
+                  <span>文件{editingId ? "（可选，重新选择将替换原文件）" : "（必选）"}</span>
                   <input
                     ref={libraryInputRef}
                     type="file"
-                    disabled={libraryBusy}
-                    onChange={(e) => setLibraryPick(e.target.files?.[0] ?? null)}
+                    disabled={savingEdit}
+                    onChange={(e) => {
+                      const picked = e.target.files?.[0] ?? null;
+                      setLibraryPick(picked);
+                      if (picked && !form.name.trim()) {
+                        setForm((prev) => ({ ...prev, name: resourceNameFromUpload(picked.name) }));
+                      }
+                    }}
                   />
                 </label>
-                <button type="button" disabled={libraryBusy || !libraryPick} onClick={() => void handleLibraryUpload()}>
-                  {libraryBusy ? "上传中…" : "上传到平台库"}
-                </button>
-              </div>
-              {libraryFiles.length ? (
-                <ul className="resource-library-file-list">
-                  {libraryFiles.map((row) => (
-                    <li key={row.id} className="resource-library-file-row">
-                      <div>
-                        <strong>{row.original_filename}</strong>
-                        <span className="muted resource-library-file-meta">{formatLibraryBytes(row.size_bytes)}</span>
-                        <div>
-                          <code className="resource-library-file-id">{row.id}</code>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        disabled={deletingLibraryId === row.id || libraryBusy}
-                        onClick={() => void handleDeleteLibraryRow(row)}
-                      >
-                        {deletingLibraryId === row.id ? "删除中…" : "删除"}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="muted resource-library-empty">暂无平台文件。</p>
-              )}
-            </div>
-          ) : null}
-          <form className="form resource-registry-form" onSubmit={(e) => void handleSubmit(e)}>
+                {editingId && editingFileId ? (
+                  <p className="muted">
+                    当前文件：{editingFileName || "—"}
+                    {editingFileSize ? ` · ${editingFileSize}` : ""} · <code>{editingFileId}</code>
+                  </p>
+                ) : null}
+              </>
+            ) : null}
             <label>
               ID（可选，留空自动生成）
               <input
@@ -634,7 +442,12 @@ export function ResourceConfigsPage() {
             </label>
             <label>
               名称
-              <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
+              <input
+                value={form.name}
+                onChange={(event) => setForm({ ...form, name: event.target.value })}
+                placeholder={showFileLibraryPanel ? "留空则使用文件名" : undefined}
+                required={!showFileLibraryPanel}
+              />
             </label>
             {editUnknownType ? (
               <p className="resource-unknown-type-note">
@@ -713,7 +526,13 @@ export function ResourceConfigsPage() {
             )}
             <div className="resource-form-actions">
               <button type="submit" disabled={savingEdit}>
-                {savingEdit ? "保存中…" : editingId ? "保存修改" : "保存资源"}
+                {savingEdit
+                  ? "保存中…"
+                  : showFileLibraryPanel && !editingId
+                    ? "上传并保存"
+                    : editingId
+                      ? "保存修改"
+                      : "保存资源"}
               </button>
               {editingId ? (
                 <button type="button" className="secondary-button" onClick={() => resetEditorForm()}>
@@ -768,7 +587,9 @@ export function ResourceConfigsPage() {
                         ? "处理中…"
                         : resource.builtin_base
                           ? "移除覆盖"
-                          : "删除"}
+                          : resource.type === "file_store" && fileIdFromConfig(resource.connection_config ?? {})
+                            ? "删除文件资源"
+                            : "删除"}
                     </button>
                   ) : null}
                 </div>

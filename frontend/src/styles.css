@@ -151,10 +151,18 @@ label {
 .page-stack {
   display: grid;
   gap: 24px;
+  min-width: 0;
+  width: 100%;
+}
+
+.page-stack > * {
+  min-width: 0;
 }
 
 .content-shell {
   padding: 32px;
+  min-width: 0;
+  overflow-x: clip;
 }
 
 .page-hero {
@@ -190,28 +198,134 @@ label {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+  width: 100%;
 }
 
 .app-section-nav a {
-  display: grid;
-  gap: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 44px;
   border: 1px solid #dbe3ef;
   border-radius: 18px;
   background: white;
   color: #172033;
-  padding: 14px 16px;
-}
-
-.app-section-nav a span {
-  color: #64748b;
-  font-size: 12px;
   font-weight: 700;
+  padding: 12px 14px;
+  text-align: center;
 }
 
-.app-section-nav a.active,
-.app-section-nav a:hover {
+.app-section-nav a.active {
   border-color: rgba(29, 78, 216, 0.35);
   background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.app-section-nav a:hover:not(.active) {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.create-app-wizard-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.create-app-wizard-nav__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  box-sizing: border-box;
+  min-height: 52px;
+  border: 1px solid #dbe3ef;
+  border-radius: 18px;
+  background: white;
+  color: #172033;
+  font-weight: 700;
+  padding: 10px 14px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.create-app-wizard-nav__item.is-active {
+  border-color: rgba(29, 78, 216, 0.35);
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.create-app-wizard-nav__item:hover:not(:disabled):not(.is-active) {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.create-app-wizard-nav__item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.create-app-wizard-nav__short {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.create-app-wizard-nav__item.is-active .create-app-wizard-nav__short {
+  color: #3b82f6;
+}
+
+.run-controls-panel.hero-run-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  flex: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  background: #f8fafc;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+  padding: 16px;
+}
+
+.run-controls-panel .hero-run-controls__primary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.run-controls-panel .hero-run-controls__session-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.run-controls-panel .hero-run-controls__session-field select {
+  width: 100%;
+}
+
+.run-controls-panel .hero-run-controls__buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.run-controls-panel .hero-run-controls__buttons button {
+  width: 100%;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.run-controls-panel .hero-run-controls__stepgate {
+  min-height: 56px;
 }
 
 .hero-run-controls {
@@ -367,6 +481,38 @@ label {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.project-app-list {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.project-app-search {
+  display: grid;
+  gap: 8px;
+}
+
+.project-app-search__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.project-app-search input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font: inherit;
+  background: white;
+}
+
+.project-app-search input:focus {
+  outline: 2px solid rgba(29, 78, 216, 0.25);
+  border-color: #93c5fd;
+}
+
 /* 平台可用资源页：表单在上、已登记列表在下 */
 .resource-configs-layout {
   grid-template-columns: minmax(0, 1fr);
@@ -472,6 +618,18 @@ label {
   border-radius: 16px;
   padding: 14px 16px;
   background: #f8fafc;
+}
+
+.agent-binding-section--compact {
+  padding: 10px 12px;
+}
+
+.agent-binding-section--compact .agent-binding-section__title {
+  font-size: 14px;
+}
+
+.agent-binding-section--compact .agent-option-grid {
+  max-height: 220px;
 }
 
 .agent-binding-section__head {
@@ -1229,6 +1387,10 @@ label {
   }
 
   .app-section-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .create-app-wizard-nav {
     grid-template-columns: 1fr;
   }
 

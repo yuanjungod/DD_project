@@ -3,7 +3,6 @@
 export type PlatformResourceType =
   | "web"
   | "file_store"
-  | "vector_store"
   | "database"
   | "api"
   | "metrics_platform";
@@ -18,11 +17,6 @@ export const PLATFORM_RESOURCE_TYPE_OPTIONS: { id: PlatformResourceType; label: 
     id: "file_store",
     label: "文件库",
     hint: "上方维护平台共享文件的上传与删除；下方条目填写名称与用途说明即可（描述这批材料的用途）。",
-  },
-  {
-    id: "vector_store",
-    label: "向量库",
-    hint: "登记可用的向量检索资源概况（索引、模型维度等），便于团队对齐环境与用法说明。",
   },
   {
     id: "database",

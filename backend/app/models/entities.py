@@ -15,9 +15,13 @@ def new_id(prefix: str) -> str:
 
 class Project(Base):
     __tablename__ = "projects"
+    __table_args__ = (UniqueConstraint("company_key", "application_id", "version", name="uq_project_company_app_version"),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("proj"))
     name: Mapped[str] = mapped_column(String, nullable=False)
+    company_key: Mapped[str] = mapped_column(String, nullable=False, default="company")
+    application_id: Mapped[str] = mapped_column(String, nullable=False, default="default")
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     company_config: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

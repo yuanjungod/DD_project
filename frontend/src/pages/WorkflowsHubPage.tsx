@@ -9,6 +9,7 @@ import {
   listScenarios,
   listWorkflowTemplates,
   publishWorkflowTemplate,
+  updateWorkflowTemplate,
 } from "../api/client";
 import { AgentTemplatesPanel } from "../components/AgentTemplatesPanel";
 import { SectionCard } from "../components/SectionCard";
@@ -76,6 +77,7 @@ export function WorkflowsHubPage() {
     scenario: "custom",
     agent_ids: "",
   });
+  const [editingWorkflowId, setEditingWorkflowId] = useState<string | null>(null);
 
   const agentPlaceholder = useMemo(() => agents.map((agent) => agent.id).join(", "), [agents]);
 
@@ -109,21 +111,45 @@ export function WorkflowsHubPage() {
     }
   }
 
+  function resetWorkflowForm() {
+    setEditingWorkflowId(null);
+    setForm({ id: "", name: "", description: "", scenario: "custom", agent_ids: "" });
+  }
+
+  function beginEditWorkflow(workflow: WorkflowTemplate) {
+    setEditingWorkflowId(workflow.id);
+    setForm({
+      id: workflow.id,
+      name: workflow.name,
+      description: workflow.description,
+      scenario: workflow.scenario,
+      agent_ids: resolveGraphAgentOrder(workflow.graph).join(", "),
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     const agentIds = splitList(form.agent_ids);
     try {
-      await createWorkflowTemplate({
-        id: form.id || undefined,
+      const payload = {
         name: form.name,
         description: form.description,
         scenario: form.scenario,
-        status: "draft",
-        version: 1,
         graph: graphFromAgents(agentIds),
-      });
-      setForm({ id: "", name: "", description: "", scenario: "custom", agent_ids: "" });
+      };
+      if (editingWorkflowId) {
+        await updateWorkflowTemplate(editingWorkflowId, payload);
+      } else {
+        await createWorkflowTemplate({
+          id: form.id || undefined,
+          ...payload,
+          status: "draft",
+          version: 1,
+        });
+      }
+      resetWorkflowForm();
       await refreshAfterMutation();
     } catch (err) {
       setError(String(err));
@@ -174,7 +200,7 @@ export function WorkflowsHubPage() {
     activeTab === "scenarios"
       ? "选择已发布场景，一键创建绑定公司的尽调应用。"
       : activeTab === "builder"
-        ? "新建草稿、编排 Agent、发布后与「使用场景」页同步可见；可删除自建模板（内置场景除外）。"
+        ? "新建或编辑草稿、编排 Agent、发布后与「使用场景」页同步；内置场景可修改但不可删除。"
         : "维护提示词、Skill 包、工具与资源配置，供流程模板引用。";
 
   return (
@@ -239,11 +265,32 @@ export function WorkflowsHubPage() {
           {builderLoaded ? (
             <>
               <div className="grid two">
-                <SectionCard title="新增流程模板" description="逗号分隔 Agent 顺序；保存为草稿后在此页发布。">
+                <SectionCard
+                  title={editingWorkflowId ? "编辑流程模板" : "新增流程模板"}
+                  description={
+                    editingWorkflowId
+                      ? `正在编辑 ${editingWorkflowId}；保存后更新模板内容，已发布场景需重新发布才会同步到「使用场景」。`
+                      : "逗号分隔 Agent 顺序；保存为草稿后在此页发布。"
+                  }
+                >
+                  {editingWorkflowId ? (
+                    <div className="resource-edit-banner">
+                      <span>
+                        编辑模式 · <code>{editingWorkflowId}</code>
+                      </span>
+                      <button type="button" className="ghost-button" onClick={() => resetWorkflowForm()}>
+                        取消编辑
+                      </button>
+                    </div>
+                  ) : null}
                   <form className="form" onSubmit={handleSubmit}>
                     <label>
                       ID
-                      <input value={form.id} onChange={(event) => setForm({ ...form, id: event.target.value })} />
+                      <input
+                        value={form.id}
+                        disabled={Boolean(editingWorkflowId)}
+                        onChange={(event) => setForm({ ...form, id: event.target.value })}
+                      />
                     </label>
                     <label>
                       名称
@@ -271,7 +318,7 @@ export function WorkflowsHubPage() {
                         onChange={(event) => setForm({ ...form, description: event.target.value })}
                       />
                     </label>
-                    <button type="submit">保存为草稿</button>
+                    <button type="submit">{editingWorkflowId ? "保存修改" : "保存为草稿"}</button>
                   </form>
                 </SectionCard>
                 <SectionCard title="可用 Agent">
@@ -304,6 +351,9 @@ export function WorkflowsHubPage() {
                         ))}
                       </ol>
                       <div className="row-actions">
+                        <button type="button" className="secondary-button" onClick={() => beginEditWorkflow(workflow)}>
+                          编辑
+                        </button>
                         <button type="button" onClick={() => handlePublish(workflow.id)}>
                           发布
                         </button>

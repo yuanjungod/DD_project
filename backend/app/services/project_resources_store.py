@@ -144,6 +144,26 @@ def append_resources(project_id: str, payloads: list[ResourceCreate]) -> None:
     _atomic_write(path, json.dumps(blob, ensure_ascii=False, indent=2) + "\n")
 
 
+def delete_file_references_by_file_id(project_id: str, file_id: str) -> None:
+    """Remove legacy manifest file_reference rows pointing at the given upload file_id."""
+    raw = _load_raw(project_id)
+    items_all = raw.get("items", [])
+    kept: list[Any] = []
+    for row in items_all:
+        if (
+            isinstance(row, dict)
+            and str(row.get("type")) == "file_reference"
+            and str(row.get("value") or "").strip() == file_id
+        ):
+            continue
+        kept.append(row)
+    if len(kept) == len(items_all):
+        return
+    path = project_resources_manifest_path(project_id)
+    blob = {"version": _MANIFEST_VERSION, "items": kept}
+    _atomic_write(path, json.dumps(blob, ensure_ascii=False, indent=2) + "\n")
+
+
 def delete_resource(project_id: str, resource_id: str) -> bool:
     raw = _load_raw(project_id)
     items_all = raw.get("items", [])

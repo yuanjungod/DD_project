@@ -94,7 +94,7 @@ def list_library_reads() -> list[LibraryFileRead]:
 
 def save_platform_upload(*, filename: str, content_type: str | None, body: bytes) -> LibraryFileRead:
     if not body:
-        raise ValueError("empty file")
+        raise ValueError("文件为空，无法上传")
     if len(body) > UPLOAD_MAX_BYTES:
         raise ValueError(f"file exceeds maximum size ({UPLOAD_MAX_BYTES // (1024 * 1024)} MiB)")
 

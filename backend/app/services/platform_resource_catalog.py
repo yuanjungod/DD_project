@@ -12,6 +12,7 @@ import yaml
 from app.models.entities import new_id
 from app.schemas import ResourceConfigCreate, ResourceConfigRead, ResourceConfigUpdate
 from app.services.fs_layout import builtin_resource_configs_dir, platform_resource_configs_overlay_dir
+from app.services.platform_uploads_store import delete_platform_upload
 
 _ID_SAFE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_-]{0,126}$")
 
@@ -169,6 +170,8 @@ def update_resource_config_overlay(resource_id: str, payload: ResourceConfigUpda
     if resource_id not in idx:
         raise KeyError(resource_id)
     base = dict(idx[resource_id])
+    old_conn = base.get("connection_config") if isinstance(base.get("connection_config"), dict) else {}
+    old_file_id = str(old_conn.get("file_id") or "").strip()
     updates = payload.model_dump(exclude_unset=True)
     for k, v in updates.items():
         if k in {"id"}:
@@ -177,8 +180,24 @@ def update_resource_config_overlay(resource_id: str, payload: ResourceConfigUpda
     base["updated_at"] = _utc_now_naive()
     base.setdefault("created_at", base.get("created_at", _utc_now_naive()))
     _write_overlay(base)
+    if str(base.get("type")) == "file_store":
+        new_conn = base.get("connection_config") if isinstance(base.get("connection_config"), dict) else {}
+        new_file_id = str(new_conn.get("file_id") or "").strip()
+        if old_file_id and new_file_id and old_file_id != new_file_id:
+            delete_platform_upload(old_file_id)
     bid = builtin_resource_ids()
     return _row_to_read(base, builtin_base=(resource_id in bid))
+
+
+def _maybe_delete_linked_platform_file(data: dict[str, Any]) -> None:
+    if str(data.get("type")) != "file_store":
+        return
+    conn = data.get("connection_config")
+    if not isinstance(conn, dict):
+        return
+    fid = str(conn.get("file_id") or "").strip()
+    if fid:
+        delete_platform_upload(fid)
 
 
 def delete_resource_config_overlay(resource_id: str) -> None:
@@ -189,6 +208,7 @@ def delete_resource_config_overlay(resource_id: str) -> None:
     overlay = overlay_file_for_resource_id(resource_id)
     if overlay is None:
         raise BuiltinOnlyResourceConfigError(resource_id)
+    _maybe_delete_linked_platform_file(idx[resource_id])
     try:
         overlay.unlink()
     except OSError:

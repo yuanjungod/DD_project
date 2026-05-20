@@ -1,34 +1,27 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, useParams } from "react-router-dom";
+import { NavLink, useParams } from "react-router-dom";
 
 import {
   continueStepGated,
-  deleteProjectAgentOverride,
   getAgentStepOutputFolder,
   getRun,
   listDiligenceSessions,
-  listProjectAgentOverrides,
   listProjectRuns,
   listProjects,
-  listResources,
-  listWorkflowTemplates,
   listStepReviewChatTurns,
+  listWorkflowTemplates,
   postStepReviewChat,
   startRun,
-  upsertProjectAgentOverride,
 } from "../api/client";
-import { ProjectResourcesPanel } from "../components/ProjectResourcesPanel";
 import { SectionCard } from "../components/SectionCard";
 import { workflowName } from "../data/workflows";
-import { resolveGraphAgentOrder } from "../domain/workflowGraph";
+import { projectIdentityLabel } from "../domain/projectIdentity";
 import type {
   AgentRun,
   AgentStep,
   AgentStepOutputFolder,
   DiligenceSessionModel,
   Project,
-  ProjectAgentOverride,
-  Resource,
   StepReviewChatTurn,
   WorkflowTemplate,
 } from "../types/domain";
@@ -169,273 +162,45 @@ function AgentOutputFolderPanel({
   );
 }
 
-export type ProjectDetailSection = "overview" | "resources" | "outputs" | "runs";
+export type ProjectDetailSection = "outputs" | "runs";
 
 function appSectionPath(projectId: string, section: ProjectDetailSection): string {
-  if (section === "overview") return `/projects/${encodeURIComponent(projectId)}`;
   return `/projects/${encodeURIComponent(projectId)}/${section}`;
 }
 
+const SECTION_NAV: Array<{ section: ProjectDetailSection; label: string }> = [
+  { section: "outputs", label: "运行" },
+  { section: "runs", label: "历史" },
+];
+
 function ProjectAppNav({ projectId }: { projectId: string }) {
-  const items: Array<{ section: ProjectDetailSection; label: string; hint: string }> = [
-    { section: "overview", label: "应用概览", hint: "标的与入口" },
-    { section: "resources", label: "资源与 Agent 配置", hint: "按应用配置资源" },
-    { section: "outputs", label: "模型运行输出", hint: "步骤与输出目录" },
-    { section: "runs", label: "历史 Run", hint: "本应用记录" },
-  ];
   return (
-    <nav className="app-section-nav" aria-label="场景应用页面">
-      {items.map((item) => (
-        <NavLink key={item.section} to={appSectionPath(projectId, item.section)} end={item.section === "overview"}>
-          <strong>{item.label}</strong>
-          <span>{item.hint}</span>
+    <nav className="app-section-nav" aria-label="场景应用分区">
+      {SECTION_NAV.map((item) => (
+        <NavLink key={item.section} to={appSectionPath(projectId, item.section)} preventScrollReset>
+          {item.label}
         </NavLink>
       ))}
     </nav>
   );
 }
 
-function workflowAgentIds(project: Project | null, workflowTemplates: WorkflowTemplate[]): string[] {
-  const workflowId = project?.company_config.scope.workflow_template_id ?? project?.company_config.scope.workflow_id;
-  const workflow = workflowTemplates.find((item) => item.id === workflowId);
-  return resolveGraphAgentOrder(workflow?.graph);
+const RUN_STATUS_LABELS: Record<string, string> = {
+  completed: "已完成",
+  failed: "失败",
+  paused: "待复核",
+  pending: "排队中",
+  running: "运行中",
+};
+
+function runStatusLabel(status?: string | null): string {
+  if (!status) return "暂无";
+  return RUN_STATUS_LABELS[status] ?? status;
 }
 
-function splitFileIds(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
-  if (typeof value === "string") return value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
-  return [];
-}
-
-function splitIds(value: string): string[] {
-  return value
-    .split(/[\n,]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function idsText(value: string[]): string {
-  return (value ?? []).join(", ");
-}
-
-function emptyOverride(agentId: string): ProjectAgentOverride {
-  return {
-    agent_id: agentId,
-    prompt_append: "",
-    prompt_override: "",
-    skill_package_ids_add: [],
-    skill_package_ids_remove: [],
-    tool_ids_add: [],
-    tool_ids_remove: [],
-    resource_ids_add: [],
-    resource_ids_remove: [],
-    platform_upload_file_ids: [],
-    react_config_override: {},
-    enabled: true,
-  };
-}
-
-function AgentOverrideEditor({
-  projectId,
-  agentId,
-  override,
-  onRefresh,
-}: {
-  projectId: string;
-  agentId: string;
-  override?: ProjectAgentOverride;
-  onRefresh: () => Promise<void>;
-}) {
-  const effective = override ?? emptyOverride(agentId);
-  const [draft, setDraft] = useState<ProjectAgentOverride>(effective);
-  const [saving, setSaving] = useState(false);
-  const [localError, setLocalError] = useState("");
-
-  useEffect(() => {
-    setDraft(effective);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset editor when server override changes
-  }, [agentId, JSON.stringify(override ?? {})]);
-
-  async function save() {
-    setSaving(true);
-    setLocalError("");
-    try {
-      await upsertProjectAgentOverride(projectId, agentId, { ...draft, agent_id: agentId });
-      await onRefresh();
-    } catch (err: unknown) {
-      setLocalError(String(err));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function remove() {
-    if (!override) return;
-    setSaving(true);
-    setLocalError("");
-    try {
-      await deleteProjectAgentOverride(projectId, agentId);
-      await onRefresh();
-    } catch (err: unknown) {
-      setLocalError(String(err));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="agent-override-card">
-      <div className="agent-override-card__header">
-        <div>
-          <strong>{agentId}</strong>
-          <p className="muted">
-            {override ? "已配置应用级覆盖；启动新 run 时会合成到快照。" : "继承场景模板配置，尚未配置应用级覆盖。"}
-          </p>
-        </div>
-        <label className="agent-override-enabled">
-          <input
-            type="checkbox"
-            checked={draft.enabled}
-            onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}
-            disabled={saving}
-          />
-          启用覆盖
-        </label>
-      </div>
-      {localError ? <div className="error">{localError}</div> : null}
-      <label>
-        追加提示词（继承模板后追加）
-        <textarea
-          rows={3}
-          value={draft.prompt_append}
-          onChange={(event) => setDraft({ ...draft, prompt_append: event.target.value })}
-          disabled={saving}
-        />
-      </label>
-      <label>
-        覆盖提示词（填写后替代模板 prompt）
-        <textarea
-          rows={3}
-          value={draft.prompt_override}
-          onChange={(event) => setDraft({ ...draft, prompt_override: event.target.value })}
-          disabled={saving}
-        />
-      </label>
-      <div className="grid two">
-        <label>
-          追加 Skill IDs
-          <input
-            value={idsText(draft.skill_package_ids_add)}
-            onChange={(event) => setDraft({ ...draft, skill_package_ids_add: splitIds(event.target.value) })}
-            placeholder="skill_x, skill_y"
-            disabled={saving}
-          />
-        </label>
-        <label>
-          移除模板 Skill IDs
-          <input
-            value={idsText(draft.skill_package_ids_remove)}
-            onChange={(event) => setDraft({ ...draft, skill_package_ids_remove: splitIds(event.target.value) })}
-            disabled={saving}
-          />
-        </label>
-      </div>
-      <div className="grid two">
-        <label>
-          追加工具 IDs
-          <input
-            value={idsText(draft.tool_ids_add)}
-            onChange={(event) => setDraft({ ...draft, tool_ids_add: splitIds(event.target.value) })}
-            placeholder="search, file_reader"
-            disabled={saving}
-          />
-        </label>
-        <label>
-          移除模板工具 IDs
-          <input
-            value={idsText(draft.tool_ids_remove)}
-            onChange={(event) => setDraft({ ...draft, tool_ids_remove: splitIds(event.target.value) })}
-            disabled={saving}
-          />
-        </label>
-      </div>
-      <div className="grid two">
-        <label>
-          追加资源配置 IDs
-          <input
-            value={idsText(draft.resource_ids_add)}
-            onChange={(event) => setDraft({ ...draft, resource_ids_add: splitIds(event.target.value) })}
-            placeholder="resource_uploaded_files"
-            disabled={saving}
-          />
-        </label>
-        <label>
-          移除模板资源配置 IDs
-          <input
-            value={idsText(draft.resource_ids_remove)}
-            onChange={(event) => setDraft({ ...draft, resource_ids_remove: splitIds(event.target.value) })}
-            disabled={saving}
-          />
-        </label>
-      </div>
-      <label>
-        本应用限定可见 file_id（逗号或换行分隔）
-        <textarea
-          rows={2}
-          value={idsText(draft.platform_upload_file_ids)}
-          onChange={(event) => setDraft({ ...draft, platform_upload_file_ids: splitIds(event.target.value) })}
-          disabled={saving}
-        />
-      </label>
-      <div className="inline-form" style={{ flexWrap: "wrap" }}>
-        <button type="button" onClick={() => void save()} disabled={saving}>
-          {saving ? "保存中…" : "保存应用级配置"}
-        </button>
-        <button type="button" className="secondary-button" onClick={() => void remove()} disabled={saving || !override}>
-          删除覆盖，恢复继承模板
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function AgentResourceScopePanel({ agentIds, resources }: { agentIds: string[]; resources: Resource[] }) {
-  const scopes = resources.filter((item) => item.type === "agent_resource_scope");
-  return (
-    <div className="agent-resource-grid">
-      {agentIds.map((agentId) => {
-        const scope = scopes.find((item) => item.value === agentId);
-        const fileIds = splitFileIds(scope?.metadata_json?.uploaded_file_ids);
-        return (
-          <div key={agentId} className="agent-resource-card">
-            <strong>{agentId}</strong>
-            <p className="muted">
-              {scope
-                ? fileIds.length
-                  ? `本应用限制 ${fileIds.length} 个 file_id 可见`
-                  : "已登记本应用作用域备注，未限制 file_id"
-                : "未配置专属作用域，默认使用工作流 Agent 模板与应用资源合并后的可见范围。"}
-            </p>
-            {fileIds.length ? (
-              <div className="tag-row">
-                {fileIds.map((fileId) => (
-                  <span key={fileId}>{fileId}</span>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        );
-      })}
-      {agentIds.length === 0 ? <p className="muted">当前应用尚未解析到工作流 Agent。</p> : null}
-    </div>
-  );
-}
-
-export function ProjectDetailPage({ section = "overview" }: { section?: ProjectDetailSection }) {
+export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDetailSection }) {
   const { projectId = "" } = useParams();
   const [project, setProject] = useState<Project | null>(null);
-  const [resources, setResources] = useState<Resource[]>([]);
-  const [agentOverrides, setAgentOverrides] = useState<ProjectAgentOverride[]>([]);
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([]);
   const [sessions, setSessions] = useState<DiligenceSessionModel[]>([]);
@@ -454,17 +219,13 @@ export function ProjectDetailPage({ section = "overview" }: { section?: ProjectD
   const [pollingRunId, setPollingRunId] = useState<string | null>(null);
 
   async function refresh() {
-    const [projects, resourceItems, overrideItems, runItems, sessionItems, workflowItems] = await Promise.all([
+    const [projects, runItems, sessionItems, workflowItems] = await Promise.all([
       listProjects(),
-      listResources(projectId),
-      listProjectAgentOverrides(projectId),
       listProjectRuns(projectId),
       listDiligenceSessions(projectId),
       listWorkflowTemplates(),
     ]);
     setProject(projects.find((item) => item.id === projectId) ?? null);
-    setResources(resourceItems);
-    setAgentOverrides(overrideItems);
     setRuns(runItems);
     setWorkflowTemplates(workflowItems);
     setSessions(sessionItems);
@@ -652,145 +413,30 @@ export function ProjectDetailPage({ section = "overview" }: { section?: ProjectD
         workflowTemplates,
       )
     : "";
-  const appAgentIds = workflowAgentIds(project, workflowTemplates);
 
   return (
     <div className="page-stack">
-      <header className="page-hero action-hero action-hero--align-start">
-        <div>
-          <p className="eyebrow">Application Detail</p>
-          <h1>{project?.company_config.target_company.name ?? "尽调应用"}</h1>
-          <p>
-            {project
-              ? `${projectWorkflowName} · v${project.company_config.scope.workflow_template_version ?? 1}`
-              : "加载中"}
-          </p>
-        </div>
-        {section === "outputs" ? (
-        <div className="hero-run-controls" aria-label="运行 diligence">
-          <div className="hero-run-controls__primary-row">
-            <div className="hero-run-controls__session-field">
-              <span id="hero-session-caption" className="muted hero-run-controls__caption">
-                当前 diligence session
-              </span>
-              <select
-                aria-labelledby="hero-session-caption"
-                value={selectedSessionId}
-                onChange={(event) => setSelectedSessionId(event.target.value)}
-                disabled={runStarting || sessions.length === 0}
-              >
-                {sessions.length === 0 ? (
-                  <option value="">暂无 session（请先新起）</option>
-                ) : null}
-                {sessions.map((session) => (
-                  <option key={session.id} value={session.id}>
-                    {session.id} · {session.runs.length} 次
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="hero-run-controls__buttons">
-              <button type="button" onClick={() => void handleStartRun("new")} disabled={runStarting}>
-                {runStarting ? "启动中…" : "新 Session 跑一趟"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleStartRun("continue")}
-                disabled={runStarting || !selectedSessionId}
-              >
-                本 Session 再跑一趟
-              </button>
-            </div>
-          </div>
-          <label className="hero-run-controls__stepgate">
-            <input
-              type="checkbox"
-              checked={stepGatedMode}
-              onChange={(e) => setStepGatedMode(e.target.checked)}
-              disabled={runInFlight}
-            />
-            <span className="hero-run-controls__stepgate-copy">
-              <span className="hero-run-controls__stepgate-title">每步完成后暂停</span>
-              <span className="hero-run-controls__stepgate-desc muted">
-                便于与 Agent 对话、核对结果后再继续下一步
-              </span>
-            </span>
-          </label>
-        </div>
-        ) : null}
+      <header className="page-hero">
+        <p className="eyebrow">场景应用</p>
+        <h1>{project ? projectIdentityLabel(project) : "尽调应用"}</h1>
+        <p>
+          {project ? (
+            <>
+              {projectWorkflowName} · 应用 ID <code>{project.application_id}</code> · 技术 ID <code>{project.id}</code>
+            </>
+          ) : (
+            "加载中"
+          )}
+        </p>
       </header>
       <ProjectAppNav projectId={projectId} />
       {error ? <div className="error">{error}</div> : null}
-      {section === "overview" ? (
-        <div className="grid three">
-          <SectionCard
-            title="资源与 Agent 配置"
-            description="按应用维护文件、来源、线索、指标，并可为本应用里的具体 Agent 登记资源作用域。"
-          >
-            <p className="muted">
-              已登记资源 {resources.length} 条 · 工作流 Agent {appAgentIds.length} 个
-            </p>
-            <Link className="button-link" to={appSectionPath(projectId, "resources")}>
-              配置资源
-            </Link>
-          </SectionCard>
-          <SectionCard title="模型运行输出" description="启动 Run、查看每个 Agent 的步骤状态、输出目录、README 与 findings。">
-            <p className="muted">
-              当前 Run：{activeRun ? `${activeRun.id} · ${activeRun.status}` : "暂无"}
-            </p>
-            <Link className="button-link" to={appSectionPath(projectId, "outputs")}>
-              查看输出
-            </Link>
-          </SectionCard>
-          <SectionCard title="本应用历史 Run" description="按 session 与 attempt 查看本应用历史执行记录。">
-            <p className="muted">历史 Run {runs.length} 条 · Session {sessions.length} 个</p>
-            <Link className="button-link" to={appSectionPath(projectId, "runs")}>
-              查看历史
-            </Link>
-          </SectionCard>
-        </div>
-      ) : null}
-      {section === "resources" ? (
-      <div className="page-stack">
-        <div className="grid two">
-          <SectionCard
-            title="应用资源管理"
-            description="上传文件材料、配置可信/屏蔽来源、竞品、文件引用（手动 ID）、线索与指标等。启动 Run 时会并入 company_config 供 Agent 使用。"
-          >
-            <ProjectResourcesPanel projectId={projectId} resources={resources} onRefresh={() => refresh()} />
-          </SectionCard>
-          <SectionCard
-            title="本应用 Agent 资源作用域"
-            description="用资源类型「Agent 资源作用域」为具体 Agent 填 file_id 列表；运行时 file_reader 会按当前 Agent 过滤可见文件。"
-          >
-            <AgentResourceScopePanel agentIds={appAgentIds} resources={resources} />
-          </SectionCard>
-        </div>
-        <SectionCard
-          title="本应用 Agent 覆盖配置"
-          description="这里配置的是应用级 overlay：提示词、Skills、工具、资源配置和文件作用域只影响本应用未来新 run 的 snapshot，不会覆盖场景模板。"
-        >
-          <div className="agent-override-list">
-            {appAgentIds.map((agentId) => (
-              <AgentOverrideEditor
-                key={agentId}
-                projectId={projectId}
-                agentId={agentId}
-                override={agentOverrides.find((item) => item.agent_id === agentId)}
-                onRefresh={refresh}
-              />
-            ))}
-            {appAgentIds.length === 0 ? <p className="muted">当前应用尚未解析到工作流 Agent。</p> : null}
-          </div>
-        </SectionCard>
-      </div>
-      ) : null}
       {section === "runs" ? (
-        <SectionCard title="本应用历史 Run" description="这里只保留本应用的历史执行记录，模型输出文件请到「模型运行输出」页查看。">
+        <SectionCard title="本应用历史 Run" description="按 session 与 attempt 查看本应用历史执行记录；模型输出文件请到「运行」页查看。">
           <ul className="list">
             {runs.map((run) => (
               <li key={run.id}>
-                <span>{run.status}</span>
+                <span>{runStatusLabel(run.status)}</span>
                 <strong>{run.id}</strong>
                 <p className="muted">
                   session {run.session_id ?? "—"} · attempt {run.attempt_index ?? 1}
@@ -800,103 +446,155 @@ export function ProjectDetailPage({ section = "overview" }: { section?: ProjectD
             ))}
           </ul>
           {runs.length === 0 && !runStarting ? (
-            <p className="muted">尚无 Run。点击右上角启动后即可在此看到记录。</p>
+            <p className="muted">尚无 Run。在「运行」页启动后即可在此看到记录。</p>
           ) : null}
         </SectionCard>
       ) : null}
       {section === "outputs" ? (
-      <SectionCard title="Agent 输出目录" description="每个 Agent 完成后会生成输出文件夹，可在对应步骤下查看 README、findings 与资源索引。">
-          {activeRun?.status === "paused" ? (
-            <p className="notice">
-              已进入「分步门禁」暂停点：可先与<strong>最新完成步骤</strong>对应 Agent 在下方复核对话中沟通，确认后点击「继续下一步」拉起后续链路。
-            </p>
-          ) : null}
-          {activeRun?.status === "failed" ? (
-            <>
-              <p className="error">{runErr || "Run 失败"}</p>
+        <>
+          <div className="run-controls-panel hero-run-controls" aria-label="运行 diligence">
+            <div className="hero-run-controls__primary-row">
+              <div className="hero-run-controls__session-field">
+                <span id="run-session-caption" className="muted hero-run-controls__caption">
+                  当前 diligence session
+                </span>
+                <select
+                  aria-labelledby="run-session-caption"
+                  value={selectedSessionId}
+                  onChange={(event) => setSelectedSessionId(event.target.value)}
+                  disabled={runStarting || sessions.length === 0}
+                >
+                  {sessions.length === 0 ? (
+                    <option value="">暂无 session（请先新起）</option>
+                  ) : null}
+                  {sessions.map((session) => (
+                    <option key={session.id} value={session.id}>
+                      {session.id} · {session.runs.length} 次
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="hero-run-controls__buttons">
+                <button type="button" onClick={() => void handleStartRun("new")} disabled={runStarting}>
+                  {runStarting ? "启动中…" : "新 Session 跑一趟"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleStartRun("continue")}
+                  disabled={runStarting || !selectedSessionId}
+                >
+                  本 Session 再跑一趟
+                </button>
+              </div>
+            </div>
+            <label className="hero-run-controls__stepgate">
+              <input
+                type="checkbox"
+                checked={stepGatedMode}
+                onChange={(e) => setStepGatedMode(e.target.checked)}
+                disabled={runInFlight}
+              />
+              <span className="hero-run-controls__stepgate-copy">
+                <span className="hero-run-controls__stepgate-title">每步完成后暂停</span>
+                <span className="hero-run-controls__stepgate-desc muted">
+                  便于与 Agent 对话、核对结果后再继续下一步
+                </span>
+              </span>
+            </label>
+          </div>
+          <SectionCard title="Agent 输出目录" description="每个 Agent 完成后会生成输出文件夹，可在对应步骤下查看 README、findings 与资源索引。">
+            {activeRun?.status === "paused" ? (
               <p className="notice">
-                每次调用都会走完整 Agent 链；「本 Session 再跑」会把上一轮 attempt 的摘要注入首个 Agent 的提示词。若需全新上下文，请用「新 Session
-                跑一趟」。修好 Agent 服务后也可使用 Run 级重试。
+                已进入「分步门禁」暂停点：可先与<strong>最新完成步骤</strong>对应 Agent 在下方复核对话中沟通，确认后点击「继续下一步」拉起后续链路。
               </p>
-            </>
-          ) : null}
-          {orderedSteps.length ? (
-            <ol className="timeline">
-              {orderedSteps.map((step) => (
-                <li key={step.id}>
-                  <span className={`status ${step.status}`}>{step.status}</span>
-                  <strong>{step.agent}</strong>
-                  <p>{step.summary || (step.status === "running" ? "执行中…" : "")}</p>
-                  {stepOutputDir(step) ? (
-                    <AgentOutputFolderPanel
-                      folder={outputFoldersByStep[step.id]}
-                      loading={Boolean(loadingOutputStepIds[step.id])}
-                      fallbackPath={stepOutputDir(step)}
-                      selectedFileId={selectedOutputFileByStep[step.id]}
-                      onSelectFile={(fileId) =>
-                        setSelectedOutputFileByStep((prev) => ({
-                          ...prev,
-                          [step.id]: fileId,
-                        }))
-                      }
-                    />
-                  ) : step.status === "completed" ? (
-                    <p className="muted">输出文件夹正在生成或等待下一次轮询刷新。</p>
-                  ) : null}
-                  {pausedReviewStep?.id === step.id && activeRun?.id ? (
-                    <div className="step-review-panel">
-                      <h4>本步复核对话</h4>
-                      <p className="muted">复核对象：{step.agent} 的当前输出目录与所选文件。</p>
-                      <div className="review-chat-turns">
-                        {(reviewChatByStep[step.id] ?? []).map((t) => (
-                          <div key={t.id} className={`review-chat-msg ${t.role}`}>
-                            <span className="muted">{t.role}</span>
-                            <p>{t.content}</p>
-                          </div>
-                        ))}
+            ) : null}
+            {activeRun?.status === "failed" ? (
+              <>
+                <p className="error">{runErr || "Run 失败"}</p>
+                <p className="notice">
+                  每次调用都会走完整 Agent 链；「本 Session 再跑」会把上一轮 attempt 的摘要注入首个 Agent 的提示词。若需全新上下文，请用「新 Session
+                  跑一趟」。修好 Agent 服务后也可使用 Run 级重试。
+                </p>
+              </>
+            ) : null}
+            {orderedSteps.length ? (
+              <ol className="timeline">
+                {orderedSteps.map((step) => (
+                  <li key={step.id}>
+                    <span className={`status ${step.status}`}>{runStatusLabel(step.status)}</span>
+                    <strong>{step.agent}</strong>
+                    <p>{step.summary || (step.status === "running" ? "执行中…" : "")}</p>
+                    {stepOutputDir(step) ? (
+                      <AgentOutputFolderPanel
+                        folder={outputFoldersByStep[step.id]}
+                        loading={Boolean(loadingOutputStepIds[step.id])}
+                        fallbackPath={stepOutputDir(step)}
+                        selectedFileId={selectedOutputFileByStep[step.id]}
+                        onSelectFile={(fileId) =>
+                          setSelectedOutputFileByStep((prev) => ({
+                            ...prev,
+                            [step.id]: fileId,
+                          }))
+                        }
+                      />
+                    ) : step.status === "completed" ? (
+                      <p className="muted">输出文件夹正在生成或等待下一次轮询刷新。</p>
+                    ) : null}
+                    {pausedReviewStep?.id === step.id && activeRun?.id ? (
+                      <div className="step-review-panel">
+                        <h4>本步复核对话</h4>
+                        <p className="muted">复核对象：{step.agent} 的当前输出目录与所选文件。</p>
+                        <div className="review-chat-turns">
+                          {(reviewChatByStep[step.id] ?? []).map((t) => (
+                            <div key={t.id} className={`review-chat-msg ${t.role}`}>
+                              <span className="muted">{t.role}</span>
+                              <p>{t.content}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="inline-form" style={{ marginTop: "0.75rem", flexWrap: "wrap", alignItems: "flex-start" }}>
+                          <textarea
+                            rows={3}
+                            style={{ minWidth: "min(100%, 28rem)", flex: 1 }}
+                            placeholder="校验这个输出目录里的内容、纠错或追问…"
+                            value={reviewChatDraft}
+                            onChange={(e) => setReviewChatDraft(e.target.value)}
+                            disabled={reviewChatSending}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void handleSendReviewChat()}
+                            disabled={reviewChatSending || !reviewChatDraft.trim()}
+                          >
+                            {reviewChatSending ? "发送中…" : "发送至本步 Agent"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleContinueStepGated()}
+                            disabled={continueLoading}
+                          >
+                            {continueLoading ? "继续执行中…" : "校验完成，继续下一步"}
+                          </button>
+                        </div>
                       </div>
-                      <div className="inline-form" style={{ marginTop: "0.75rem", flexWrap: "wrap", alignItems: "flex-start" }}>
-                        <textarea
-                          rows={3}
-                          style={{ minWidth: "min(100%, 28rem)", flex: 1 }}
-                          placeholder="校验这个输出目录里的内容、纠错或追问…"
-                          value={reviewChatDraft}
-                          onChange={(e) => setReviewChatDraft(e.target.value)}
-                          disabled={reviewChatSending}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => void handleSendReviewChat()}
-                          disabled={reviewChatSending || !reviewChatDraft.trim()}
-                        >
-                          {reviewChatSending ? "发送中…" : "发送至本步 Agent"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleContinueStepGated()}
-                          disabled={continueLoading}
-                        >
-                          {continueLoading ? "继续执行中…" : "校验完成，继续下一步"}
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
-                </li>
-              ))}
-            </ol>
-          ) : runInFlight ? (
-            <p className="muted">
-              后台正在执行尽调链路。若 Agent 服务配置了 <code>PLATFORM_CALLBACK_BASE_URL</code> 指向本后端，步骤会逐步出现；否则需待全流程结束。
-            </p>
-          ) : (
-            <p className="muted">启动 run 后展示各 agent 状态。</p>
-          )}
-          {runInFlight && orderedSteps.length ? (
-            <p className="muted" style={{ marginTop: "0.75rem" }}>
-              流程进行中；步骤与输出目录会随回调或轮询持续刷新。
-            </p>
-          ) : null}
-      </SectionCard>
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
+            ) : runInFlight ? (
+              <p className="muted">
+                后台正在执行尽调链路。若 Agent 服务配置了 <code>PLATFORM_CALLBACK_BASE_URL</code> 指向本后端，步骤会逐步出现；否则需待全流程结束。
+              </p>
+            ) : (
+              <p className="muted">启动 run 后展示各 agent 状态。</p>
+            )}
+            {runInFlight && orderedSteps.length ? (
+              <p className="muted" style={{ marginTop: "0.75rem" }}>
+                流程进行中；步骤与输出目录会随回调或轮询持续刷新。
+              </p>
+            ) : null}
+          </SectionCard>
+        </>
       ) : null}
     </div>
   );

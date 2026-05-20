@@ -29,6 +29,26 @@ export const API_BASE_URL =
       ? "/api"
       : "http://127.0.0.1:8010";
 
+function uploadErrorMessage(detail: string, fallback: string): string {
+  try {
+    const parsed = JSON.parse(detail) as { detail?: unknown };
+    const msg = typeof parsed.detail === "string" ? parsed.detail : "";
+    if (msg === "empty file" || msg.includes("文件为空")) {
+      return "文件为空（0 字节），请选择有内容的文件后再上传。";
+    }
+    if (msg.includes("exceeds maximum")) {
+      return "文件超过大小上限，请压缩或拆分后重试。";
+    }
+    if (msg) return msg;
+  } catch {
+    /* plain text body */
+  }
+  if (detail.includes("empty file")) {
+    return "文件为空（0 字节），请选择有内容的文件后再上传。";
+  }
+  return detail || fallback;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = localStorage.getItem("dd_access_token");
   let response: Response;
@@ -81,12 +101,72 @@ export function listProjects(): Promise<Project[]> {
 export function createProject(payload: {
   name: string;
   company_config: CompanyConfig;
+  application_id: string;
+  version?: number;
   initial_resources?: Array<{ type: string; value: string; metadata_json?: Record<string, unknown> }>;
 }): Promise<Project> {
   return request<Project>("/projects", {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function getProject(projectId: string): Promise<Project> {
+  return request<Project>(`/projects/${encodeURIComponent(projectId)}`);
+}
+
+export function updateProject(
+  projectId: string,
+  payload: Partial<{ name: string; company_config: CompanyConfig; application_id: string }>,
+): Promise<Project> {
+  return request<Project>(`/projects/${encodeURIComponent(projectId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function cloneProjectVersion(projectId: string): Promise<Project> {
+  return request<Project>(`/projects/${encodeURIComponent(projectId)}/versions`, { method: "POST" });
+}
+
+export function listProjectResourceConfigs(projectId: string): Promise<ResourceConfig[]> {
+  return request<ResourceConfig[]>(`/projects/${encodeURIComponent(projectId)}/resource-configs`);
+}
+
+export function createProjectResourceConfig(
+  projectId: string,
+  payload: Partial<ResourceConfig> & { name: string; type: string },
+): Promise<ResourceConfig> {
+  return request<ResourceConfig>(`/projects/${encodeURIComponent(projectId)}/resource-configs`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateProjectResourceConfig(
+  projectId: string,
+  resourceId: string,
+  payload: Partial<ResourceConfig>,
+): Promise<ResourceConfig> {
+  return request<ResourceConfig>(`/projects/${encodeURIComponent(projectId)}/resource-configs/${encodeURIComponent(resourceId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteProjectResourceConfig(projectId: string, resourceId: string): Promise<void> {
+  const token = localStorage.getItem("dd_access_token");
+  const response = await fetch(
+    `${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/resource-configs/${encodeURIComponent(resourceId)}`,
+    {
+      method: "DELETE",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `删除失败（${response.status}）`);
+  }
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
@@ -200,7 +280,7 @@ export async function uploadProjectFile(projectId: string, file: File): Promise<
   }
   if (!response.ok) {
     const detail = await response.text();
-    throw new Error(detail || `上传失败（${response.status}）`);
+    throw new Error(uploadErrorMessage(detail, `上传失败（${response.status}）`));
   }
   return response.json() as Promise<Resource>;
 }
@@ -231,7 +311,7 @@ export async function uploadLibraryFile(file: File): Promise<LibraryFile> {
   }
   if (!response.ok) {
     const detail = await response.text();
-    throw new Error(detail || `上传失败（${response.status}）`);
+    throw new Error(uploadErrorMessage(detail, `上传失败（${response.status}）`));
   }
   return response.json() as Promise<LibraryFile>;
 }
@@ -411,12 +491,32 @@ export function createAgentTemplate(payload: Partial<AgentTemplate>): Promise<Ag
   return request<AgentTemplate>("/agent-templates", { method: "POST", body: JSON.stringify(payload) });
 }
 
+export function updateAgentTemplate(
+  agentId: string,
+  payload: Partial<Omit<AgentTemplate, "id" | "created_at" | "updated_at">>,
+): Promise<AgentTemplate> {
+  return request<AgentTemplate>(`/agent-templates/${encodeURIComponent(agentId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function listWorkflowTemplates(): Promise<WorkflowTemplate[]> {
   return request<WorkflowTemplate[]>("/workflow-templates");
 }
 
 export function createWorkflowTemplate(payload: Partial<WorkflowTemplate>): Promise<WorkflowTemplate> {
   return request<WorkflowTemplate>("/workflow-templates", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function updateWorkflowTemplate(
+  workflowId: string,
+  payload: Partial<Omit<WorkflowTemplate, "id">>,
+): Promise<WorkflowTemplate> {
+  return request<WorkflowTemplate>(`/workflow-templates/${encodeURIComponent(workflowId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function publishWorkflowTemplate(workflowId: string): Promise<WorkflowTemplate> {

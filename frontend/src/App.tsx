@@ -71,10 +71,11 @@ export function App() {
                   <Route path="/resource-configs" element={<ResourceConfigsPage />} />
                   <Route path="/projects/new" element={<NewProjectPage />} />
                   <Route path="/projects" element={<ProjectsPage />} />
-                  <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
-                  <Route path="/projects/:projectId/resources" element={<ProjectDetailPage section="resources" />} />
+                  <Route path="/projects/:projectId" element={<Navigate to="outputs" replace />} />
                   <Route path="/projects/:projectId/outputs" element={<ProjectDetailPage section="outputs" />} />
                   <Route path="/projects/:projectId/runs" element={<ProjectDetailPage section="runs" />} />
+                  <Route path="/projects/:projectId/config" element={<Navigate to="../outputs" replace relative="path" />} />
+                  <Route path="/projects/:projectId/resources" element={<Navigate to="../outputs" replace relative="path" />} />
                   <Route path="/runs" element={<RunHistoryPage />} />
                 </Routes>
               </AppLayout>

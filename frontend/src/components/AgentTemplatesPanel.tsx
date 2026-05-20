@@ -7,6 +7,7 @@ import {
   listResourceConfigs,
   listSkills,
   listToolConfigs,
+  updateAgentTemplate,
 } from "../api/client";
 import {
   KNOWN_PLATFORM_RESOURCE_TYPES,
@@ -243,6 +244,7 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
   const [libraryFiles, setLibraryFiles] = useState<LibraryFile[]>([]);
   const [libraryLoadError, setLibraryLoadError] = useState("");
   const [platformFileSel, setPlatformFileSel] = useState<Set<string>>(new Set());
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
 
   const toggleSkill = useCallback((id: string) => {
     setSkillSel((prev) => {
@@ -293,6 +295,46 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
     setResources(resourceItems);
   }
 
+  function resetAgentForm() {
+    setEditingAgentId(null);
+    setForm({
+      id: "",
+      name: "",
+      role: "",
+      prompt: "",
+      react_config: defaultReActConfig,
+    });
+    setSkillSel(new Set());
+    setToolSel(new Set());
+    setResourceSel(new Set());
+    setSkillFilter("");
+    setToolFilter("");
+    setResourceFilter("");
+    setResourceKindTab("all");
+    setPlatformFileSel(new Set());
+  }
+
+  function beginEditAgent(agent: AgentTemplate) {
+    setEditingAgentId(agent.id);
+    setForm({
+      id: agent.id,
+      name: agent.name,
+      role: agent.role,
+      prompt: agent.prompt,
+      react_config: JSON.stringify(agent.react_config ?? {}, null, 2),
+    });
+    setSkillSel(new Set(agent.skill_package_ids ?? []));
+    const toolIds = agent.tool_ids ?? agent.skill_ids ?? [];
+    setToolSel(new Set(toolIds));
+    setResourceSel(new Set(agent.resource_ids ?? []));
+    setPlatformFileSel(new Set(agent.platform_upload_file_ids ?? []));
+    setSkillFilter("");
+    setToolFilter("");
+    setResourceFilter("");
+    setResourceKindTab("all");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   useEffect(() => {
     refresh().catch((err: unknown) => setError(String(err)));
   }, []);
@@ -315,7 +357,7 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
     [resourceSel, resources],
   );
 
-  /** 仅在「全部 / 文件库」标签下展示共享文件区：避免在向量库等标签下仍因已选文件库条目而误显文件列表 */
+  /** 仅在「全部 / 文件库」标签下展示共享文件区：避免在其他资源类型标签下仍因已选文件库条目而误显文件列表 */
   const showPlatformFilesPanel =
     fileStoreConnectorSelected && (resourceKindTab === "file_store" || resourceKindTab === "all");
 
@@ -422,8 +464,7 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
     setError("");
     try {
       const toolIds = Array.from(toolSel);
-      await createAgentTemplate({
-        id: form.id || undefined,
+      const payload = {
         name: form.name,
         role: form.role,
         prompt: form.prompt,
@@ -433,23 +474,17 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
         resource_ids: Array.from(resourceSel),
         platform_upload_file_ids: fileStoreConnectorSelected ? Array.from(platformFileSel) : [],
         react_config: JSON.parse(form.react_config) as Record<string, unknown>,
-        enabled: true,
-      });
-      setForm({
-        id: "",
-        name: "",
-        role: "",
-        prompt: "",
-        react_config: defaultReActConfig,
-      });
-      setSkillSel(new Set());
-      setToolSel(new Set());
-      setResourceSel(new Set());
-      setSkillFilter("");
-      setToolFilter("");
-      setResourceFilter("");
-      setResourceKindTab("all");
-      setPlatformFileSel(new Set());
+      };
+      if (editingAgentId) {
+        await updateAgentTemplate(editingAgentId, payload);
+      } else {
+        await createAgentTemplate({
+          id: form.id || undefined,
+          ...payload,
+          enabled: true,
+        });
+      }
+      resetAgentForm();
       await refresh();
       onAgentsChanged?.();
     } catch (err) {
@@ -462,16 +497,35 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
       {error ? <div className="error">{error}</div> : null}
       <div className="agent-templates-stack">
         <SectionCard
-          title="新增 Agent 模板"
-          description="勾选 Skills / 工具 / 资源即可绑定；禁用的条目来自后台配置，无法在模板中启用。"
+          title={editingAgentId ? "编辑 Agent 模板" : "新增 Agent 模板"}
+          description={
+            editingAgentId
+              ? `正在编辑 ${editingAgentId}；保存后更新模板，已引用该 Agent 的流程需重新发布才会生效。`
+              : "勾选 Skills / 工具 / 资源即可绑定；禁用的条目来自后台配置，无法在模板中启用。"
+          }
         >
+          {editingAgentId ? (
+            <div className="resource-edit-banner">
+              <span>
+                编辑模式 · <code>{editingAgentId}</code>
+              </span>
+              <button type="button" className="ghost-button" onClick={() => resetAgentForm()}>
+                取消编辑
+              </button>
+            </div>
+          ) : null}
           <form className="form agent-template-editor" onSubmit={handleSubmit}>
             <div className="agent-template-editor__basics">
               <h4 className="agent-template-editor__section-label">基本信息</h4>
               <div className="agent-template-editor__basics-grid">
                 <label>
                   ID（可选）
-                  <input value={form.id} onChange={(event) => setForm({ ...form, id: event.target.value })} placeholder="留空则自动生成" />
+                  <input
+                    value={form.id}
+                    disabled={Boolean(editingAgentId)}
+                    onChange={(event) => setForm({ ...form, id: event.target.value })}
+                    placeholder="留空则自动生成"
+                  />
                 </label>
                 <label>
                   名称 <span className="required-dot">*</span>
@@ -573,7 +627,7 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
             </label>
 
             <button type="submit" className="agent-template-submit">
-              保存 Agent 模板
+              {editingAgentId ? "保存修改" : "保存 Agent 模板"}
             </button>
           </form>
         </SectionCard>
@@ -607,6 +661,11 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
                   <p className="agent-catalog-react muted">
                     ReAct · max_iters={(agent.react_config?.max_iters as number | undefined) ?? 6}
                   </p>
+                  <div className="row-actions">
+                    <button type="button" className="secondary-button" onClick={() => beginEditAgent(agent)}>
+                      编辑
+                    </button>
+                  </div>
                 </li>
               );
             })}

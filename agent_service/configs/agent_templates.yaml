@@ -215,7 +215,6 @@ agents:
   resource_ids:
   - resource_public_web
   - resource_uploaded_files
-  - resource_vector_store
   react_config:
     max_iters: 6
     parallel_tool_calls: false
@@ -269,7 +268,6 @@ agents:
   - vector_retrieval
   resource_ids:
   - resource_public_web
-  - resource_vector_store
   react_config:
     max_iters: 6
     parallel_tool_calls: false
@@ -323,7 +321,6 @@ agents:
   - vector_retrieval
   resource_ids:
   - resource_public_web
-  - resource_vector_store
   react_config:
     max_iters: 6
     parallel_tool_calls: false

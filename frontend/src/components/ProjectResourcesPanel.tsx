@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useMemo, useState } from "react";
 
 import { createResource, deleteResource, uploadProjectFile } from "../api/client";
+import { IdMultiPickerSection, IdSelectField, type PickerItem } from "./IdPickerSection";
 import {
   PROJECT_RESOURCE_TYPE_LABELS,
   type ParsedProjectResource,
@@ -16,11 +17,28 @@ export { PROJECT_RESOURCE_TYPE_LABELS } from "../domain/projectResources";
 
 export type DraftResourceRow = ParsedProjectResource & { tempId: string };
 
+export type ProjectResourcePickerOptions = {
+  agentOptions?: PickerItem[];
+  fileOptions?: PickerItem[];
+};
+
+function idsFromField(value: string): string[] {
+  return value
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function fieldFromIds(ids: string[]): string {
+  return ids.join("\n");
+}
+
 type PersistedProps = {
   variant?: "persisted";
   projectId: string;
   resources: Resource[];
   onRefresh: () => Promise<void> | void;
+  pickerOptions?: ProjectResourcePickerOptions;
 };
 
 type DraftProps = {
@@ -28,6 +46,7 @@ type DraftProps = {
   draftRows: DraftResourceRow[];
   onDraftRowsChange: (rows: DraftResourceRow[]) => void;
   disabled?: boolean;
+  pickerOptions?: ProjectResourcePickerOptions;
 };
 
 export type ProjectResourcesPanelProps = PersistedProps | DraftProps;
@@ -52,6 +71,8 @@ export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
   }, []);
 
   const formDisabled = isDraft ? Boolean(props.disabled) : busy;
+  const agentOptions = props.pickerOptions?.agentOptions ?? [];
+  const fileOptions = props.pickerOptions?.fileOptions ?? [];
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -262,15 +283,21 @@ export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
 
         {rtype === "file_reference" ? (
           <>
-            <label>
-              file_id
-              <input
+            {fileOptions.length ? (
+              <IdSelectField
+                label="file_id"
+                items={fileOptions}
                 value={fields.value ?? ""}
-                onChange={(e) => setFields({ ...fields, value: e.target.value })}
-                placeholder="file_xxx"
+                onChange={(fileId) => setFields({ ...fields, value: fileId })}
                 disabled={formDisabled}
+                placeholder="请选择已上传文件…"
+                hint="也可在上方「上传到文件库」后再选择；平台共享文件同样会出现在列表中。"
               />
-            </label>
+            ) : (
+              <p className="muted" style={{ fontSize: "13px" }}>
+                暂无可选 file_id。请先在上方上传应用文件，或在平台资源配置中登记共享文件库。
+              </p>
+            )}
             <label>
               标签（可选）
               <input
@@ -491,25 +518,36 @@ export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
 
         {rtype === "agent_resource_scope" ? (
           <>
-            <label>
-              Agent ID
-              <input
+            {agentOptions.length ? (
+              <IdSelectField
+                label="Agent ID"
+                items={agentOptions}
                 value={fields.agent_id ?? ""}
-                onChange={(e) => setFields({ ...fields, agent_id: e.target.value })}
-                placeholder="例如 CompanyProfileAgent 或 agent_tpl_xxx"
+                onChange={(agentId) => setFields({ ...fields, agent_id: agentId })}
                 disabled={formDisabled}
+                placeholder="请选择工作流 Agent…"
               />
-            </label>
-            <label>
-              可见 file_id（逗号或换行分隔）
-              <textarea
-                rows={3}
-                value={fields.uploaded_file_ids ?? ""}
-                onChange={(e) => setFields({ ...fields, uploaded_file_ids: e.target.value })}
-                placeholder="file_xxx&#10;file_yyy"
+            ) : (
+              <p className="muted" style={{ fontSize: "13px" }}>
+                当前应用尚未解析到工作流 Agent，无法配置作用域。
+              </p>
+            )}
+            {fileOptions.length ? (
+              <IdMultiPickerSection
+                title="可见 file_id"
+                description="勾选本 Agent 在 Run 中可访问的上传文件；未选则继承默认可见范围。"
+                items={fileOptions}
+                selected={idsFromField(fields.uploaded_file_ids ?? "")}
+                onChange={(ids) => setFields({ ...fields, uploaded_file_ids: fieldFromIds(ids) })}
                 disabled={formDisabled}
+                emptyText="暂无可选 file_id"
+                compact
               />
-            </label>
+            ) : (
+              <p className="muted" style={{ fontSize: "13px" }}>
+                暂无可选 file_id。请先上传应用文件或配置平台共享文件库。
+              </p>
+            )}
             <label>
               备注
               <input

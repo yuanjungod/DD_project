@@ -3,11 +3,22 @@ from __future__ import annotations
 from fastapi import HTTPException
 
 from app.services.platform_resource_catalog import load_resource_configs_by_ids
+from app.services.project_resource_catalog import load_project_resource_configs_by_ids
 from app.services.workflow_graph import resolve_graph_agent_order
 from app.services.project_agent_overrides_store import project_agent_override_records
 from app.services.skill_catalog import load_skill_packages_by_ids
 from app.services.tool_catalog import load_tool_configs_by_ids
 from app.services.workflow_template_files import get_published_workflow_bundle, resolve_agents_for_snapshot
+
+
+def _load_snapshot_resources(resource_ids: list[str], project_id: str | None) -> list:
+    by_id: dict[str, object] = {}
+    for row in load_resource_configs_by_ids(resource_ids):
+        by_id[row.id] = row
+    if project_id:
+        for row in load_project_resource_configs_by_ids(project_id, resource_ids):
+            by_id[row.id] = row
+    return [by_id[k] for k in sorted(by_id.keys())]
 
 
 def build_workflow_snapshot(company_config: dict, *, project_id: str | None = None) -> dict:
@@ -28,7 +39,7 @@ def build_workflow_snapshot(company_config: dict, *, project_id: str | None = No
     resource_ids = sorted({resource_id for agent in agents for resource_id in (agent.get("resource_ids") or [])})
     skill_packages = load_skill_packages_by_ids(skill_package_ids)
     tools = load_tool_configs_by_ids(tool_ids)
-    disk_resources = load_resource_configs_by_ids(resource_ids)
+    disk_resources = _load_snapshot_resources(resource_ids, project_id)
 
     return {
         "workflow": {

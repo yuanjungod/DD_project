@@ -1,17 +1,34 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+import copy
+import shutil
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.auth import accessible_project_ids, ensure_project_access, ensure_project_write_access, require_roles
 from app.core.database import get_db
 from app.models.entities import Project, ProjectAccess, User
 from app.schemas import ProjectCreate, ProjectRead, ProjectUpdate
+from app.services.company_identity import company_key_from_name, normalize_application_id
+from app.services.project_agent_overrides_store import project_agent_override_records
+from app.services.project_resource_catalog import copy_project_resource_configs_tree
 from app.services.project_resources_store import append_resources as append_project_resources_fs
 from app.services.project_resources_store import delete_project_resources_tree
+from app.services.fs_layout import project_agent_overrides_manifest_path, project_tree_dir
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+def _next_version(db: Session, company_key: str, application_id: str) -> int:
+    current = (
+        db.query(func.max(Project.version))
+        .filter(Project.company_key == company_key, Project.application_id == application_id)
+        .scalar()
+    )
+    return int(current or 0) + 1
 
 
 @router.post("", response_model=ProjectRead)
@@ -20,7 +37,36 @@ def create_project(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> Project:
-    project = Project(name=payload.name, company_config=payload.company_config.model_dump())
+    company_name = payload.company_config.target_company.name
+    company_key = company_key_from_name(company_name)
+    try:
+        application_id = normalize_application_id(payload.application_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    version = payload.version if payload.version and payload.version > 0 else _next_version(db, company_key, application_id)
+
+    exists = (
+        db.query(Project.id)
+        .filter(
+            Project.company_key == company_key,
+            Project.application_id == application_id,
+            Project.version == version,
+        )
+        .first()
+    )
+    if exists:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Application already exists: {company_name} · {application_id} · v{version}",
+        )
+
+    project = Project(
+        name=payload.name,
+        company_key=company_key,
+        application_id=application_id,
+        version=version,
+        company_config=payload.company_config.model_dump(),
+    )
     db.add(project)
     db.flush()
     db.add(ProjectAccess(project_id=project.id, user_id=user.id, access_role="owner"))
@@ -63,9 +109,48 @@ def update_project(
         project.name = payload.name
     if payload.company_config is not None:
         project.company_config = payload.company_config.model_dump()
+        project.company_key = company_key_from_name(payload.company_config.target_company.name)
+    if payload.application_id is not None:
+        try:
+            project.application_id = normalize_application_id(payload.application_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     db.commit()
     db.refresh(project)
     return project
+
+
+@router.post("/{project_id}/versions", response_model=ProjectRead)
+def clone_project_version(
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("admin", "analyst")),
+) -> Project:
+    source = ensure_project_write_access(db, user, project_id)
+    version = _next_version(db, source.company_key, source.application_id)
+    company_name = (source.company_config or {}).get("target_company", {}).get("name", source.name)
+    clone = Project(
+        name=f"{company_name} · {source.application_id} · v{version}",
+        company_key=source.company_key,
+        application_id=source.application_id,
+        version=version,
+        company_config=copy.deepcopy(source.company_config),
+    )
+    db.add(clone)
+    db.flush()
+    db.add(ProjectAccess(project_id=clone.id, user_id=user.id, access_role="owner"))
+    db.commit()
+    db.refresh(clone)
+
+    copy_project_resource_configs_tree(source.id, clone.id)
+    src_uploads = project_tree_dir(source.id) / "uploads"
+    dst_uploads = project_tree_dir(clone.id) / "uploads"
+    if src_uploads.is_dir():
+        shutil.copytree(src_uploads, dst_uploads, dirs_exist_ok=True)
+    src_overrides = project_agent_overrides_manifest_path(source.id)
+    if src_overrides.is_file():
+        shutil.copy2(src_overrides, project_agent_overrides_manifest_path(clone.id))
+    return clone
 
 
 @router.delete("/{project_id}", status_code=204)

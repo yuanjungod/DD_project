@@ -49,17 +49,23 @@ class CompanyConfig(BaseModel):
 class ProjectCreate(BaseModel):
     name: str
     company_config: CompanyConfig
+    application_id: str
+    version: int = 1
     initial_resources: list["ResourceCreate"] = Field(default_factory=list)
 
 
 class ProjectUpdate(BaseModel):
     name: str | None = None
     company_config: CompanyConfig | None = None
+    application_id: str | None = None
 
 
 class ProjectRead(BaseModel):
     id: str
     name: str
+    company_key: str
+    application_id: str
+    version: int
     company_config: dict[str, Any]
     created_at: datetime
     updated_at: datetime

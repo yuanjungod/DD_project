@@ -30,6 +30,9 @@ export type CompanyConfig = {
 export type Project = {
   id: string;
   name: string;
+  company_key: string;
+  application_id: string;
+  version: number;
   company_config: CompanyConfig;
   created_at: string;
   updated_at: string;

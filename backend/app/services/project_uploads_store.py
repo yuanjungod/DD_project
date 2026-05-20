@@ -32,7 +32,7 @@ def save_project_upload(
     body: bytes,
 ) -> ResourceRead:
     if not body:
-        raise ValueError("empty file")
+        raise ValueError("文件为空，无法上传")
     if len(body) > UPLOAD_MAX_BYTES:
         raise ValueError(f"file exceeds maximum size ({UPLOAD_MAX_BYTES // (1024 * 1024)} MiB)")
 
