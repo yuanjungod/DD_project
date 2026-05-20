@@ -58,7 +58,7 @@ Skill packages are file-backed under **`agent_service/skills/<directory_name>/`*
 Reusable workflows are managed through the backend configuration catalog:
 
 - `SkillPackage` (file-backed): Anthropic/Cursor-style skill package with `SKILL.md`, directory name, editable package files, and optional bundled resources such as references, scripts, and assets. Skill packages live under `agent_service/skills/<directory_name>/`. Admins may **`POST /skills/import-zip`** (`multipart/form-data`: **`file`** = single-skill `.zip` with one top-level folder containing `SKILL.md`; optional **`directory_name`** form field overrides the disk directory slug).
-- `ToolConfig` (file-backed): executable capability such as search, web fetch, file reading, vector retrieval, or report storage; persisted under `agent_service/configs/tools.yaml`.
+- `ToolConfig` (file-backed): optional executable platform capabilities; persisted under `agent_service/configs/tools.yaml`.
 - `ResourceConfig`: data resource available to agents, such as public web, uploaded files, vector stores, databases, or external APIs.
 - `AgentTemplate` (file-backed): definitions are stored in **`agent_service/configs/agent_templates.yaml`**. Each record has `id`, `name`, `role`, inline `prompt`, `skill_package_ids`, `tool_ids`, `skill_ids`, `resource_ids`, `react_config`, and `enabled`. Agent-specific output requirements live in the agent prompt / bound Skills, not in a separate output contract field. Workflow graphs reference agents by **`id`**. The Admin UI uses **`GET/POST/PATCH /agent-templates`**; **`POST`** and **`PATCH`** write this catalog.
 - `WorkflowTemplate` (file-backed scenario): one scenario file per workflow under **`agent_service/configs/scenario_templates/{workflow_id}.yaml`**. Each file has a `workflow` object (ordered `graph`, `scenario`, `status`, `version`, etc.) and no embedded agent definitions. **`GET/POST/PATCH /workflow-templates`** and publish/clone operate on these files; only **`published`** templates are listed for non-admin callers and for run snapshots.
@@ -80,7 +80,7 @@ Only **`published`** workflow templates should be selected by downstream company
 }
 ```
 
-Each completed agent step also writes a filesystem handoff folder next to the run session JSON. The folder contains **`README.md`** (step metadata) and **`result.json`** (structured `AgentResult`). Downstream agents receive prior folder addresses in `previous_agent_output_folders` and can call the automatic `agent_output_reader` runtime tool with `folder_path` to read the prior README and structured result.
+Each completed agent step also writes a filesystem handoff folder next to the run session JSON. The folder contains **`README.md`** (step metadata) and **`result.json`** (structured `AgentResult`). Downstream agents receive prior folder paths in `previous_agent_output_folders`, with README text inlined in `previous_agent_handoff_readmes`; they read further files via AgentScope `view_text_file`.
 
 ## Report Section
 

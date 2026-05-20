@@ -12,10 +12,17 @@ from agentscope.agent import ReActAgent
 from agentscope.formatter import AnthropicChatFormatter
 from agentscope.message import Msg
 from agentscope.model import AnthropicChatModel
-from agentscope.tool import ToolResponse, Toolkit
+from agentscope.tool import (
+    ToolResponse,
+    Toolkit,
+    execute_python_code,
+    execute_shell_command,
+    view_text_file,
+)
 from pydantic import BaseModel
 
 from agent_service.api.schemas import AgentResult, CompanyConfig
+from agent_service.workflows.agent_outputs import build_previous_agent_handoff_context, load_handoff_readme
 from agent_service.workflows.config_loader import AgentDefinition
 
 
@@ -131,7 +138,12 @@ class AgentScopeReActRuntime:
                 # but they should not break deterministic local runs.
                 continue
 
+    def _register_agentscope_builtin_tools(self) -> None:
+        for tool_fn in (execute_shell_command, execute_python_code, view_text_file):
+            self.toolkit.register_tool_function(tool_fn, namesake_strategy="skip")
+
     def _register_tools(self) -> None:
+        self._register_agentscope_builtin_tools()
         for tool in self._tool_configs():
             tool_id = tool["id"]
             self.toolkit.register_tool_function(
@@ -187,25 +199,16 @@ class AgentScopeReActRuntime:
                 for result in previous_results
             ],
         }
-        output_folders = [
-            {
-                "agent": result.agent,
-                "output_dir": result.output_dir,
-                "readme_path": result.output_readme_path,
-            }
-            for result in previous_results
-            if result.output_dir
-        ]
-        if output_folders:
-            payload["previous_agent_output_folders"] = output_folders
+        payload.update(build_previous_agent_handoff_context(previous_results))
         if continuation_context:
             payload["continuation_from_previous_session_attempt"] = continuation_context
         return (
             "Run this due diligence agent with the configured AgentScope ReAct tools, "
             "skills, and resources. Use tools when you need additional source material. "
-            "Previous agents hand off their outputs as filesystem folders; use the "
-            "`agent_output_reader` tool with `folder_path` from previous_agent_output_folders "
-            "when you need the README or structured result from an earlier step. "
+            "Previous agents hand off filesystem folders in previous_agent_output_folders; "
+            "their README.md text is inlined in previous_agent_handoff_readmes. "
+            "Use view_text_file (or execute_shell_command / execute_python_code) on output_dir "
+            "paths when you need result.json or other files. "
             "When finished, call generate_response to mark this step complete.\n\n"
             f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
         )
@@ -259,20 +262,16 @@ class AgentScopeReActRuntime:
                 }
                 for result in previous_results
             ],
-            "previous_agent_output_folders": [
-                {
-                    "agent": result.agent,
-                    "output_dir": result.output_dir,
-                    "readme_path": result.output_readme_path,
-                }
-                for result in previous_results
-                if result.output_dir
-            ],
             "current_agent_step_summary": current_step_summary,
             "current_agent_output_dir": current_output_dir,
             "prior_turns": chat_messages,
             "user_message": user_message,
         }
+        payload.update(build_previous_agent_handoff_context(previous_results))
+        if current_output_dir:
+            current_readme = load_handoff_readme(str(Path(current_output_dir) / "README.md"))
+            if current_readme:
+                payload["current_agent_handoff_readme"] = current_readme
         reply = await agent.reply(
             Msg(
                 name="user",

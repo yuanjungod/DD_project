@@ -1,51 +1,5 @@
 # Tool config catalog — file-backed source of truth for the platform.
+# ReAct agents use AgentScope built-ins (view_text_file, execute_python_code, execute_shell_command).
+# Prior-agent handoff is passed via output_dir paths and inlined README.md in prompts.
 
-tools:
-  file_reader:
-    name: file_reader
-    description: Extract content from uploaded project files.
-    implementation: agent_service.tools.research.MockFileReaderTool
-    input_schema: {}
-    output_schema: {}
-    requires_api_key: false
-    enabled: true
-  report_store:
-    name: report_store
-    description: Persist report sections and final report payloads.
-    implementation: agent_service.tools.stores.ReportStoreTool
-    input_schema: {}
-    output_schema: {}
-    requires_api_key: false
-    enabled: true
-  search:
-    name: search
-    description: Search public and configured trusted sources.
-    implementation: agent_service.tools.research.MockSearchTool
-    input_schema: {}
-    output_schema: {}
-    requires_api_key: false
-    enabled: true
-  vector_retrieval:
-    name: vector_retrieval
-    description: Retrieve relevant chunks from indexed project resources.
-    implementation: agent_service.tools.research.MockVectorRetrievalTool
-    input_schema: {}
-    output_schema: {}
-    requires_api_key: false
-    enabled: true
-  web_fetch:
-    name: web_fetch
-    description: Fetch and normalize webpage content.
-    implementation: agent_service.tools.research.MockWebFetchTool
-    input_schema: {}
-    output_schema: {}
-    requires_api_key: false
-    enabled: true
-  agent_output_reader:
-    name: agent_output_reader
-    description: Read a previous agent handoff folder by folder_path and return README, result, and resource index.
-    implementation: agent_service.workflows.agent_outputs.read_agent_output_folder
-    input_schema: {}
-    output_schema: {}
-    requires_api_key: false
-    enabled: true
+tools: {}

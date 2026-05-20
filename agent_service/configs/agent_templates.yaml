@@ -101,13 +101,7 @@ agents:
   skill_package_ids:
   - skill_due_diligence_core
   tool_ids:
-  - search
-  - web_fetch
-  - file_reader
   skill_ids:
-  - search
-  - web_fetch
-  - file_reader
   resource_ids:
   - resource_public_web
   react_config:
@@ -153,11 +147,7 @@ agents:
   skill_package_ids:
   - skill_due_diligence_core
   tool_ids:
-  - search
-  - web_fetch
   skill_ids:
-  - search
-  - web_fetch
   resource_ids:
   - resource_public_web
   react_config:
@@ -204,13 +194,7 @@ agents:
   - skill_due_diligence_core
   - skill_financial_signal_analysis
   tool_ids:
-  - search
-  - file_reader
-  - vector_retrieval
   skill_ids:
-  - search
-  - file_reader
-  - vector_retrieval
   resource_ids:
   - resource_public_web
   react_config:
@@ -257,13 +241,7 @@ agents:
   - skill_due_diligence_core
   - skill_legal_risk_review
   tool_ids:
-  - search
-  - web_fetch
-  - vector_retrieval
   skill_ids:
-  - search
-  - web_fetch
-  - vector_retrieval
   resource_ids:
   - resource_public_web
   react_config:
@@ -310,13 +288,7 @@ agents:
   - skill_due_diligence_core
   - skill_market_competition_analysis
   tool_ids:
-  - search
-  - web_fetch
-  - vector_retrieval
   skill_ids:
-  - search
-  - web_fetch
-  - vector_retrieval
   resource_ids:
   - resource_public_web
   react_config:
@@ -364,9 +336,7 @@ agents:
   - skill_due_diligence_core
   - skill_report_writing
   tool_ids:
-  - report_store
   skill_ids:
-  - report_store
   resource_ids: []
   react_config:
     max_iters: 6

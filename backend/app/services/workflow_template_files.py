@@ -84,10 +84,8 @@ def _merge_react_config(existing: dict[str, Any]) -> dict[str, Any]:
 
 
 def _resource_ids_for_tools(tool_ids: list[str]) -> list[str]:
-    resource_ids: list[str] = []
-    if any(tool in tool_ids for tool in ("search", "web_fetch")):
-        resource_ids.append("resource_public_web")
-    return resource_ids
+    _ = tool_ids
+    return []
 
 
 def _normalize_agent_record(raw: dict[str, Any]) -> dict[str, Any]:

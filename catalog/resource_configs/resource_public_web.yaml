@@ -3,9 +3,6 @@ name: 公开网页与新闻源
 type: web
 description: 用于搜索和抓取公开网页、新闻、公告和官网信息。
 enabled: true
-connection_config:
-  allowed_tools:
-    - search
-    - web_fetch
+connection_config: {}
 created_at: "2026-01-01T00:00:00"
 updated_at: "2026-01-01T00:00:00"

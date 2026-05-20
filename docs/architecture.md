@@ -58,7 +58,7 @@ It defines:
 
 ### Source-Backed Outputs
 
-Agent outputs are persisted as per-step handoff folders. Material claims should be grounded in tool results or prior agent handoff folders (`output_dir` / `agent_output_reader`).
+Agent outputs are persisted as per-step handoff folders. Material claims should be grounded in tool results or prior agent handoff folders (`output_dir`, with README inlined in prompts).
 
 ## Services
 
@@ -90,7 +90,7 @@ flowchart TD
   Report --> Respond[HTTP_RunResult]
 ```
 
-The MVP ships with deterministic tool implementations so the platform can run without external API keys. Real search, document parsing, vector retrieval, and registry integrations can be added behind the same tool interfaces.
+ReAct agents use AgentScope built-in file and code execution tools; optional platform catalog tools extend the same `ToolRegistry` interface when listed in `tools.yaml`.
 
 ### Frontend
 

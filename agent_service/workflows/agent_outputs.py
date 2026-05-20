@@ -50,22 +50,46 @@ def write_agent_step_output_folder(
     return str(folder), str(readme_path)
 
 
-def read_agent_output_folder(folder_path: str) -> dict[str, Any]:
-    """Read a prior agent handoff folder by address for downstream agents."""
+_MAX_README_IN_PROMPT = 12_000
 
-    folder = Path(folder_path).expanduser().resolve()
-    marker = folder / _MARKER_FILE
-    if not folder.is_dir() or not marker.is_file():
-        return {"error": f"Invalid agent output folder: {folder_path}"}
-    readme = folder / "README.md"
-    result = folder / "result.json"
-    payload: dict[str, Any] = {
-        "folder_path": str(folder),
-        "readme_path": str(readme),
-        "readme": readme.read_text(encoding="utf-8") if readme.is_file() else "",
-    }
-    if result.is_file():
-        payload["result"] = json.loads(result.read_text(encoding="utf-8"))
+
+def load_handoff_readme(readme_path: str) -> str:
+    """Load README.md for prompt injection; empty string if missing."""
+    path = Path(readme_path).expanduser()
+    if path.is_dir():
+        path = path / "README.md"
+    elif path.name != "README.md":
+        path = path.parent / "README.md"
+    if not path.is_file():
+        return ""
+    text = path.read_text(encoding="utf-8")
+    if len(text) > _MAX_README_IN_PROMPT:
+        return text[:_MAX_README_IN_PROMPT] + "\n…(truncated)"
+    return text
+
+
+def build_previous_agent_handoff_context(previous_results: list[AgentResult]) -> dict[str, Any]:
+    """Output folder paths plus inlined README content for downstream agent prompts."""
+    folders: list[dict[str, str]] = []
+    readmes: list[dict[str, str]] = []
+    for result in previous_results:
+        if not result.output_dir:
+            continue
+        readme_path = result.output_readme_path or str(Path(result.output_dir) / "README.md")
+        entry = {
+            "agent": result.agent,
+            "output_dir": result.output_dir,
+            "readme_path": readme_path,
+        }
+        folders.append(entry)
+        readme = load_handoff_readme(readme_path)
+        if readme:
+            readmes.append({**entry, "readme": readme})
+    payload: dict[str, Any] = {}
+    if folders:
+        payload["previous_agent_output_folders"] = folders
+    if readmes:
+        payload["previous_agent_handoff_readmes"] = readmes
     return payload
 
 
@@ -88,7 +112,7 @@ def _readme_markdown(step_id: str, result: AgentResult) -> str:
         f"- Status: `{result.status}`",
         f"- Result JSON: `result.json`",
         "",
-        "Use `agent_output_reader` or read `result.json` for structured step metadata.",
+        "Use `view_text_file` on this folder (or `result.json`) for full structured metadata.",
         "",
     ]
     return "\n".join(lines)

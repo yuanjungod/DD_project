@@ -4,19 +4,7 @@ import importlib
 from typing import Any
 
 from agent_service.tools.base import ExecutableTool, ToolExecutionContext
-from agent_service.workflows.agent_outputs import read_agent_output_folder
 from agent_service.workflows.config_loader import AgentDefinition, load_tool_config
-
-# Built-in handoff tool when absent from snapshot / catalog.
-AGENT_OUTPUT_READER_CONFIG: dict[str, Any] = {
-    "id": "agent_output_reader",
-    "name": "agent_output_reader",
-    "description": (
-        "Read a previous agent handoff folder by folder_path and return README, result, and resource index."
-    ),
-    "implementation": "agent_service.workflows.agent_outputs.read_agent_output_folder",
-    "enabled": True,
-}
 
 
 def resolve_callable(implementation: str) -> Any:
@@ -32,7 +20,7 @@ class ToolRegistry:
 
     def __init__(self, tool_configs: list[dict[str, Any]]) -> None:
         self._configs: dict[str, dict[str, Any]] = {}
-        for raw in _ensure_handoff_tool(tool_configs):
+        for raw in tool_configs:
             tool_id = str(raw.get("id") or "").strip()
             if tool_id:
                 self._configs[tool_id] = raw
@@ -87,12 +75,6 @@ class ToolRegistry:
         if hasattr(target, "execute"):
             return target.execute(payload, context)
 
-        if callable(target):
-            folder_path = payload.get("folder_path") or payload.get("query") or ""
-            if target is read_agent_output_folder or getattr(target, "__name__", "") == "read_agent_output_folder":
-                return read_agent_output_folder(str(folder_path))
-            raise TypeError(f"Callable implementation {implementation} is not supported")
-
         raise TypeError(f"Unsupported implementation for {tool_id}: {implementation}")
 
     def _instance(self, implementation: str, cls: type) -> Any:
@@ -121,12 +103,6 @@ def _tool_configs_from_catalog(tool_ids: list[str]) -> list[dict[str, Any]]:
     return configs
 
 
-def _ensure_handoff_tool(configs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    if any(str(c.get("id")) == "agent_output_reader" for c in configs):
-        return configs
-    return [*configs, dict(AGENT_OUTPUT_READER_CONFIG)]
-
-
 def verify_catalog_implementations(tool_configs: list[dict[str, Any]] | None = None) -> list[str]:
     """Return error strings for tools whose implementation cannot be loaded."""
     configs = tool_configs if tool_configs is not None else _all_catalog_configs()
@@ -153,4 +129,4 @@ def _all_catalog_configs() -> list[dict[str, Any]]:
             "enabled": True,
         }
         for tool_id, entry in catalog.tools.items()
-    ] + [dict(AGENT_OUTPUT_READER_CONFIG)]
+    ]

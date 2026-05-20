@@ -42,7 +42,7 @@ The agent service writes a **session JSON** for each `POST /runs` (on by default
 Each agent template can bind:
 
 - `skill_package_ids`: `SKILL.md` packages that inject procedural guidance and bundled resources into the agent context.
-- `tool_ids`: executable tools the agent may call, such as search, web fetch, file reader, vector retrieval, and report store.
+- `tool_ids`: optional platform catalog tools from `tools.yaml`; every ReAct agent also gets AgentScope file/code/shell tools by default.
 - `resource_ids`: data resources exposed in the AgentScope ReAct system prompt.
 - `react_config`: AgentScope ReAct settings such as `max_iters` and `parallel_tool_calls`.
 
@@ -101,13 +101,4 @@ The **frontend workbench polls** the run (`GET /runs/{id}`) while status is `run
 
 ## Tool Groups
 
-| Tool Group | Purpose |
-| --- | --- |
-| `search` | Search public web and configured trusted sources. |
-| `web_fetch` | Fetch and normalize web page content. |
-| `file_reader` | Extract content from uploaded files. |
-| `vector_retrieval` | Retrieve relevant chunks from indexed project resources. |
-| `report_store` | Persist report sections and versions. |
-| `agent_output_reader` | Read a prior agent handoff folder by `folder_path`. |
-
-The MVP implements deterministic versions of these tools. Production integrations should keep the same tool names and return compatible schemas.
+Every ReAct agent receives AgentScope built-ins: `view_text_file`, `execute_python_code`, and `execute_shell_command`. Prior-agent handoff folders are listed in the run prompt (`previous_agent_output_folders`) with README text inlined (`previous_agent_handoff_readmes`). Add platform-specific catalog tools in `agent_service/configs/tools.yaml` when needed.

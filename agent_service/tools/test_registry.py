@@ -16,10 +16,9 @@ class ToolRegistryTests(unittest.TestCase):
         errors = verify_catalog_implementations(configs)
         self.assertEqual(errors, [], "\n".join(errors))
 
-    def test_registry_includes_handoff_when_missing_from_snapshot(self) -> None:
-        registry = ToolRegistry([{"id": "search", "implementation": "agent_service.tools.research.MockSearchTool"}])
-        self.assertIn("agent_output_reader", registry._configs)
-        self.assertIn("search", registry._configs)
+    def test_registry_empty_when_no_catalog_tools(self) -> None:
+        registry = ToolRegistry([])
+        self.assertEqual(registry._configs, {})
 
 
 if __name__ == "__main__":

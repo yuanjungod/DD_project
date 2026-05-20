@@ -228,7 +228,7 @@ export type AgentTemplate = {
   tool_ids: string[];
   skill_ids: string[];
   resource_ids: string[];
-  /** Empty = use all merged uploaded_files at run time; otherwise restrict file_reader to these IDs. */
+  /** Empty = use all merged uploaded_files at run time; otherwise restrict agent-visible upload file IDs. */
   platform_upload_file_ids?: string[];
   react_config: Record<string, unknown>;
   enabled: boolean;

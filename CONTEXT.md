@@ -31,7 +31,7 @@ A typed data-source definition from shipped `catalog/resource_configs/` plus opt
 
 ## Example dialogue
 
-> **Dev:** "Where do I add a new mock search tool?"
+> **Dev:** "Where do I add a new platform tool?"
 > **Domain expert:** "Add it to **tools.yaml** and wire the agent template's **tool_ids**. Runs copy it into the **workflow snapshot** — you don't touch the database."
 
 ## Flagged ambiguities
