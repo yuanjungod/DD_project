@@ -207,7 +207,7 @@ export function WorkflowsHubPage() {
     <div className="page-stack">
       <header className="page-hero">
         <p className="eyebrow">Workflows</p>
-        <h1>场景与Agent</h1>
+        <h1>Agent和场景</h1>
         <p>{heroDescription}</p>
         <nav className="hub-tab-bar" aria-label="工作流分区">
           <button

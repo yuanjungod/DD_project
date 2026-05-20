@@ -36,8 +36,9 @@ export function resourceConfigPickerItems(resources: ResourceConfig[]): PickerIt
     .map((resource) => ({
       id: resource.id,
       name: resource.name || resource.id,
-      hint: resource.description || resource.type,
+      hint: resource.description || "",
       enabled: resource.enabled,
+      resourceType: resource.type,
     }));
 }
 
@@ -65,7 +66,8 @@ export function uploadFilePickerItems(projectResources: Resource[], libraryFiles
     byId.set(fileId, {
       id: fileId,
       name: label,
-      hint: "应用文件库",
+      hint: label,
+      fileSource: "应用文件库",
       enabled: true,
     });
   }
@@ -75,7 +77,8 @@ export function uploadFilePickerItems(projectResources: Resource[], libraryFiles
     byId.set(file.id, {
       id: file.id,
       name: file.original_filename || file.id,
-      hint: "平台共享文件库",
+      hint: file.original_filename || file.id,
+      fileSource: "平台共享文件库",
       enabled: true,
     });
   }

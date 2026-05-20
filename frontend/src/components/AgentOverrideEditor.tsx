@@ -1,8 +1,34 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { deleteProjectAgentOverride, upsertProjectAgentOverride } from "../api/client";
-import { IdMultiPickerSection, type PickerItem } from "./IdPickerSection";
-import type { ProjectAgentOverride } from "../types/domain";
+import {
+  IdMultiPickerSection,
+  ResourceTypeMultiPickerSection,
+  type PickerItem,
+} from "./IdPickerSection";
+import type { AgentTemplate, ProjectAgentOverride } from "../types/domain";
+
+type OverrideConfigTab = "resources" | "skills" | "tools" | "prompt";
+
+const OVERRIDE_CONFIG_TABS: { id: OverrideConfigTab; label: string }[] = [
+  { id: "resources", label: "资源管理" },
+  { id: "skills", label: "Skills" },
+  { id: "tools", label: "工具" },
+  { id: "prompt", label: "提示词" },
+];
+
+function overrideTabCount(draft: ProjectAgentOverride, tab: OverrideConfigTab): number {
+  if (tab === "resources") {
+    return draft.resource_ids_add.length + draft.resource_ids_remove.length;
+  }
+  if (tab === "skills") {
+    return draft.skill_package_ids_add.length + draft.skill_package_ids_remove.length;
+  }
+  if (tab === "tools") {
+    return draft.tool_ids_add.length + draft.tool_ids_remove.length;
+  }
+  return (draft.prompt_append.trim() ? 1 : 0) + (draft.prompt_override.trim() ? 1 : 0);
+}
 
 export function emptyOverride(agentId: string): ProjectAgentOverride {
   return {
@@ -25,28 +51,139 @@ export function AgentOverrideEditor({
   projectId,
   agentId,
   override,
+  template,
   onRefresh,
   skillItems,
   toolItems,
-  resourceItems,
+  globalResourceItems,
+  projectResourceItems,
   fileItems,
 }: {
   projectId: string;
   agentId: string;
   override?: ProjectAgentOverride;
+  template?: AgentTemplate;
   onRefresh: () => Promise<void>;
   skillItems: PickerItem[];
   toolItems: PickerItem[];
-  resourceItems: PickerItem[];
+  globalResourceItems: PickerItem[];
+  projectResourceItems: PickerItem[];
   fileItems: PickerItem[];
 }) {
   const effective = override ?? emptyOverride(agentId);
   const [draft, setDraft] = useState<ProjectAgentOverride>(effective);
+  const [activeTab, setActiveTab] = useState<OverrideConfigTab>("resources");
   const [saving, setSaving] = useState(false);
   const [localError, setLocalError] = useState("");
+  const [resourceSource, setResourceSource] = useState<"global" | "project">("project");
+
+  const currentResourceItems = resourceSource === "project" ? projectResourceItems : globalResourceItems;
+  const allResourceItems = useMemo(() => [...globalResourceItems, ...projectResourceItems], [globalResourceItems, projectResourceItems]);
+
+  const tabCounts = useMemo(
+    () =>
+      Object.fromEntries(OVERRIDE_CONFIG_TABS.map((tab) => [tab.id, overrideTabCount(draft, tab.id)])) as Record<
+        OverrideConfigTab,
+        number
+      >,
+    [draft],
+  );
+
+  const templateSkillIds = useMemo(() => new Set(template?.skill_package_ids ?? []), [template?.skill_package_ids]);
+  const templateToolIds = useMemo(() => new Set(template?.tool_ids ?? []), [template?.tool_ids]);
+  const templateResourceIds = useMemo(() => new Set(template?.resource_ids ?? []), [template?.resource_ids]);
+
+  const managedSkillIds = useMemo(() => {
+    return skillItems
+      .filter((item) =>
+        templateSkillIds.has(item.id)
+          ? !draft.skill_package_ids_remove.includes(item.id)
+          : draft.skill_package_ids_add.includes(item.id),
+      )
+      .map((item) => item.id);
+  }, [skillItems, templateSkillIds, draft.skill_package_ids_add, draft.skill_package_ids_remove]);
+
+  const managedToolIds = useMemo(() => {
+    return toolItems
+      .filter((item) =>
+        templateToolIds.has(item.id) ? !draft.tool_ids_remove.includes(item.id) : draft.tool_ids_add.includes(item.id),
+      )
+      .map((item) => item.id);
+  }, [toolItems, templateToolIds, draft.tool_ids_add, draft.tool_ids_remove]);
+
+  const managedResourceIds = useMemo(() => {
+    return allResourceItems
+      .filter((item) =>
+        templateResourceIds.has(item.id)
+          ? !draft.resource_ids_remove.includes(item.id)
+          : draft.resource_ids_add.includes(item.id),
+      )
+      .map((item) => item.id);
+  }, [allResourceItems, templateResourceIds, draft.resource_ids_add, draft.resource_ids_remove]);
+
+  const handleSkillChange = useCallback(
+    (nextSelected: string[]) => {
+      const nextSet = new Set(nextSelected);
+      const newAdd: string[] = [];
+      const newRemove: string[] = [];
+      for (const item of skillItems) {
+        const inDefault = templateSkillIds.has(item.id);
+        const checked = nextSet.has(item.id);
+        if (inDefault) {
+          if (!checked) newRemove.push(item.id);
+        } else {
+          if (checked) newAdd.push(item.id);
+        }
+      }
+      setDraft((prev) => ({ ...prev, skill_package_ids_add: newAdd, skill_package_ids_remove: newRemove }));
+    },
+    [skillItems, templateSkillIds],
+  );
+
+  const handleToolChange = useCallback(
+    (nextSelected: string[]) => {
+      const nextSet = new Set(nextSelected);
+      const newAdd: string[] = [];
+      const newRemove: string[] = [];
+      for (const item of toolItems) {
+        const inDefault = templateToolIds.has(item.id);
+        const checked = nextSet.has(item.id);
+        if (inDefault) {
+          if (!checked) newRemove.push(item.id);
+        } else {
+          if (checked) newAdd.push(item.id);
+        }
+      }
+      setDraft((prev) => ({ ...prev, tool_ids_add: newAdd, tool_ids_remove: newRemove }));
+    },
+    [toolItems, templateToolIds],
+  );
+
+  const handleResourceChange = useCallback(
+    (nextSelected: string[], scopeItems: PickerItem[]) => {
+      const nextSet = new Set(nextSelected);
+      const scopeSet = new Set(scopeItems.map((i) => i.id));
+      const newAdd: string[] = [];
+      const newRemove: string[] = [];
+      for (const item of allResourceItems) {
+        const inDefault = templateResourceIds.has(item.id);
+        const inScope = scopeSet.has(item.id);
+        const checked = inScope ? nextSet.has(item.id) : managedResourceIds.includes(item.id);
+        if (inDefault) {
+          if (!checked) newRemove.push(item.id);
+        } else {
+          if (checked) newAdd.push(item.id);
+        }
+      }
+      setDraft((prev) => ({ ...prev, resource_ids_add: newAdd, resource_ids_remove: newRemove }));
+    },
+    [allResourceItems, templateResourceIds, managedResourceIds],
+  );
 
   useEffect(() => {
     setDraft(effective);
+    setActiveTab("resources");
+    setResourceSource("project");
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset editor when server override changes
   }, [agentId, JSON.stringify(override ?? {})]);
 
@@ -80,11 +217,14 @@ export function AgentOverrideEditor({
   return (
     <div className="agent-override-card">
       <div className="agent-override-card__header">
-        <div>
-          <strong>{agentId}</strong>
-          <p className="muted">
-            {override ? "已配置应用级覆盖；启动新 run 时会合成到快照。" : "继承场景模板配置，尚未配置应用级覆盖。"}
-          </p>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span className="agent-override-card__avatar">{agentId.slice(0, 1).toUpperCase()}</span>
+          <div>
+            <strong>{agentId}</strong>
+            <p className="muted">
+              {override ? "已配置应用级覆盖；启动新 run 时会合成到快照。" : "继承场景模板配置，尚未配置应用级覆盖。"}
+            </p>
+          </div>
         </div>
         <label className="agent-override-enabled">
           <input
@@ -97,94 +237,104 @@ export function AgentOverrideEditor({
         </label>
       </div>
       {localError ? <div className="error">{localError}</div> : null}
-      <label>
-        追加提示词（继承模板后追加）
-        <textarea
-          rows={3}
-          value={draft.prompt_append}
-          onChange={(event) => setDraft({ ...draft, prompt_append: event.target.value })}
-          disabled={saving}
-        />
-      </label>
-      <label>
-        覆盖提示词（填写后替代模板 prompt）
-        <textarea
-          rows={3}
-          value={draft.prompt_override}
-          onChange={(event) => setDraft({ ...draft, prompt_override: event.target.value })}
-          disabled={saving}
-        />
-      </label>
-      <div className="grid two">
-        <IdMultiPickerSection
-          title="追加 Skill IDs"
-          items={skillItems}
-          selected={draft.skill_package_ids_add}
-          onChange={(ids) => setDraft({ ...draft, skill_package_ids_add: ids })}
-          disabled={saving}
-          emptyText="暂无可用 Skill"
-          compact
-        />
-        <IdMultiPickerSection
-          title="移除模板 Skill IDs"
-          items={skillItems}
-          selected={draft.skill_package_ids_remove}
-          onChange={(ids) => setDraft({ ...draft, skill_package_ids_remove: ids })}
-          disabled={saving}
-          emptyText="暂无可用 Skill"
-          compact
-        />
+      <div className="agent-override-config-select-row">
+        <label>
+          <span>配置项</span>
+          <select
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value as OverrideConfigTab)}
+            disabled={saving}
+          >
+            {OVERRIDE_CONFIG_TABS.map((tab) => (
+              <option key={tab.id} value={tab.id}>
+                {tab.label}
+                {tabCounts[tab.id] > 0 ? ` · ${tabCounts[tab.id]} 项` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
-      <div className="grid two">
-        <IdMultiPickerSection
-          title="追加工具 IDs"
-          items={toolItems}
-          selected={draft.tool_ids_add}
-          onChange={(ids) => setDraft({ ...draft, tool_ids_add: ids })}
-          disabled={saving}
-          emptyText="暂无可用工具"
-          compact
-        />
-        <IdMultiPickerSection
-          title="移除模板工具 IDs"
-          items={toolItems}
-          selected={draft.tool_ids_remove}
-          onChange={(ids) => setDraft({ ...draft, tool_ids_remove: ids })}
-          disabled={saving}
-          emptyText="暂无可用工具"
-          compact
-        />
+      <div className="agent-override-config-panel">
+        {activeTab === "prompt" ? (
+          <>
+            <label>
+              追加提示词（继承模板后追加）
+              <textarea
+                rows={6}
+                value={draft.prompt_append}
+                onChange={(event) => setDraft({ ...draft, prompt_append: event.target.value })}
+                disabled={saving}
+                placeholder="在场景模板 prompt 之后追加本应用专属说明…"
+              />
+            </label>
+            <label>
+              覆盖提示词（填写后替代模板 prompt）
+              <textarea
+                rows={6}
+                value={draft.prompt_override}
+                onChange={(event) => setDraft({ ...draft, prompt_override: event.target.value })}
+                disabled={saving}
+                placeholder="填写后将完全替代模板中的系统提示词…"
+              />
+            </label>
+          </>
+        ) : null}
+        {activeTab === "skills" ? (
+          <IdMultiPickerSection
+            title="Skills 管理"
+            description="勾选表示在 Run 中使用该 Skill；取消勾选表示不使用。"
+            items={skillItems}
+            selected={managedSkillIds}
+            onChange={handleSkillChange}
+            disabled={saving}
+            emptyText="暂无可用 Skill"
+          />
+        ) : null}
+        {activeTab === "tools" ? (
+          <IdMultiPickerSection
+            title="工具管理"
+            description="勾选表示在 Run 中使用该工具；取消勾选表示不使用。"
+            items={toolItems}
+            selected={managedToolIds}
+            onChange={handleToolChange}
+            disabled={saving}
+            emptyText="暂无可用工具"
+          />
+        ) : null}
+        {activeTab === "resources" ? (
+          <>
+            <nav className="resource-kind-tabs" aria-label="资源来源">
+              <button
+                type="button"
+                className={`resource-kind-tab ${resourceSource === "project" ? "is-active" : ""}`}
+                onClick={() => setResourceSource("project")}
+                disabled={saving}
+              >
+                应用资源
+              </button>
+              <button
+                type="button"
+                className={`resource-kind-tab ${resourceSource === "global" ? "is-active" : ""}`}
+                onClick={() => setResourceSource("global")}
+                disabled={saving}
+              >
+                全局资源
+              </button>
+            </nav>
+            <ResourceTypeMultiPickerSection
+              title={resourceSource === "project" ? "应用资源管理" : "全局资源管理"}
+              description="勾选表示在 Run 中使用该资源；取消勾选表示不使用。"
+              typeHint="已选资源会在当前 Agent 的运行快照中生效。"
+              items={currentResourceItems}
+              selected={managedResourceIds}
+              onChange={(ids) => handleResourceChange(ids, currentResourceItems)}
+              disabled={saving}
+              emptyText="该来源下暂无可用资源配置，请先在「公司资源」或「平台资源」中登记。"
+            />
+
+          </>
+        ) : null}
       </div>
-      <div className="grid two">
-        <IdMultiPickerSection
-          title="追加资源配置 IDs"
-          items={resourceItems}
-          selected={draft.resource_ids_add}
-          onChange={(ids) => setDraft({ ...draft, resource_ids_add: ids })}
-          disabled={saving}
-          emptyText="暂无可用资源配置"
-          compact
-        />
-        <IdMultiPickerSection
-          title="移除模板资源配置 IDs"
-          items={resourceItems}
-          selected={draft.resource_ids_remove}
-          onChange={(ids) => setDraft({ ...draft, resource_ids_remove: ids })}
-          disabled={saving}
-          emptyText="暂无可用资源配置"
-          compact
-        />
-      </div>
-      <IdMultiPickerSection
-        title="本应用限定可见 file_id"
-        description="留空表示继承默认可见范围；勾选后仅这些 file_id 对本 Agent 的 file_reader 可见。"
-        items={fileItems}
-        selected={draft.platform_upload_file_ids}
-        onChange={(ids) => setDraft({ ...draft, platform_upload_file_ids: ids })}
-        disabled={saving}
-        emptyText="暂无可选 file_id，请先在应用资源中上传文件"
-        compact
-      />
       <div className="inline-form" style={{ flexWrap: "wrap" }}>
         <button type="button" onClick={() => void save()} disabled={saving}>
           {saving ? "保存中…" : "保存应用级配置"}

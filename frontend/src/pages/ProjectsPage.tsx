@@ -128,7 +128,7 @@ export function ProjectsPage() {
                 · {project.id}
               </span>
             </div>
-            <p className="muted">{project.company_config.scope.focus_areas.join(" / ")}</p>
+            <p className="muted">{project.company_config.scope.scenario}</p>
             <div className="row-actions">
               <Link className="button-link" to={`/projects/${project.id}/outputs`}>
                 运行应用

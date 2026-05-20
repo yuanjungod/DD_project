@@ -6,7 +6,7 @@ import { ProjectAgentOverridesPanel } from "../components/ProjectAgentOverridesP
 import { ProjectResourceCatalogPanel } from "../components/ProjectResourceCatalogPanel";
 import { SectionCard } from "../components/SectionCard";
 import { defaultApplicationId, projectIdentityLabel } from "../domain/projectIdentity";
-import { focusAreasForScenario } from "../data/workflows";
+
 import type { CompanyConfig, Project, WorkflowTemplate } from "../types/domain";
 
 function splitList(value: string): string[] {
@@ -21,10 +21,6 @@ function defaultConfig(workflowId: string): CompanyConfig {
     target_company: {
       name: "Example Robotics",
       aliases: ["ExampleBot"],
-      website: "https://example.com",
-      jurisdiction: "中国大陆",
-      industry: "智能制造",
-      keywords: ["仓储自动化", "机器人"],
     },
     scope: {
       workflow_id: workflowId,
@@ -32,7 +28,6 @@ function defaultConfig(workflowId: string): CompanyConfig {
       workflow_template_version: 1,
       scenario: "standard",
       time_range: "近5年",
-      focus_areas: focusAreasForScenario("standard"),
       report_language: "zh-CN",
     },
     resources: {
@@ -128,7 +123,6 @@ export function NewProjectPage() {
               workflow_template_id: selected.id,
               workflow_template_version: selected.version,
               scenario: selected.scenario,
-              focus_areas: focusAreasForScenario(selected.scenario),
             },
           }));
         }
@@ -259,90 +253,63 @@ export function NewProjectPage() {
           title={`${stepMeta.short} · ${stepMeta.label}`}
           description={
             createdProject
-              ? `更新公司与场景信息（${selectedWorkflow?.name ?? "未选择"}）；保存后不影响已登记的资源与 Agent 配置。`
-              : `选择尽调场景并填写公司与应用标识（${selectedWorkflow?.name ?? "未选择"}）。`
+              ? `更新场景与应用标识（${selectedWorkflow?.name ?? "未选择"}）；保存后不影响已登记的资源与 Agent 配置。`
+              : `选择尽调场景并填写应用标识（${selectedWorkflow?.name ?? "未选择"}）。`
           }
         >
           <form className="form split-form" onSubmit={(e) => void handleSaveIdentity(e)}>
-            <label>
-              尽调场景
-              <select
-                value={form.scope.workflow_template_id ?? form.scope.workflow_id}
-                onChange={(event) => {
-                  const workflow = workflowTemplates.find((item) => item.id === event.target.value);
-                  if (!workflow) return;
-                  setForm({
-                    ...form,
-                    scope: {
-                      ...form.scope,
-                      workflow_id: workflow.id,
-                      workflow_template_id: workflow.id,
-                      workflow_template_version: workflow.version,
-                      scenario: workflow.scenario,
-                      focus_areas: focusAreasForScenario(workflow.scenario),
-                    },
-                  });
-                }}
-              >
-                {workflowTemplates.map((workflow) => (
-                  <option key={workflow.id} value={workflow.id}>
-                    {workflow.name} v{workflow.version}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              公司名称
-              <input
-                value={form.target_company.name}
-                onChange={(event) => setForm({ ...form, target_company: { ...form.target_company, name: event.target.value } })}
-                required
-              />
-            </label>
-            <label>
-              应用 ID（唯一标识符，小写英文/数字/连字符）
-              <input
-                value={applicationId}
-                onChange={(event) => setApplicationId(event.target.value)}
-                placeholder="mashang-standard-dd"
-                required
-                pattern="[a-z][a-z0-9_-]{0,62}"
-                title="以小写字母开头，仅含小写字母、数字、下划线或连字符"
-              />
-            </label>
-            <label>
-              官网
-              <input
-                value={form.target_company.website}
-                onChange={(event) => setForm({ ...form, target_company: { ...form.target_company, website: event.target.value } })}
-              />
-            </label>
-            <label>
-              行业
-              <input
-                value={form.target_company.industry}
-                onChange={(event) => setForm({ ...form, target_company: { ...form.target_company, industry: event.target.value } })}
-              />
-            </label>
-            <label>
-              关键词
-              <input
-                value={form.target_company.keywords.join(", ")}
-                onChange={(event) =>
-                  setForm({ ...form, target_company: { ...form.target_company, keywords: splitList(event.target.value) } })
-                }
-              />
-            </label>
-            <label>
-              关注范围
-              <input
-                value={form.scope.focus_areas.join(", ")}
-                onChange={(event) => setForm({ ...form, scope: { ...form.scope, focus_areas: splitList(event.target.value) } })}
-              />
-            </label>
+            <div className="form-section">
+              <h3 className="form-section__title">基础配置</h3>
+              <label>
+                尽调场景
+                <select
+                  value={form.scope.workflow_template_id ?? form.scope.workflow_id}
+                  onChange={(event) => {
+                    const workflow = workflowTemplates.find((item) => item.id === event.target.value);
+                    if (!workflow) return;
+                    setForm({
+                      ...form,
+                      scope: {
+                        ...form.scope,
+                        workflow_id: workflow.id,
+                        workflow_template_id: workflow.id,
+                        workflow_template_version: workflow.version,
+                        scenario: workflow.scenario,
+                      },
+                    });
+                  }}
+                >
+                  {workflowTemplates.map((workflow) => (
+                    <option key={workflow.id} value={workflow.id}>
+                      {workflow.name} v{workflow.version}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                公司名称
+                <input
+                  value={form.target_company.name}
+                  onChange={(event) => setForm({ ...form, target_company: { ...form.target_company, name: event.target.value } })}
+                  required
+                />
+              </label>
+              <label>
+                应用 ID（唯一标识符，小写英文/数字/连字符）
+                <input
+                  value={applicationId}
+                  onChange={(event) => setApplicationId(event.target.value)}
+                  placeholder="mashang-standard-dd"
+                  required
+                  pattern="[a-z][a-z0-9_-]{0,62}"
+                  title="以小写字母开头，仅含小写字母、数字、下划线或连字符"
+                />
+              </label>
+            </div>
+
             <div className="inline-form" style={{ flexWrap: "wrap" }}>
               <button type="submit" disabled={loading}>
-                {loading ? "保存中…" : createdProject ? "保存公司与应用" : "创建应用"}
+                {loading ? "保存中…" : createdProject ? "保存应用" : "创建应用"}
               </button>
             </div>
           </form>

@@ -110,7 +110,6 @@ agents:
   - file_reader
   resource_ids:
   - resource_public_web
-  - resource_uploaded_files
   react_config:
     max_iters: 6
     parallel_tool_calls: false
@@ -214,7 +213,6 @@ agents:
   - vector_retrieval
   resource_ids:
   - resource_public_web
-  - resource_uploaded_files
   react_config:
     max_iters: 6
     parallel_tool_calls: false

@@ -32,11 +32,7 @@ Skill packages are file-backed under **`agent_service/skills/<directory_name>/`*
 {
   "target_company": {
     "name": "Example Robotics",
-    "aliases": ["ExampleBot"],
-    "website": "https://example.com",
-    "jurisdiction": "China",
-    "industry": "Robotics",
-    "keywords": ["warehouse automation", "robot arm"]
+    "aliases": ["ExampleBot"]
   },
   "scope": {
     "workflow_id": "standard_due_diligence",
@@ -44,7 +40,6 @@ Skill packages are file-backed under **`agent_service/skills/<directory_name>/`*
     "workflow_template_version": null,
     "scenario": "standard",
     "time_range": "last 5 years",
-    "focus_areas": ["business", "financial", "legal", "ownership", "public_opinion", "compliance"],
     "report_language": "zh-CN"
   },
   "resources": {

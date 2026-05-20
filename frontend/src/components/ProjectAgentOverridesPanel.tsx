@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  listAgentTemplates,
   listLibraryUploads,
   listProjectAgentOverrides,
   listProjectResourceConfigs,
@@ -17,7 +18,7 @@ import {
   uploadFilePickerItems,
 } from "../domain/catalogPickerItems";
 import { resolveGraphAgentOrder } from "../domain/workflowGraph";
-import type { ProjectAgentOverride, WorkflowTemplate } from "../types/domain";
+import type { AgentTemplate, ProjectAgentOverride, WorkflowTemplate } from "../types/domain";
 import { AgentOverrideEditor } from "./AgentOverrideEditor";
 import { SectionCard } from "./SectionCard";
 
@@ -35,6 +36,7 @@ export function ProjectAgentOverridesPanel({
 }) {
   const [agentOverrides, setAgentOverrides] = useState<ProjectAgentOverride[]>([]);
   const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([]);
+  const [agentTemplates, setAgentTemplates] = useState<AgentTemplate[]>([]);
   const [skills, setSkills] = useState<Awaited<ReturnType<typeof listSkills>>>([]);
   const [tools, setTools] = useState<Awaited<ReturnType<typeof listToolConfigs>>>([]);
   const [resourceConfigs, setResourceConfigs] = useState<Awaited<ReturnType<typeof listResourceConfigs>>>([]);
@@ -42,6 +44,7 @@ export function ProjectAgentOverridesPanel({
   const [projectResourceConfigs, setProjectResourceConfigs] = useState<Awaited<ReturnType<typeof listProjectResourceConfigs>>>([]);
   const [resources, setResources] = useState<Awaited<ReturnType<typeof listResources>>>([]);
   const [error, setError] = useState("");
+  const [selectedAgentId, setSelectedAgentId] = useState<string>("");
 
   async function refresh() {
     const [overrideItems, workflowItems, resourceItems, companyResourceItems] = await Promise.all([
@@ -71,13 +74,23 @@ export function ProjectAgentOverridesPanel({
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    listAgentTemplates()
+      .then(setAgentTemplates)
+      .catch(() => {});
+  }, []);
+
   const appAgentIds = workflowAgentIds(workflowTemplateId, workflowTemplates);
+
+  useEffect(() => {
+    if (appAgentIds.length > 0 && !selectedAgentId) {
+      setSelectedAgentId(appAgentIds[0]);
+    }
+  }, [appAgentIds, selectedAgentId]);
   const skillItems = useMemo(() => skillPickerItems(skills), [skills]);
   const toolItems = useMemo(() => toolPickerItems(tools), [tools]);
-  const resourceItems = useMemo(
-    () => resourceConfigPickerItems([...resourceConfigs, ...projectResourceConfigs]),
-    [resourceConfigs, projectResourceConfigs],
-  );
+  const globalResourceItems = useMemo(() => resourceConfigPickerItems(resourceConfigs), [resourceConfigs]);
+  const projectResourceItems = useMemo(() => resourceConfigPickerItems(projectResourceConfigs), [projectResourceConfigs]);
   const fileItems = useMemo(() => uploadFilePickerItems(resources, libraryFiles), [resources, libraryFiles]);
 
   return (
@@ -87,20 +100,46 @@ export function ProjectAgentOverridesPanel({
     >
       {error ? <div className="error">{error}</div> : null}
       <div className="agent-override-list">
-        {appAgentIds.map((agentId) => (
-          <AgentOverrideEditor
-            key={agentId}
-            projectId={projectId}
-            agentId={agentId}
-            override={agentOverrides.find((item) => item.agent_id === agentId)}
-            onRefresh={refresh}
-            skillItems={skillItems}
-            toolItems={toolItems}
-            resourceItems={resourceItems}
-            fileItems={fileItems}
-          />
-        ))}
-        {appAgentIds.length === 0 ? <p className="muted">当前应用尚未解析到工作流 Agent。</p> : null}
+        {appAgentIds.length === 0 ? (
+          <p className="muted">当前应用尚未解析到工作流 Agent。</p>
+        ) : (
+          <>
+            <div className="agent-select-row">
+              <label>
+                <span>配置 Agent</span>
+                <select
+                  value={selectedAgentId}
+                  onChange={(e) => setSelectedAgentId(e.target.value)}
+                >
+                  {appAgentIds.map((agentId) => {
+                    const hasOverride = agentOverrides.some((o) => o.agent_id === agentId);
+                    return (
+                      <option key={agentId} value={agentId}>
+                        {agentId}
+                        {hasOverride ? " · 已配置" : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+            </div>
+            {selectedAgentId ? (
+              <AgentOverrideEditor
+                key={selectedAgentId}
+                projectId={projectId}
+                agentId={selectedAgentId}
+                template={agentTemplates.find((t) => t.id === selectedAgentId)}
+                override={agentOverrides.find((item) => item.agent_id === selectedAgentId)}
+                onRefresh={refresh}
+                skillItems={skillItems}
+                toolItems={toolItems}
+                globalResourceItems={globalResourceItems}
+                projectResourceItems={projectResourceItems}
+                fileItems={fileItems}
+              />
+            ) : null}
+          </>
+        )}
       </div>
     </SectionCard>
   );

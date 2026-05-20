@@ -294,7 +294,7 @@ export function ProjectResourceCatalogPanel({ projectId }: { projectId: string }
               <span>
                 编辑模式 · <code>{editingId}</code>
               </span>
-              <button type="button" className="ghost-button" onClick={() => resetEditorForm()}>
+              <button type="button" className="secondary-button" onClick={() => resetEditorForm()}>
                 取消编辑
               </button>
             </div>

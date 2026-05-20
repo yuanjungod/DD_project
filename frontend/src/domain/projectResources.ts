@@ -77,7 +77,6 @@ export function parseProjectResourceForm(
     metadata.notes = fields.notes?.trim() || "";
   } else if (rtype === "competitor") {
     value = fields.value?.trim() ?? "";
-    metadata.website = fields.website?.trim() || "";
     metadata.ticker = fields.ticker?.trim() || "";
     metadata.notes = fields.notes?.trim() || "";
   } else if (rtype === "file_reference") {
@@ -130,9 +129,7 @@ export function headlineForResourceRow(row: {
     const nm = typeof meta.name === "string" ? meta.name : "";
     return `${row.value}${nm ? ` · ${nm}` : ""}`;
   }
-  if (row.type === "competitor" && typeof meta.website === "string" && meta.website) {
-    return `${row.value} · ${meta.website}`;
-  }
+
   if (row.type === "external_clue" && typeof meta.category === "string" && meta.category) {
     const head = row.value.length > 80 ? `${row.value.slice(0, 80)}…` : row.value;
     return `${head} · ${meta.category}`;

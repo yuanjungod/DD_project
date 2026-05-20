@@ -2,10 +2,6 @@ export type CompanyConfig = {
   target_company: {
     name: string;
     aliases: string[];
-    website: string;
-    jurisdiction: string;
-    industry: string;
-    keywords: string[];
   };
   scope: {
     workflow_id: string;
@@ -13,7 +9,6 @@ export type CompanyConfig = {
     workflow_template_version?: number | null;
     scenario: string;
     time_range: string;
-    focus_areas: string[];
     report_language: string;
   };
   resources: {

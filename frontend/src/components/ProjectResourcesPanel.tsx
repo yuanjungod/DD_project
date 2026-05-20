@@ -184,7 +184,7 @@ export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
         <p className="muted" style={{ margin: "-4px 0 4px", fontSize: "13px" }}>
           {rtype === "trusted_source" && "用于补充可信网址、研报链接或简短说明（写入主字段，可附显示名）。"}
           {rtype === "blocked_source" && "域名、URL 片段或站点名；Agent 采集时应降低权重或忽略。"}
-          {rtype === "competitor" && "对标企业名称必填；官网/股票代码写进附属字段便于消歧。"}
+          {rtype === "competitor" && "对标企业名称必填；股票代码写进附属字段便于消歧。"}
           {rtype === "file_reference" && "可直接使用上方文件上传；如需对接外部托管 ID，也可手动填写 file_id。"}
           {rtype === "external_clue" && "会议纪、路演、熟人渠道等不可用 URL 表达的线索。"}
           {rtype === "metric" &&
@@ -251,14 +251,6 @@ export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
               <input
                 value={fields.value ?? ""}
                 onChange={(e) => setFields({ ...fields, value: e.target.value })}
-                disabled={formDisabled}
-              />
-            </label>
-            <label>
-              官网（可选）
-              <input
-                value={fields.website ?? ""}
-                onChange={(e) => setFields({ ...fields, website: e.target.value })}
                 disabled={formDisabled}
               />
             </label>

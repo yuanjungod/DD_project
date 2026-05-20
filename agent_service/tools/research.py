@@ -14,14 +14,14 @@ class MockSearchTool:
         return {
             "title": f"Search result for {query}",
             "source_type": "mock",
-            "source_url": company.website or None,
+            "source_url": None,
             "excerpt": (
                 f"Mock source for {company.name}: query '{query}' within "
                 f"{company_config.scope.time_range}."
             ),
             "confidence": 0.68,
             "collected_by": agent_name,
-            "metadata": {"query": query, "industry": company.industry},
+            "metadata": {"query": query},
         }
 
     def execute(self, payload: dict[str, Any], context: ToolExecutionContext) -> dict[str, Any]:
@@ -36,7 +36,7 @@ class MockWebFetchTool:
         return {
             "title": f"Fetched page for {company.name}",
             "source_type": "mock",
-            "source_url": url or company.website or None,
+            "source_url": url or None,
             "excerpt": f"Mock page content describes {company.name} and its public positioning.",
             "confidence": 0.7,
             "collected_by": agent_name,
@@ -45,7 +45,7 @@ class MockWebFetchTool:
 
     def execute(self, payload: dict[str, Any], context: ToolExecutionContext) -> dict[str, Any]:
         company_config = context.company_config
-        url = payload.get("url") or company_config.target_company.website
+        url = payload.get("url") or ""
         return {"source": self.run(str(url), company_config, context.agent_name)}
 
 
@@ -80,7 +80,5 @@ class MockVectorRetrievalTool:
 
     def execute(self, payload: dict[str, Any], context: ToolExecutionContext) -> dict[str, Any]:
         company_config = context.company_config
-        query = payload.get("query") or (
-            f"{company_config.target_company.name} {' '.join(company_config.scope.focus_areas)}"
-        )
+        query = payload.get("query") or company_config.target_company.name
         return {"source": self.run(str(query), company_config, context.agent_name)}

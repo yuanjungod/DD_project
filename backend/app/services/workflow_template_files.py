@@ -87,8 +87,6 @@ def _resource_ids_for_tools(tool_ids: list[str]) -> list[str]:
     resource_ids: list[str] = []
     if any(tool in tool_ids for tool in ("search", "web_fetch")):
         resource_ids.append("resource_public_web")
-    if "file_reader" in tool_ids:
-        resource_ids.append("resource_uploaded_files")
     return resource_ids
 
 

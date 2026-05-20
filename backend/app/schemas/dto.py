@@ -11,10 +11,6 @@ from app.services.company_config_merge_constants import PROJECT_RESOURCE_TYPES
 class TargetCompany(BaseModel):
     name: str
     aliases: list[str] = Field(default_factory=list)
-    website: str = ""
-    jurisdiction: str = ""
-    industry: str = ""
-    keywords: list[str] = Field(default_factory=list)
 
 
 class Scope(BaseModel):
@@ -23,9 +19,6 @@ class Scope(BaseModel):
     workflow_template_version: int | None = None
     scenario: str = "standard"
     time_range: str = "近5年"
-    focus_areas: list[str] = Field(
-        default_factory=lambda: ["业务", "财务", "法律", "股权", "舆情", "合规"]
-    )
     report_language: str = "zh-CN"
 
 
