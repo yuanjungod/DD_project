@@ -2,19 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel
-
 from agent_service.api.schemas import AgentResult, CompanyConfig
 from agent_service.agents.react_runtime import AgentScopeReActRuntime, build_react_system_prompt
 from agent_service.tools.base import ToolExecutionContext
 from agent_service.tools.registry import ToolRegistry
 from agent_service.workflows.config_loader import AgentDefinition
-
-
-class ModelAgentOutput(BaseModel):
-    """Structured completion marker; step content lives in the output_dir handoff folder."""
-
-    pass
 
 
 class ConfiguredAgentRunner:
@@ -37,6 +29,7 @@ class ConfiguredAgentRunner:
         previous_results: list[AgentResult],
         *,
         continuation_context: dict[str, Any] | None = None,
+        agent_output_dir: str | None = None,
     ) -> AgentResult:
         try:
             self.current_company_config = company_config
@@ -44,8 +37,8 @@ class ConfiguredAgentRunner:
             self.react_runtime.run_model(
                 company_config=company_config,
                 previous_results=previous_results,
-                structured_model=ModelAgentOutput,
                 continuation_context=continuation_context,
+                agent_output_dir=agent_output_dir,
             )
             return AgentResult(
                 agent=agent_name,

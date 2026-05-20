@@ -22,8 +22,7 @@ def _load_snapshot_resources(resource_ids: list[str], project_id: str | None) ->
 
 
 def build_workflow_snapshot(company_config: dict, *, project_id: str | None = None) -> dict:
-    scope = company_config.get("scope", {})
-    workflow_id = scope.get("workflow_template_id") or scope.get("workflow_id") or "standard_due_diligence"
+    workflow_id = _workflow_template_id_from_config(company_config)
     bundle = get_published_workflow_bundle(workflow_id)
     workflow_section = bundle["workflow"]
 
@@ -175,3 +174,23 @@ def _apply_project_agent_overrides(agents: list[dict], overrides: list[dict]) ->
         }
         out.append(row)
     return out
+
+
+def _workflow_template_id_from_config(company_config: dict) -> str:
+    """Resolve published workflow template id from company_config (supports legacy nested scope)."""
+    if not company_config:
+        return "standard_due_diligence"
+    legacy = company_config.get("scope")
+    if isinstance(legacy, dict):
+        return (
+            company_config.get("workflow_template_id")
+            or legacy.get("workflow_template_id")
+            or company_config.get("workflow_id")
+            or legacy.get("workflow_id")
+            or "standard_due_diligence"
+        )
+    return (
+        company_config.get("workflow_template_id")
+        or company_config.get("workflow_id")
+        or "standard_due_diligence"
+    )

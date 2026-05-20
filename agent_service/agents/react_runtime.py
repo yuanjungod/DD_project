@@ -78,16 +78,16 @@ class AgentScopeReActRuntime:
         self,
         company_config: CompanyConfig,
         previous_results: list[AgentResult],
-        structured_model: Type[BaseModel],
         *,
         continuation_context: dict[str, Any] | None = None,
-    ) -> BaseModel:
-        return asyncio.run(
+        agent_output_dir: str | None = None,
+    ) -> None:
+        asyncio.run(
             self._run_model_async(
                 company_config,
                 previous_results,
-                structured_model,
                 continuation_context=continuation_context,
+                agent_output_dir=agent_output_dir,
             )
         )
 
@@ -95,24 +95,23 @@ class AgentScopeReActRuntime:
         self,
         company_config: CompanyConfig,
         previous_results: list[AgentResult],
-        structured_model: Type[BaseModel],
         *,
         continuation_context: dict[str, Any] | None = None,
-    ) -> BaseModel:
+        agent_output_dir: str | None = None,
+    ) -> None:
         agent = self._build_agent()
-        reply = await agent.reply(
+        await agent.reply(
             Msg(
                 name="user",
                 content=self._build_task_message(
-                    company_config, previous_results, continuation_context=continuation_context
+                    company_config,
+                    previous_results,
+                    continuation_context=continuation_context,
+                    agent_output_dir=agent_output_dir,
                 ),
                 role="user",
             ),
-            structured_model=structured_model,
         )
-        if not reply.metadata:
-            raise RuntimeError(f"{self.definition.name} did not return structured model output")
-        return structured_model.model_validate(reply.metadata)
 
     def _materialize_skill_packages(self) -> list[str]:
         skill_dirs: list[str] = []
@@ -184,34 +183,45 @@ class AgentScopeReActRuntime:
         previous_results: list[AgentResult],
         *,
         continuation_context: dict[str, Any] | None = None,
+        agent_output_dir: str | None = None,
     ) -> str:
-        payload: dict[str, Any] = {
-            "target_company": company_config.target_company.model_dump(mode="json"),
-            "scope": company_config.scope.model_dump(mode="json"),
-            "project_resources": company_config.resources.model_dump(mode="json"),
-            "previous_agent_results": [
-                {
-                    "agent": result.agent,
-                    "status": result.status,
-                    "output_dir": result.output_dir,
-                    "output_readme_path": result.output_readme_path,
-                }
-                for result in previous_results
-            ],
+        handoff = build_previous_agent_handoff_context(previous_results)
+        readme_by_agent = {
+            entry["agent"]: entry.get("readme", "")
+            for entry in handoff.get("previous_agent_handoff_readmes", [])
         }
-        payload.update(build_previous_agent_handoff_context(previous_results))
-        if continuation_context:
-            payload["continuation_from_previous_session_attempt"] = continuation_context
-        return (
-            "Run this due diligence agent with the configured AgentScope ReAct tools, "
-            "skills, and resources. Use tools when you need additional source material. "
-            "Previous agents hand off filesystem folders in previous_agent_output_folders; "
-            "their README.md text is inlined in previous_agent_handoff_readmes. "
-            "Use view_text_file (or execute_shell_command / execute_python_code) on output_dir "
-            "paths when you need result.json or other files. "
-            "When finished, call generate_response to mark this step complete.\n\n"
-            f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
+        sections: list[str] = [
+            "## 任务说明",
+            "",
+            "请使用已配置的 AgentScope ReAct 工具、技能与资源完成本步骤。",
+            "需要额外来源材料时请调用工具。",
+            "上游 Agent 通过 **output_dir** 交接产物；可用 `view_text_file`、`execute_shell_command`、",
+            "`execute_python_code` 读取其中的 `result.json` 等文件。",
+            "完成后请用简短中文总结你所写或所做的工作。",
+            "",
+        ]
+        sections.extend(
+            _markdown_json_section(
+                "target_company（目标公司）",
+                company_config.target_company.model_dump(mode="json"),
+            )
         )
+        sections.extend(
+            _markdown_json_section(
+                "project_resources（项目资源）",
+                company_config.resources.model_dump(mode="json"),
+            )
+        )
+        sections.extend(_markdown_previous_agent_results(previous_results, readme_by_agent))
+        sections.extend(_markdown_agent_output_dir(agent_output_dir, self.definition.name))
+        if continuation_context:
+            sections.extend(
+                _markdown_json_section(
+                    "continuation_from_previous_session_attempt（续跑上下文）",
+                    continuation_context,
+                )
+            )
+        return "\n".join(sections).rstrip() + "\n"
 
     def run_step_review_chat(
         self,
@@ -252,7 +262,6 @@ class AgentScopeReActRuntime:
                 "用清晰中文回复（除非用户用其他语言）。可指出逻辑/来源缺口、建议如何修订输出目录中的内容，不要编造未出现的来源。"
             ),
             "target_company": company_config.target_company.model_dump(mode="json"),
-            "scope": company_config.scope.model_dump(mode="json"),
             "previous_agent_results": [
                 {
                     "agent": result.agent,
@@ -326,6 +335,65 @@ class AgentScopeReActRuntime:
         from agent_service.tools.registry import ToolRegistry
 
         return ToolRegistry.for_agent_definition(self.definition).tool_configs
+
+
+def _markdown_json_section(heading: str, data: Any) -> list[str]:
+    return [
+        f"## {heading}",
+        "",
+        "```json",
+        json.dumps(data, ensure_ascii=False, indent=2),
+        "```",
+        "",
+    ]
+
+
+def _markdown_previous_agent_results(
+    previous_results: list[AgentResult],
+    readme_by_agent: dict[str, str],
+) -> list[str]:
+    lines = [
+        "## previous_agent_results（上游 Agent 结果）",
+        "",
+    ]
+    if not previous_results:
+        lines.extend(["（无上游步骤）", ""])
+        return lines
+
+    for result in previous_results:
+        lines.append(f"### {result.agent}")
+        lines.append("")
+        lines.append(f"- **status**: `{result.status}`")
+        if result.output_dir:
+            lines.append(f"- **output_dir**: `{result.output_dir}`")
+        if result.output_readme_path:
+            lines.append(f"- **output_readme_path**: `{result.output_readme_path}`")
+        readme = (readme_by_agent.get(result.agent) or "").strip()
+        if readme:
+            lines.extend(["", "#### README.md（交接摘要）", "", readme])
+        lines.append("")
+    return lines
+
+
+def _markdown_agent_output_dir(agent_output_dir: str | None, agent_name: str) -> list[str]:
+    lines = [
+        "## agent_output_dir（本 Agent 输出目录）",
+        "",
+    ]
+    if agent_output_dir:
+        lines.extend(
+            [
+                f"- **agent**: `{agent_name}`",
+                f"- **output_dir**: `{agent_output_dir}`",
+                "",
+                "请将本步骤产出写入该目录（至少包含 `README.md` 与 `result.json`，"
+                "可使用 `execute_shell_command` / `execute_python_code` 创建与更新文件）。",
+            ]
+        )
+    else:
+        lines.append("（路径将在工作流步骤完成后由平台写入 `AgentResult.output_dir`）")
+    lines.append("")
+    return lines
 
 
 def build_react_system_prompt(definition: AgentDefinition, base_prompt: str) -> str:

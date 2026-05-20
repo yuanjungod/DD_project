@@ -26,7 +26,7 @@ Every agent must follow these rules:
 
 ## Workflow
 
-Workflow templates are file-backed under `agent_service/configs/scenario_templates/` and managed through the backend configuration catalog. A company project selects one published template through `scope.workflow_template_id`, so the same agent flow can be reused for many companies while different scenarios can choose different agent sequences.
+Workflow templates are file-backed under `agent_service/configs/scenario_templates/` and managed through the backend configuration catalog. A company project selects one published template through `company_config.workflow_template_id`, so the same agent flow can be reused for many companies while different scenarios can choose different agent sequences.
 
 Current templates:
 

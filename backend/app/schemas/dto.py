@@ -13,15 +13,6 @@ class TargetCompany(BaseModel):
     aliases: list[str] = Field(default_factory=list)
 
 
-class Scope(BaseModel):
-    workflow_id: str = "standard_due_diligence"
-    workflow_template_id: str | None = None
-    workflow_template_version: int | None = None
-    scenario: str = "standard"
-    time_range: str = "近5年"
-    report_language: str = "zh-CN"
-
-
 class Resources(BaseModel):
     uploaded_files: list[str] = Field(default_factory=list)
     trusted_sources: list[str] = Field(default_factory=list)
@@ -35,7 +26,9 @@ class Resources(BaseModel):
 
 class CompanyConfig(BaseModel):
     target_company: TargetCompany
-    scope: Scope = Field(default_factory=Scope)
+    workflow_id: str = "standard_due_diligence"
+    workflow_template_id: str | None = None
+    workflow_template_version: int | None = None
     resources: Resources = Field(default_factory=Resources)
 
 

@@ -3,51 +3,28 @@
   "$id": "https://dd-platform.local/schemas/company_config.schema.json",
   "title": "CompanyConfig",
   "type": "object",
-  "required": ["target_company", "scope", "resources"],
+  "required": ["target_company", "resources"],
   "properties": {
     "target_company": {
       "type": "object",
       "required": ["name"],
       "properties": {
         "name": { "type": "string", "minLength": 1 },
-        "aliases": { "type": "array", "items": { "type": "string" }, "default": [] },
-        "website": { "type": "string", "default": "" },
-        "jurisdiction": { "type": "string", "default": "" },
-        "industry": { "type": "string", "default": "" },
-        "keywords": { "type": "array", "items": { "type": "string" }, "default": [] }
+        "aliases": { "type": "array", "items": { "type": "string" }, "default": [] }
       }
     },
-    "scope": {
-      "type": "object",
-      "properties": {
-        "workflow_id": {
-          "type": "string",
-          "default": "standard_due_diligence",
-          "description": "Reusable workflow template selected for this company project."
-        },
-        "workflow_template_id": {
-          "type": "string",
-          "default": "standard_due_diligence",
-          "description": "Published workflow template id used by downstream runs."
-        },
-        "workflow_template_version": {
-          "type": "integer",
-          "default": 1,
-          "description": "Published workflow template version selected for this project."
-        },
-        "scenario": {
-          "type": "string",
-          "default": "standard",
-          "description": "Due diligence scenario category used for UI and reporting context."
-        },
-        "time_range": { "type": "string", "default": "近5年" },
-        "focus_areas": {
-          "type": "array",
-          "items": { "type": "string" },
-          "default": ["业务", "财务", "法律", "股权", "舆情", "合规"]
-        },
-        "report_language": { "type": "string", "default": "zh-CN" }
-      }
+    "workflow_id": {
+      "type": "string",
+      "default": "standard_due_diligence",
+      "description": "Reusable workflow template selected for this company project."
+    },
+    "workflow_template_id": {
+      "type": "string",
+      "description": "Published workflow template id used by downstream runs."
+    },
+    "workflow_template_version": {
+      "type": "integer",
+      "description": "Published workflow template version selected for this project."
     },
     "resources": {
       "type": "object",

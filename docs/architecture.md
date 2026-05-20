@@ -53,7 +53,7 @@ Company-specific configuration is created through the backend and injected into 
 It defines:
 
 - Target company name, aliases, website, jurisdiction, industry, and keywords.
-- Due diligence scope, time range, focus areas, and report language, including optional **`workflow_template_id`** for catalog-backed workflows.
+- Target company identity and optional **`workflow_template_id`** on `company_config` for catalog-backed workflows.
 - Uploaded files, trusted sources, blocked sources, competitors, and optional notes.
 
 ### Source-Backed Outputs
@@ -97,7 +97,7 @@ ReAct agents use AgentScope built-in file and code execution tools; optional pla
 The frontend provides a workbench for:
 
 - Creating and editing company due diligence projects.
-- Configuring resources and scope.
+- Configuring resources and workflow template.
 - Starting and monitoring runs (polling plus incremental UI when callbacks are configured).
 - Reviewing agent steps and per-step output folders with correct **local timestamps** (**API emits UTC timestamps with `Z`** for runs).
 - Reading the generated report.

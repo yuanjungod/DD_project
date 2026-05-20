@@ -34,14 +34,9 @@ Skill packages are file-backed under **`agent_service/skills/<directory_name>/`*
     "name": "Example Robotics",
     "aliases": ["ExampleBot"]
   },
-  "scope": {
-    "workflow_id": "standard_due_diligence",
-    "workflow_template_id": null,
-    "workflow_template_version": null,
-    "scenario": "standard",
-    "time_range": "last 5 years",
-    "report_language": "zh-CN"
-  },
+  "workflow_id": "standard_due_diligence",
+  "workflow_template_id": "standard_due_diligence",
+  "workflow_template_version": 1,
   "resources": {
     "uploaded_files": [],
     "trusted_sources": ["official website", "exchange filings"],
@@ -51,7 +46,7 @@ Skill packages are file-backed under **`agent_service/skills/<directory_name>/`*
 }
 ```
 
-`workflow_template_id` is the preferred pointer for company projects; `workflow_id` remains a compatibility alias. The backend builds the run snapshot from the published scenario file and the separate agent catalog on disk.
+`workflow_template_id` selects the published scenario template for runs; `workflow_id` remains a compatibility alias. The backend builds the run snapshot from the published scenario file and the separate agent catalog on disk.
 
 ## Configuration Catalog
 

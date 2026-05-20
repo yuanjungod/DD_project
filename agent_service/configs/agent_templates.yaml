@@ -8,7 +8,7 @@ agents:
   prompt: 'You are the due diligence coordinator.
 
 
-    Build a focused execution plan for the target company. Use the company configuration, scope, resources, and risk focus areas. Assign work to downstream agents and keep the plan source-backed.
+    Build a focused execution plan for the target company. Use the company configuration, resources, and prior agent outputs. Assign work to downstream agents and keep the plan source-backed.
 
 
     Rules:
@@ -20,10 +20,9 @@ agents:
     - Return structured JSON.
 
     '
-  skill_package_ids:
-  - skill_due_diligence_core
-  tool_ids:
-  skill_ids:
+  skill_package_ids: []
+  tool_ids: []
+  skill_ids: []
   resource_ids: []
   react_config:
     max_iters: 6
@@ -47,6 +46,7 @@ agents:
         contextWindow: 128000
         maxTokens: 4096
   enabled: true
+  platform_upload_file_ids: []
 - id: agent_tpl_6a0a5de72005
   name: 测试
   role: 乔布斯助手
@@ -98,10 +98,9 @@ agents:
     - Mark missing data as unknown.
 
     '
-  skill_package_ids:
-  - skill_due_diligence_core
-  tool_ids:
-  skill_ids:
+  skill_package_ids: []
+  tool_ids: []
+  skill_ids: []
   resource_ids:
   - resource_public_web
   react_config:
@@ -126,6 +125,7 @@ agents:
         contextWindow: 128000
         maxTokens: 4096
   enabled: true
+  platform_upload_file_ids: []
 - id: WebResearchAgent
   name: WebResearchAgent
   role: public_researcher
@@ -144,10 +144,9 @@ agents:
     - Identify conflicting claims.
 
     '
-  skill_package_ids:
-  - skill_due_diligence_core
-  tool_ids:
-  skill_ids:
+  skill_package_ids: []
+  tool_ids: []
+  skill_ids: []
   resource_ids:
   - resource_public_web
   react_config:
@@ -172,6 +171,7 @@ agents:
         contextWindow: 128000
         maxTokens: 4096
   enabled: true
+  platform_upload_file_ids: []
 - id: FinancialAnalysisAgent
   name: FinancialAnalysisAgent
   role: financial_analyst
@@ -190,11 +190,9 @@ agents:
     - Highlight missing financial disclosure as a diligence gap.
 
     '
-  skill_package_ids:
-  - skill_due_diligence_core
-  - skill_financial_signal_analysis
-  tool_ids:
-  skill_ids:
+  skill_package_ids: []
+  tool_ids: []
+  skill_ids: []
   resource_ids:
   - resource_public_web
   react_config:
@@ -219,6 +217,7 @@ agents:
         contextWindow: 128000
         maxTokens: 4096
   enabled: true
+  platform_upload_file_ids: []
 - id: LegalRiskAgent
   name: LegalRiskAgent
   role: legal_risk_analyst
@@ -237,11 +236,9 @@ agents:
     - Escalate unresolved high-impact gaps.
 
     '
-  skill_package_ids:
-  - skill_due_diligence_core
-  - skill_legal_risk_review
-  tool_ids:
-  skill_ids:
+  skill_package_ids: []
+  tool_ids: []
+  skill_ids: []
   resource_ids:
   - resource_public_web
   react_config:
@@ -266,6 +263,7 @@ agents:
         contextWindow: 128000
         maxTokens: 4096
   enabled: true
+  platform_upload_file_ids: []
 - id: IndustryAnalysisAgent
   name: IndustryAnalysisAgent
   role: industry_analyst
@@ -284,11 +282,9 @@ agents:
     - Cite sources for market claims.
 
     '
-  skill_package_ids:
-  - skill_due_diligence_core
-  - skill_market_competition_analysis
-  tool_ids:
-  skill_ids:
+  skill_package_ids: []
+  tool_ids: []
+  skill_ids: []
   resource_ids:
   - resource_public_web
   react_config:
@@ -313,7 +309,7 @@ agents:
         contextWindow: 128000
         maxTokens: 4096
   enabled: true
-
+  platform_upload_file_ids: []
 - id: ReportWriterAgent
   name: ReportWriterAgent
   role: report_writer
@@ -332,11 +328,9 @@ agents:
     - Use the requested report language.
 
     '
-  skill_package_ids:
-  - skill_due_diligence_core
-  - skill_report_writing
-  tool_ids:
-  skill_ids:
+  skill_package_ids: []
+  tool_ids: []
+  skill_ids: []
   resource_ids: []
   react_config:
     max_iters: 6
@@ -360,3 +354,4 @@ agents:
         contextWindow: 128000
         maxTokens: 4096
   enabled: true
+  platform_upload_file_ids: []

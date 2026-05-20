@@ -15,6 +15,7 @@ import {
 } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
 import { workflowName } from "../data/workflows";
+import { workflowTemplateIdFromConfig } from "../domain/companyConfig";
 import { projectIdentityLabel } from "../domain/projectIdentity";
 import type {
   AgentRun,
@@ -409,7 +410,7 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
     : undefined;
   const projectWorkflowName = project
     ? workflowName(
-        project.company_config.scope.workflow_template_id ?? project.company_config.scope.workflow_id,
+        workflowTemplateIdFromConfig(project.company_config),
         workflowTemplates,
       )
     : "";

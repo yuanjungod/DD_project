@@ -37,7 +37,7 @@ def main() -> None:
 
 
 def _load_workflow_snapshot(company_config: CompanyConfig) -> dict:
-    workflow_id = company_config.scope.workflow_template_id or company_config.scope.workflow_id
+    workflow_id = company_config.workflow_template_id or company_config.workflow_id
     scenario_path = ROOT / "agent_service" / "configs" / "scenario_templates" / f"{workflow_id}.yaml"
     scenario_doc = _load_yaml(scenario_path)
     workflow = scenario_doc["workflow"]

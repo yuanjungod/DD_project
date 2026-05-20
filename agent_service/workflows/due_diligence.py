@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -14,7 +15,7 @@ from agent_service.api.schemas import (
 )
 from agent_service.callback_client import notify_run_progress
 from agent_service.session_history import build_session_recorder, open_session_recorder_for_resume
-from agent_service.workflows.agent_outputs import write_agent_step_output_folder
+from agent_service.workflows.agent_outputs import agent_step_output_dir
 from agent_service.workflows.config_loader import AgentDefinition, WorkflowDefinition
 from agent_service.workflows.graph_order import resolve_graph_agent_order
 
@@ -116,8 +117,21 @@ class DueDiligenceWorkflow:
             recorder.append_event({"type": "step_started", "step_id": step.id, "agent": agent_name})
             notify_run_progress(project_id, run_id, step)
             inject_ctx = continuation_context if step_idx == 0 and resume_from_step_index == 0 else None
+            planned_output_dir = str(
+                agent_step_output_dir(
+                    project_id=project_id,
+                    run_id=run_id,
+                    step_id=step.id,
+                    agent_name=agent_name,
+                )
+            )
             try:
-                result = runner.run(company_config, results, continuation_context=inject_ctx)
+                result = runner.run(
+                    company_config,
+                    results,
+                    continuation_context=inject_ctx,
+                    agent_output_dir=planned_output_dir,
+                )
             except Exception as exc:
                 msg = str(exc)
                 step.status = "failed"
@@ -140,12 +154,9 @@ class DueDiligenceWorkflow:
                 recorder.finalize_failure(msg, partial_result=rr.model_dump(mode="json"))
                 return rr
             step.status = result.status
-            output_dir, output_readme_path = write_agent_step_output_folder(
-                project_id=project_id,
-                run_id=run_id,
-                step_id=step.id,
-                result=result,
-            )
+            output_readme_path = str(Path(planned_output_dir) / "README.md")
+            result.output_dir = planned_output_dir
+            result.output_readme_path = output_readme_path
             step.result = result
             results.append(result)
             notify_run_progress(project_id, run_id, step)
@@ -154,7 +165,7 @@ class DueDiligenceWorkflow:
                     "type": "step_completed",
                     "step_id": step.id,
                     "agent": agent_name,
-                    "output_dir": output_dir,
+                    "output_dir": planned_output_dir,
                     "output_readme_path": output_readme_path,
                 },
             )

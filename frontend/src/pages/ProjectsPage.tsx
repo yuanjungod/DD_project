@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { cloneProjectVersion, deleteProject, getMe, listProjects, listWorkflowTemplates } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
 import { workflowName } from "../data/workflows";
+import { workflowTemplateIdFromConfig } from "../domain/companyConfig";
 import { projectIdentityLabel } from "../domain/projectIdentity";
 import type { Project, User, WorkflowTemplate } from "../types/domain";
 
@@ -121,14 +122,10 @@ export function ProjectsPage() {
             <div className="summary-box">
               <strong>{project.application_id}</strong>
               <span>
-                {workflowName(
-                  project.company_config.scope.workflow_template_id ?? project.company_config.scope.workflow_id,
-                  workflowTemplates,
-                )}{" "}
+                {workflowName(workflowTemplateIdFromConfig(project.company_config), workflowTemplates)}{" "}
                 · {project.id}
               </span>
             </div>
-            <p className="muted">{project.company_config.scope.scenario}</p>
             <div className="row-actions">
               <Link className="button-link" to={`/projects/${project.id}/outputs`}>
                 运行应用

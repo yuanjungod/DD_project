@@ -7,6 +7,7 @@ import { ProjectResourceCatalogPanel } from "../components/ProjectResourceCatalo
 import { SectionCard } from "../components/SectionCard";
 import { defaultApplicationId, projectIdentityLabel } from "../domain/projectIdentity";
 
+import { normalizeCompanyConfig, workflowTemplateIdFromConfig } from "../domain/companyConfig";
 import type { CompanyConfig, Project, WorkflowTemplate } from "../types/domain";
 
 function splitList(value: string): string[] {
@@ -22,14 +23,9 @@ function defaultConfig(workflowId: string): CompanyConfig {
       name: "Example Robotics",
       aliases: ["ExampleBot"],
     },
-    scope: {
-      workflow_id: workflowId,
-      workflow_template_id: workflowId,
-      workflow_template_version: 1,
-      scenario: "standard",
-      time_range: "近5年",
-      report_language: "zh-CN",
-    },
+    workflow_id: workflowId,
+    workflow_template_id: workflowId,
+    workflow_template_version: 1,
     resources: {
       uploaded_files: [],
       trusted_sources: [],
@@ -100,12 +96,13 @@ export function NewProjectPage() {
   const [booting, setBooting] = useState(Boolean(resumeProjectId));
 
   const selectedWorkflow = useMemo(
-    () => workflowTemplates.find((workflow) => workflow.id === form.scope.workflow_template_id) ?? workflowTemplates[0],
-    [form.scope.workflow_template_id, workflowTemplates],
+    () => workflowTemplates.find((workflow) => workflow.id === workflowTemplateIdFromConfig(form)) ?? workflowTemplates[0],
+    [form, workflowTemplates],
   );
 
-  const workflowTemplateId =
-    createdProject?.company_config.scope.workflow_template_id ?? createdProject?.company_config.scope.workflow_id;
+  const workflowTemplateId = createdProject
+    ? workflowTemplateIdFromConfig(createdProject.company_config)
+    : workflowTemplateIdFromConfig(form);
 
   useEffect(() => {
     listWorkflowTemplates()
@@ -117,13 +114,9 @@ export function NewProjectPage() {
         if (selected) {
           setForm((current) => ({
             ...current,
-            scope: {
-              ...current.scope,
-              workflow_id: selected.id,
-              workflow_template_id: selected.id,
-              workflow_template_version: selected.version,
-              scenario: selected.scenario,
-            },
+            workflow_id: selected.id,
+            workflow_template_id: selected.id,
+            workflow_template_version: selected.version,
           }));
         }
       })
@@ -140,7 +133,7 @@ export function NewProjectPage() {
     getProject(resumeProjectId)
       .then((project) => {
         setCreatedProject(project);
-        setForm(project.company_config);
+        setForm(normalizeCompanyConfig(project.company_config));
         setApplicationId(project.application_id);
         const step = parseWizardStep(searchParams.get("step")) ?? "identity";
         setWizardStep(step);
@@ -171,7 +164,7 @@ export function NewProjectPage() {
   }, [createdProject?.id, wizardStep]);
 
   function hydrateIdentityFromProject(project: Project) {
-    setForm(project.company_config);
+    setForm(normalizeCompanyConfig(project.company_config));
     setApplicationId(project.application_id);
   }
 
@@ -263,19 +256,15 @@ export function NewProjectPage() {
               <label>
                 尽调场景
                 <select
-                  value={form.scope.workflow_template_id ?? form.scope.workflow_id}
+                  value={workflowTemplateIdFromConfig(form)}
                   onChange={(event) => {
                     const workflow = workflowTemplates.find((item) => item.id === event.target.value);
                     if (!workflow) return;
                     setForm({
                       ...form,
-                      scope: {
-                        ...form.scope,
-                        workflow_id: workflow.id,
-                        workflow_template_id: workflow.id,
-                        workflow_template_version: workflow.version,
-                        scenario: workflow.scenario,
-                      },
+                      workflow_id: workflow.id,
+                      workflow_template_id: workflow.id,
+                      workflow_template_version: workflow.version,
                     });
                   }}
                 >

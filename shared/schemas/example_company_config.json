@@ -1,21 +1,11 @@
 {
   "target_company": {
     "name": "Example Robotics",
-    "aliases": ["ExampleBot"],
-    "website": "https://example.com",
-    "jurisdiction": "中国大陆",
-    "industry": "智能制造",
-    "keywords": ["仓储自动化", "机器人"]
+    "aliases": ["ExampleBot"]
   },
-  "scope": {
-    "workflow_id": "standard_due_diligence",
-    "workflow_template_id": "standard_due_diligence",
-    "workflow_template_version": 1,
-    "scenario": "standard",
-    "time_range": "近5年",
-    "focus_areas": ["业务", "财务", "法律", "股权", "舆情", "合规"],
-    "report_language": "zh-CN"
-  },
+  "workflow_id": "standard_due_diligence",
+  "workflow_template_id": "standard_due_diligence",
+  "workflow_template_version": 1,
   "resources": {
     "uploaded_files": [],
     "trusted_sources": ["公司官网", "交易所公告", "工商登记信息"],

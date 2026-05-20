@@ -3,14 +3,9 @@ export type CompanyConfig = {
     name: string;
     aliases: string[];
   };
-  scope: {
-    workflow_id: string;
-    workflow_template_id?: string | null;
-    workflow_template_version?: number | null;
-    scenario: string;
-    time_range: string;
-    report_language: string;
-  };
+  workflow_id: string;
+  workflow_template_id?: string | null;
+  workflow_template_version?: number | null;
   resources: {
     uploaded_files: string[];
     trusted_sources: string[];
