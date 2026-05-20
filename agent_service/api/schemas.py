@@ -39,21 +39,12 @@ class CompanyConfig(BaseModel):
     resources: Resources = Field(default_factory=Resources)
 
 
-class Finding(BaseModel):
-    title: str
-    description: str
-    risk_level: RiskLevel = "unknown"
-    confidence: float = Field(ge=0, le=1)
-
-
 class AgentResult(BaseModel):
     agent: str
     status: RunStatus
-    summary: str
-    findings: list[Finding] = Field(default_factory=list)
     output_dir: str = Field(
         default="",
-        description="Filesystem handoff folder for this agent step. Contains README.md, result.json, and findings.",
+        description="Filesystem handoff folder for this agent step. Contains README.md and result.json.",
     )
     output_readme_path: str = Field(default="", description="README.md inside output_dir.")
 

@@ -180,8 +180,7 @@ class AgentScopeReActRuntime:
             "previous_agent_results": [
                 {
                     "agent": result.agent,
-                    "summary": result.summary,
-                    "findings": [finding.model_dump(mode="json") for finding in result.findings],
+                    "status": result.status,
                     "output_dir": result.output_dir,
                     "output_readme_path": result.output_readme_path,
                 }
@@ -206,9 +205,8 @@ class AgentScopeReActRuntime:
             "skills, and resources. Use tools when you need additional source material. "
             "Previous agents hand off their outputs as filesystem folders; use the "
             "`agent_output_reader` tool with `folder_path` from previous_agent_output_folders "
-            "when you need the README, structured result, or findings from an earlier step. "
-            "When finished, call generate_response with a concise summary and "
-            "source-backed findings. Use only risk_level values low, medium, high, or unknown.\n\n"
+            "when you need the README or structured result from an earlier step. "
+            "When finished, call generate_response to mark this step complete.\n\n"
             f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
         )
 
@@ -218,7 +216,7 @@ class AgentScopeReActRuntime:
         previous_results: list[AgentResult],
         *,
         current_step_summary: str,
-        current_findings: list[dict[str, Any]],
+        current_output_dir: str,
         chat_messages: list[dict[str, str]],
         user_message: str,
     ) -> str:
@@ -227,7 +225,7 @@ class AgentScopeReActRuntime:
                 company_config,
                 previous_results,
                 current_step_summary=current_step_summary,
-                current_findings=current_findings,
+                current_output_dir=current_output_dir,
                 chat_messages=chat_messages,
                 user_message=user_message,
             )
@@ -239,7 +237,7 @@ class AgentScopeReActRuntime:
         previous_results: list[AgentResult],
         *,
         current_step_summary: str,
-        current_findings: list[dict[str, Any]],
+        current_output_dir: str,
         chat_messages: list[dict[str, str]],
         user_message: str,
     ) -> str:
@@ -248,15 +246,14 @@ class AgentScopeReActRuntime:
             "review_chat": True,
             "instruction_zh": (
                 "尽调复核对话：用户对当前这一步 Agent 的输出进行校验或要求修订。"
-                "用清晰中文回复（除非用户用其他语言）。可指出逻辑/来源缺口、建议如何改写 summary/findings，不要编造未出现的来源。"
+                "用清晰中文回复（除非用户用其他语言）。可指出逻辑/来源缺口、建议如何修订输出目录中的内容，不要编造未出现的来源。"
             ),
             "target_company": company_config.target_company.model_dump(mode="json"),
             "scope": company_config.scope.model_dump(mode="json"),
             "previous_agent_results": [
                 {
                     "agent": result.agent,
-                    "summary": result.summary,
-                    "findings": [finding.model_dump(mode="json") for finding in result.findings],
+                    "status": result.status,
                     "output_dir": result.output_dir,
                     "output_readme_path": result.output_readme_path,
                 }
@@ -272,7 +269,7 @@ class AgentScopeReActRuntime:
                 if result.output_dir
             ],
             "current_agent_step_summary": current_step_summary,
-            "current_agent_step_findings": current_findings,
+            "current_agent_output_dir": current_output_dir,
             "prior_turns": chat_messages,
             "user_message": user_message,
         }

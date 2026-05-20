@@ -75,21 +75,12 @@ Only **`published`** workflow templates should be selected by downstream company
 {
   "agent": "LegalRiskAgent",
   "status": "completed",
-  "summary": "No high-severity legal risk found in configured sources.",
-  "findings": [
-    {
-      "title": "No sanctions matches in configured sources",
-      "description": "Configured MVP sources did not return sanction matches.",
-      "risk_level": "low",
-      "confidence": 0.65
-    }
-  ],
   "output_dir": "/path/to/data/dd_store/agent_service/sessions/proj_x/run_y_outputs/run_y_step_003_LegalRiskAgent",
   "output_readme_path": "/path/to/data/dd_store/agent_service/sessions/proj_x/run_y_outputs/run_y_step_003_LegalRiskAgent/README.md"
 }
 ```
 
-Each completed agent step also writes a filesystem handoff folder next to the run session JSON. The folder contains **`README.md`** (human-readable summary), **`result.json`** (full structured result), and **`findings/`**. Downstream agents receive prior folder addresses in `previous_agent_output_folders` and can call the automatic `agent_output_reader` runtime tool with `folder_path` to read the prior README and structured result.
+Each completed agent step also writes a filesystem handoff folder next to the run session JSON. The folder contains **`README.md`** (step metadata) and **`result.json`** (structured `AgentResult`). Downstream agents receive prior folder addresses in `previous_agent_output_folders` and can call the automatic `agent_output_reader` runtime tool with `folder_path` to read the prior README and structured result.
 
 ## Report Section
 

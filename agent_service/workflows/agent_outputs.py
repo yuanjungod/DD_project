@@ -22,12 +22,7 @@ def write_agent_step_output_folder(
     """Persist one agent's handoff folder and return (folder, README path)."""
 
     folder = agent_step_output_dir(project_id=project_id, run_id=run_id, step_id=step_id, agent_name=result.agent)
-    findings_dir = folder / "findings"
-    findings_dir.mkdir(parents=True, exist_ok=True)
-
-    for index, finding in enumerate(result.findings, start=1):
-        finding_path = findings_dir / f"{index:02d}_{_safe_segment(finding.title or 'finding')}.md"
-        finding_path.write_text(_finding_markdown(index, finding.model_dump(mode="json")), encoding="utf-8")
+    folder.mkdir(parents=True, exist_ok=True)
 
     readme_path = folder / "README.md"
     result.output_dir = str(folder)
@@ -92,34 +87,8 @@ def _readme_markdown(step_id: str, result: AgentResult) -> str:
         f"- Step ID: `{step_id}`",
         f"- Status: `{result.status}`",
         f"- Result JSON: `result.json`",
-        f"- Findings: `findings/`",
         "",
-        "## Summary",
-        "",
-        result.summary or "(empty)",
-        "",
-        "## Findings",
+        "Use `agent_output_reader` or read `result.json` for structured step metadata.",
         "",
     ]
-    if result.findings:
-        for index, finding in enumerate(result.findings, start=1):
-            lines.append(f"{index}. **{finding.title}** [{finding.risk_level}, confidence={finding.confidence}]")
-            lines.append(f"   - {finding.description}")
-    else:
-        lines.append("(no findings)")
-    lines.append("")
     return "\n".join(lines)
-
-
-def _finding_markdown(index: int, finding: dict[str, Any]) -> str:
-    return "\n".join(
-        [
-            f"# Finding {index}: {finding.get('title', '')}",
-            "",
-            f"- Risk level: `{finding.get('risk_level', 'unknown')}`",
-            f"- Confidence: `{finding.get('confidence', '')}`",
-            "",
-            finding.get("description", ""),
-            "",
-        ]
-    )

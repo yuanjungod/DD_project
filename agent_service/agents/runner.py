@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from agent_service.api.schemas import AgentResult, CompanyConfig, Finding
+from agent_service.api.schemas import AgentResult, CompanyConfig
 from agent_service.agents.react_runtime import AgentScopeReActRuntime, build_react_system_prompt
 from agent_service.tools.base import ToolExecutionContext
 from agent_service.tools.registry import ToolRegistry
@@ -12,8 +12,9 @@ from agent_service.workflows.config_loader import AgentDefinition
 
 
 class ModelAgentOutput(BaseModel):
-    summary: str
-    findings: list[Finding] = Field(default_factory=list)
+    """Structured completion marker; step content lives in the output_dir handoff folder."""
+
+    pass
 
 
 class ConfiguredAgentRunner:
@@ -40,7 +41,7 @@ class ConfiguredAgentRunner:
         try:
             self.current_company_config = company_config
             agent_name = self.definition.name
-            model_output = self.react_runtime.run_model(
+            self.react_runtime.run_model(
                 company_config=company_config,
                 previous_results=previous_results,
                 structured_model=ModelAgentOutput,
@@ -49,8 +50,6 @@ class ConfiguredAgentRunner:
             return AgentResult(
                 agent=agent_name,
                 status="completed",
-                summary=model_output.summary,
-                findings=model_output.findings,
             )
         finally:
             self.current_company_config = None
@@ -62,7 +61,7 @@ class ConfiguredAgentRunner:
         previous_results: list[AgentResult],
         *,
         current_step_summary: str,
-        current_findings: list[dict[str, Any]],
+        current_output_dir: str,
         chat_messages: list[dict[str, str]],
         user_message: str,
     ) -> str:
@@ -72,7 +71,7 @@ class ConfiguredAgentRunner:
                 company_config,
                 previous_results,
                 current_step_summary=current_step_summary,
-                current_findings=current_findings,
+                current_output_dir=current_output_dir,
                 chat_messages=chat_messages,
                 user_message=user_message,
             )

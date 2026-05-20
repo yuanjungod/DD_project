@@ -58,7 +58,7 @@ It defines:
 
 ### Source-Backed Outputs
 
-Agent outputs are structured as summaries and findings. Material claims should be grounded in tool results or prior agent handoff folders (`output_dir` / `agent_output_reader`).
+Agent outputs are persisted as per-step handoff folders. Material claims should be grounded in tool results or prior agent handoff folders (`output_dir` / `agent_output_reader`).
 
 ## Services
 

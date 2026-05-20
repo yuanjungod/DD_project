@@ -30,15 +30,11 @@ class DueDiligenceWorkflow:
             raise ValueError(f"Workflow snapshot missing agent definition: {payload.agent_name}")
         runner = ConfiguredAgentRunner(definition)
         cur = payload.current_step
-        findings: list[dict[str, Any]] = []
-        if cur.result and cur.result.findings:
-            findings = [f.model_dump(mode="json") for f in cur.result.findings]
-        summary = cur.summary or (cur.result.summary if cur.result else "")
         reply = runner.run_step_review_chat(
             payload.company_config,
             payload.previous_results,
-            current_step_summary=summary,
-            current_findings=findings,
+            current_step_summary=cur.summary or "",
+            current_output_dir=cur.result.output_dir if cur.result else "",
             chat_messages=payload.chat_messages,
             user_message=payload.user_message,
         )
@@ -144,7 +140,6 @@ class DueDiligenceWorkflow:
                 recorder.finalize_failure(msg, partial_result=rr.model_dump(mode="json"))
                 return rr
             step.status = result.status
-            step.summary = result.summary
             output_dir, output_readme_path = write_agent_step_output_folder(
                 project_id=project_id,
                 run_id=run_id,
@@ -159,7 +154,6 @@ class DueDiligenceWorkflow:
                     "type": "step_completed",
                     "step_id": step.id,
                     "agent": agent_name,
-                    "findings_count": len(result.findings),
                     "output_dir": output_dir,
                     "output_readme_path": output_readme_path,
                 },
