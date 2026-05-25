@@ -69,9 +69,6 @@ export type AgentStepOutputFolder = {
   folder_path?: string;
   readme_path?: string;
   readme?: string;
-  result?: Record<string, unknown>;
-  resources?: unknown;
-  findings?: Array<{ name: string; path: string; content: string }>;
   reason?: string;
 };
 

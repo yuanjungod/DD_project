@@ -61,15 +61,6 @@ def _read_text_if_exists(path: Path, *, max_chars: int = 20000) -> str:
     return text
 
 
-def _read_json_if_exists(path: Path) -> dict | list | None:
-    if not path.is_file():
-        return None
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return {"_error": f"Invalid JSON file: {path.name}"}
-
-
 async def _dispatch_agent_background(
     project_id: str,
     run_id: str,
@@ -373,12 +364,6 @@ def get_agent_step_output_folder(
         "folder_path": str(folder),
         "readme_path": str(folder / "README.md"),
         "readme": _read_text_if_exists(folder / "README.md"),
-        "result": _read_json_if_exists(folder / "result.json"),
-        "resources": _read_json_if_exists(folder / "resources" / "index.json") or {},
-        "findings": [
-            {"name": path.name, "path": str(path), "content": _read_text_if_exists(path)}
-            for path in sorted((folder / "findings").glob("*.md"))
-        ],
     }
 
 

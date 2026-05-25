@@ -48,10 +48,6 @@ function stepOutputDir(step: AgentStep): string {
   return typeof result?.output_dir === "string" ? result.output_dir : "";
 }
 
-function jsonPreview(value: unknown): string {
-  return JSON.stringify(value ?? {}, null, 2);
-}
-
 type OutputFileEntry = {
   id: string;
   label: string;
@@ -70,30 +66,6 @@ function outputFileEntries(folder: AgentStepOutputFolder): OutputFileEntry[] {
       label: "README.md",
       path: folder.readme_path ?? "README.md",
       content: folder.readme,
-    });
-  }
-  if (folder.result) {
-    entries.push({
-      id: "result.json",
-      label: "result.json",
-      path: `${folder.folder_path ?? ""}/result.json`,
-      content: jsonPreview(folder.result),
-    });
-  }
-  if (folder.resources) {
-    entries.push({
-      id: "resources/index.json",
-      label: "resources/index.json",
-      path: `${folder.folder_path ?? ""}/resources/index.json`,
-      content: jsonPreview(folder.resources),
-    });
-  }
-  for (const finding of folder.findings ?? []) {
-    entries.push({
-      id: `findings/${finding.name}`,
-      label: `findings/${finding.name}`,
-      path: finding.path,
-      content: finding.content,
     });
   }
   return entries;
@@ -503,7 +475,7 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
               </span>
             </label>
           </div>
-          <SectionCard title="Agent 输出目录" description="每个 Agent 完成后会生成输出文件夹，可在对应步骤下查看 README、findings 与资源索引。">
+          <SectionCard title="Agent 输出目录" description="每个 Agent 完成后会生成输出文件夹，可在对应步骤下查看 README。">
             {activeRun?.status === "paused" ? (
               <p className="notice">
                 已进入「分步门禁」暂停点：可先与<strong>最新完成步骤</strong>对应 Agent 在下方复核对话中沟通，确认后点击「继续下一步」拉起后续链路。

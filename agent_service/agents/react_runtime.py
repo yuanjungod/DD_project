@@ -195,9 +195,8 @@ class AgentScopeReActRuntime:
             "",
             "请使用已配置的 AgentScope ReAct 工具、技能与资源完成本步骤。",
             "需要额外来源材料时请调用工具。",
-            "上游 Agent 通过 **output_dir** 交接产物；可用 `view_text_file`、`execute_shell_command`、",
-            "`execute_python_code` 读取其中的 `result.json` 等文件。",
-            "完成后请用简短中文总结你所写或所做的工作。",
+            "上游 Agent 通过 **output_dir** 交接产物；可用 `view_text_file`、`execute_shell_command`",
+            "完成后请用简短中文总结你所写或所做的工作,总结工作和产出都写在README.md中。",
             "",
         ]
         sections.extend(
@@ -386,7 +385,7 @@ def _markdown_agent_output_dir(agent_output_dir: str | None, agent_name: str) ->
                 f"- **agent**: `{agent_name}`",
                 f"- **output_dir**: `{agent_output_dir}`",
                 "",
-                "请将本步骤产出写入该目录（至少包含 `README.md` 与 `result.json`，"
+                "请将本步骤产出写入该目录（至少包含 `README.md`，"
                 "可使用 `execute_shell_command` / `execute_python_code` 创建与更新文件）。",
             ]
         )
