@@ -67,7 +67,7 @@ catalog/
 
 - 这里是“模板配置层”；
 - 运行时 runs/outputs 不应写到这里；
-- 运行时数据统一落在 `.dd_project/`（例如 `.dd_project/projects/{project_id}/users/{user_id}/sessions/{session_id}/runs/`）。
+- 运行时数据统一落在 `.dd_project/`（例如 `.dd_project/users/{user_id}/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/`）。
 
 ### `resource_configs/`
 

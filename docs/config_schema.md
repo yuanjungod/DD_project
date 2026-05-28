@@ -17,7 +17,7 @@ This document describes the configuration contract shared by the frontend, backe
 | `AGENT_SERVICE_URL` | backend | Base URL for **`POST /runs`** (default `http://127.0.0.1:8011`). |
 | `AGENT_CALLBACK_SECRET` | backend + agent | Shared secret for **`X-Agent-Callback-Secret`** on **`POST /internal/agent-runs/.../progress`**. |
 | `PLATFORM_CALLBACK_BASE_URL` | agent | Backend base URL for incremental progress (default `http://127.0.0.1:8010`). Set empty or unreachable to disable callbacks (UI then only updates after finalization). |
-| `DD_SESSION_HISTORY_DIR` | agent | Optional legacy override (deprecated). Session JSON lives under `.dd_project/projects/<engagement>/users/<user>/sessions/<session>/runs/<workflow_template>/<run>.json`. |
+| `DD_SESSION_HISTORY_DIR` | agent | Optional legacy override (deprecated). Session JSON lives under `.dd_project/users/<user>/<workflow_template>/<engagement>/sessions/<session>/runs/<workflow_template>/<run>.json`. |
 | `DD_SEED_DEFAULT_USERS` | backend | Seed development users on startup when the users table is empty (default `true`). |
 | `DD_DEFAULT_USERS_CONFIG` | backend | Optional path to the seed user YAML. Defaults to `catalog/default_users.yaml`; relative paths are resolved from the repository root. |
 | `VITE_API_BASE_URL` | frontend | When set, all `fetch` calls use this absolute base (skips the dev proxy). |
@@ -69,36 +69,36 @@ catalog/scenarios/{workflow_template_id}/ # built-in workflow templates (in repo
   agents/
     {agent_id}.yaml                       # agents used by this workflow template
 
-.dd_project/data/scenarios/{workflow_template_id}/ # user-created workflow templates
+.dd_project/_shared/workflows/{workflow_template_id}/ # user-created workflow templates
   scenario.yaml
   agents/
     {agent_id}.yaml
 
-.dd_project/projects/{engagement_id}/users/{user_id}/sessions/{session_id}/runs/{workflow_template_id}/
+.dd_project/users/{user_id}/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/{workflow_template_id}/
   {run_id}.json
   outputs/{run_id}_outputs/{step}_{agent}/
 ```
 
-Built-in workflow templates and user-created workflow templates only store templates (`scenario.yaml` + `agents/`). Runtime run/session artifacts are centralized under **`.dd_project/projects/.../users/.../sessions/.../runs/`**.
+Built-in workflow templates and user-created workflow templates only store templates (`scenario.yaml` + `agents/`). Runtime run/session artifacts are centralized under **`.dd_project/users/{user}/{workflow}/{engagement}/sessions/.../runs/`**.
 
 Skill packages are file-backed under **`agent_service/skills/<directory_name>/`**. Tool configs are mirrored through **`agent_service/configs/tools.yaml`**. Resource configs are file-backed through **`catalog/resource_configs/`** plus **`DD_DATA_ROOT/platform/resource_configs/`** overlays. Development seed users are file-backed through **`catalog/default_users.yaml`** unless **`DD_DEFAULT_USERS_CONFIG`** points elsewhere.
 
 Engagement-scoped uploaded files (PDFs, Excel, etc.) have two layers:
 
 - Resource metadata rows live in the database as `Resource(type=\"file_reference\", value=<file_id>)`.
-- Binary blobs are stored under `.dd_project/projects/{engagement_id}/shared/uploads/{file_id}`.
+- Binary blobs are stored under `.dd_project/users/{user_id}/{workflow_template_id}/{engagement_id}/shared/uploads/{file_id}`.
 
 Platform-wide library uploads share the same pattern:
 
 - Rows are exposed via `/library/uploads` and merged into `company_config.resources.uploaded_files`.
 - Binary blobs live under `.dd_project/data/platform/uploads/{file_id}` with manifest `.dd_project/data/platform/uploads_manifest.json`.
-- On engagement creation, only platform blobs explicitly selected in `company_config.resources.uploaded_files` (and `agent_resource_scopes.*.uploaded_file_ids`) are copied into `.dd_project/projects/{engagement_id}/shared/uploads/` so engagement-only mounts (e.g., Docker bind mount for one engagement) can access the same `file_id` files locally.
+- On engagement creation, only platform blobs explicitly selected in `company_config.resources.uploaded_files` (and `agent_resource_scopes.*.uploaded_file_ids`) are copied into `.dd_project/users/{user_id}/{workflow_template_id}/{engagement_id}/shared/uploads/` so engagement-only mounts (e.g., Docker bind mount for one engagement) can access the same `file_id` files locally.
 - On engagement updates (`PATCH /engagements/{engagement_id}` with `company_config`), the backend incrementally copies any newly selected platform blobs into the same engagement-local uploads directory.
 
 Skill packages follow the same engagement-localization principle:
 
 - Agent skill packages are still defined globally under `agent_service/skills/{directory_name}`.
-- On engagement creation, only skill packages referenced by the selected workflow snapshot are copied into `.dd_project/projects/{engagement_id}/shared/skills/{directory_name}`.
+- On engagement creation, only skill packages referenced by the selected workflow snapshot are copied into `.dd_project/users/{user_id}/{workflow_template_id}/{engagement_id}/shared/skills/{directory_name}`.
 - On engagement updates (`PATCH /engagements/{engagement_id}` with `company_config`), the backend incrementally copies newly referenced skill package directories into the same engagement-local skills directory.
 
 ## Company Configuration
@@ -131,7 +131,7 @@ Reusable workflows are managed through the backend configuration catalog:
 - `ToolConfig` (file-backed): optional executable platform capabilities; persisted under `agent_service/configs/tools.yaml`.
 - `ResourceConfig`: data resource available to agents, such as public web, uploaded files, vector stores, databases, or external APIs.
 - `AgentTemplate` (file-backed): definitions are stored in **`catalog/agents/{agent_id}.yaml`**. Each record has `id`, `name`, `role`, inline `prompt`, optional `sub_agent_ids`, `skill_package_ids`, `tool_ids`, `skill_ids`, `resource_ids`, `react_config`, and `enabled`. The Admin UI uses **`GET/POST/PATCH /agent-templates`**; **`POST`** and **`PATCH`** write the global library.
-- `WorkflowTemplate` (file-backed template): one folder per workflow template under **`catalog/scenarios/{workflow_id}/`** (built-in) or **`.dd_project/data/scenarios/{workflow_id}/`** (user-created). Each folder contains **`scenario.yaml`** (workflow graph and metadata) and an **`agents/`** subdirectory with the agents referenced by that template. **`GET/POST/PATCH /workflow-templates`** and publish/clone operate on these folders; only **`published`** templates are listed for non-admin callers and for run snapshots.
+- `WorkflowTemplate` (file-backed template): one folder per workflow template under **`catalog/scenarios/{workflow_id}/`** (built-in) or **`.dd_project/_shared/workflows/{workflow_id}/`** (user-created). Each folder contains **`scenario.yaml`** (workflow graph and metadata) and an **`agents/`** subdirectory with the agents referenced by that template. **`GET/POST/PATCH /workflow-templates`** and publish/clone operate on these folders; only **`published`** templates are listed for non-admin callers and for run snapshots.
 
 Only **`published`** workflow templates should be selected by downstream engagements. When a run starts, the backend creates a **workflow snapshot** from the current file-backed template, agent catalog, and DB/file-backed skill/tool/resource mirrors. The snapshot sent to the agent service includes `skill_packages` (with `package_files`), executable `tools`, `resources`, and each agent's `react_config`. By default, `react_config.model` uses the local Anthropic Messages-compatible `kimi-code` provider at `http://127.0.0.1:8081/v1`.
 
@@ -152,8 +152,8 @@ Execution order stays graph-driven by node order; within one node, the `agent_te
 {
   "agent": "LegalRiskAgent",
   "status": "completed",
-  "output_dir": "/path/to/.dd_project/projects/eng_x/users/user_x/sessions/sess_x/runs/standard_due_diligence/outputs/run_y_outputs/run_y_step_003_LegalRiskAgent",
-  "output_readme_path": "/path/to/.dd_project/projects/eng_x/users/user_x/sessions/sess_x/runs/standard_due_diligence/outputs/run_y_outputs/run_y_step_003_LegalRiskAgent/README.md"
+  "output_dir": "/path/to/.dd_project/users/user_x/standard_due_diligence/eng_x/sessions/sess_x/runs/standard_due_diligence/outputs/run_y_outputs/run_y_step_003_LegalRiskAgent",
+  "output_readme_path": "/path/to/.dd_project/users/user_x/standard_due_diligence/eng_x/sessions/sess_x/runs/standard_due_diligence/outputs/run_y_outputs/run_y_step_003_LegalRiskAgent/README.md"
 }
 ```
 

@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from app.core.config import settings
+from app.services.fs_layout import dd_flow_home_dir
 
 _SCENARIO_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 
@@ -51,7 +52,7 @@ def builtin_scenarios_root() -> Path:
 
 
 def data_scenarios_root() -> Path:
-    directory = data_root() / "scenarios"
+    directory = dd_flow_home_dir() / "_shared" / "workflows"
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 

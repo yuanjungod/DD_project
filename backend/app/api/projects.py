@@ -19,7 +19,7 @@ from app.services.project_resources_store import append_resources as append_proj
 from app.services.project_resources_store import delete_project_resources_tree
 from app.services.skill_files import copy_skill_directories_to_project
 from app.services.workflow_snapshots import build_workflow_snapshot
-from app.services.fs_layout import project_agent_overrides_manifest_path, project_uploads_dir
+from app.services.fs_layout import project_agent_overrides_manifest_path, project_uploads_dir, register_engagement_tree
 
 
 router = APIRouter(prefix="/engagements", tags=["engagements"])
@@ -118,6 +118,8 @@ def create_engagement(
     )
     db.add(engagement)
     db.flush()
+    workflow_id = str(payload.company_config.workflow_template_id or payload.company_config.workflow_id or "").strip() or "_default_workflow"
+    register_engagement_tree(engagement.id, user.id, workflow_id)
     db.add(ProjectAccess(project_id=engagement.id, user_id=user.id, access_role="owner"))
     db.commit()
     append_project_resources_fs(engagement.id, payload.initial_resources)
@@ -156,10 +158,21 @@ def update_engagement(
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> Project:
     engagement = ensure_project_write_access(db, user, engagement_id)
+    cfg0 = engagement.company_config if isinstance(engagement.company_config, dict) else {}
+    register_engagement_tree(
+        engagement.id,
+        user.id,
+        str(cfg0.get("workflow_template_id") or cfg0.get("workflow_id") or "_default_workflow"),
+    )
     if payload.name is not None:
         engagement.name = payload.name
     if payload.company_config is not None:
         company_config = payload.company_config.model_dump()
+        register_engagement_tree(
+            engagement.id,
+            user.id,
+            str(company_config.get("workflow_template_id") or company_config.get("workflow_id") or "_default_workflow"),
+        )
         engagement.company_config = company_config
         engagement.company_key = company_key_from_name(payload.company_config.target_company.name)
         copy_platform_uploads_to_project(
@@ -198,6 +211,12 @@ def clone_engagement_version(
     )
     db.add(clone)
     db.flush()
+    source_cfg = source.company_config if isinstance(source.company_config, dict) else {}
+    register_engagement_tree(
+        clone.id,
+        user.id,
+        str(source_cfg.get("workflow_template_id") or source_cfg.get("workflow_id") or "_default_workflow"),
+    )
     db.add(ProjectAccess(project_id=clone.id, user_id=user.id, access_role="owner"))
     db.commit()
     db.refresh(clone)

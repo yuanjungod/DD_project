@@ -18,7 +18,7 @@ BUILTIN_SCENARIOS_DIR = REPO_ROOT / "catalog" / "scenarios"
 
 
 def _data_scenarios_dir() -> Path:
-    return get_agent_settings().resolved_data_root / "scenarios"
+    return get_agent_settings().repo_root / ".dd_project" / "_shared" / "workflows"
 
 
 class AgentDefinition(BaseModel):

@@ -97,13 +97,13 @@ npm run dev
 Writable runtime data defaults to `.dd_project/data/` from the repository root:
 
 - SQLite: `.dd_project/data/platform/dd_platform.db` (set `DATABASE_URL` to use PostgreSQL or another explicit database).
-- Engagement resources: `.dd_project/projects/<engagement_id>/shared/resources` + `.dd_project/projects/<engagement_id>/shared/resource_configs`.
-- Engagement uploads (binary blobs): `.dd_project/projects/<engagement_id>/shared/uploads/<file_id>`.
-- Engagement-local copied skills: `.dd_project/projects/<engagement_id>/shared/skills/<directory_name>`.
+- Engagement resources: `.dd_project/users/<user_id>/<workflow_template_id>/<engagement_id>/shared/resources` + `.dd_project/users/<user_id>/<workflow_template_id>/<engagement_id>/shared/resource_configs`.
+- Engagement uploads (binary blobs): `.dd_project/users/<user_id>/<workflow_template_id>/<engagement_id>/shared/uploads/<file_id>`.
+- Engagement-local copied skills: `.dd_project/users/<user_id>/<workflow_template_id>/<engagement_id>/shared/skills/<directory_name>`.
 - Platform uploads (binary blobs): `.dd_project/data/platform/uploads/<file_id>`.
 - Platform upload manifest: `.dd_project/data/platform/uploads_manifest.json`.
-- Agent run sessions and per-step outputs: `.dd_project/projects/<engagement_id>/users/<user_id>/sessions/<session_id>/runs/<workflow_template_id>/...`.
-- Engagement runtime config home: `.dd_project/projects/<engagement_id>/meta/agent_overrides.json`.
+- Agent run sessions and per-step outputs: `.dd_project/users/<user_id>/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<workflow_template_id>/...`.
+- Engagement runtime config home: `.dd_project/users/<user_id>/<workflow_template_id>/<engagement_id>/meta/agent_overrides.json`.
 
 Set `DD_DATA_ROOT` to move all writable file data together.
 

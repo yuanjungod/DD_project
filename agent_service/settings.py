@@ -37,7 +37,7 @@ class AgentSettings(BaseSettings):
     session_history_enabled: bool = Field(
         default=True,
         validation_alias="DD_SESSION_HISTORY_ENABLED",
-        description="Persist each POST /runs execution under .dd_project/projects/<project>/users/<user>/sessions/<session>/runs/<scenario>/<run>.json",
+        description="Persist each POST /runs execution under .dd_project/users/<user>/<workflow>/<engagement>/sessions/<session>/runs/<workflow>/<run>.json",
     )
     session_history_dir: str = Field(
         default="",
@@ -60,11 +60,11 @@ class AgentSettings(BaseSettings):
 
     @property
     def resolved_session_history_dir(self) -> Path:
-        """Deprecated legacy root; runtime uses repository .dd_project/projects/.../sessions/.../runs/ by default."""
+        """Deprecated legacy root; runtime uses repository .dd_project/users/<user>/<workflow>/<engagement>/... by default."""
         configured = self.session_history_dir.strip()
         if configured:
             return _resolve_repo_path(configured)
-        return self.repo_root / ".dd_project" / "projects"
+        return self.repo_root / ".dd_project"
 
 
 @lru_cache
