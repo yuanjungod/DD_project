@@ -16,34 +16,35 @@ import { SectionCard } from "../components/SectionCard";
 import { resolveGraphAgentOrder } from "../domain/workflowGraph";
 import type { AgentTemplate, PublishedWorkflowTemplate, WorkflowGraph, WorkflowTemplate } from "../types/domain";
 
-function splitList(value: string): string[] {
-  return value.split(",").map((item) => item.trim()).filter(Boolean);
+type HubTab = "templates" | "builder" | "agents";
+type BuilderSubTab = "create" | "agents" | "saved";
+type OrchestrationMode = "linear" | "master_sub";
+type AgentNodeForm = {
+  key: string;
+  master: string;
+  subAgents: string[];
+};
+
+function newNodeForm(): AgentNodeForm {
+  return {
+    key: `tmp_${Math.random().toString(36).slice(2, 10)}`,
+    master: "",
+    subAgents: [],
+  };
 }
 
-function graphFromNodeSpecs(raw: string): WorkflowGraph {
-  const lines = raw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  const parsed =
-    lines.length === 1 && !lines[0].includes(">")
-      ? splitList(lines[0]).map((master) => ({ master, subs: [] as string[] }))
-      : lines.map((line) => {
-          const [masterPart, subPart] = line.split(">", 2).map((s) => s.trim());
-          return {
-            master: masterPart,
-            subs: subPart ? splitList(subPart) : [],
-          };
-        });
-
-  const nodes = parsed
-    .filter((row) => row.master)
-    .map((row, index) => ({
+function graphFromNodeForms(forms: AgentNodeForm[], mode: OrchestrationMode): WorkflowGraph {
+  const normalized = forms
+    .map((row) => ({
+      master: row.master.trim(),
+      subs: mode === "master_sub" ? row.subAgents.filter(Boolean) : [],
+    }))
+    .filter((row) => row.master);
+  const nodes = normalized.map((row, index) => ({
     id: `node_${index + 1}`,
     agent_template_id: row.master,
     sub_agent_template_ids: row.subs,
-    stage: index === 0 ? "coordination" : index === parsed.length - 1 ? "reporting" : "execution",
+    stage: index === 0 ? "coordination" : index === normalized.length - 1 ? "reporting" : "execution",
   }));
   return {
     nodes,
@@ -53,19 +54,19 @@ function graphFromNodeSpecs(raw: string): WorkflowGraph {
   };
 }
 
-function nodeSpecsFromGraph(graph: WorkflowGraph): string {
-  return (graph?.nodes ?? [])
-    .map((node) => {
-      const master = (node.agent_template_id ?? "").trim();
-      const subs = (node.sub_agent_template_ids ?? []).map((s) => (s ?? "").trim()).filter(Boolean);
-      if (!master) return "";
-      return subs.length ? `${master} > ${subs.join(", ")}` : master;
-    })
-    .filter(Boolean)
-    .join("\n");
+function nodeFormsFromGraph(graph: WorkflowGraph): { mode: OrchestrationMode; forms: AgentNodeForm[] } {
+  const rows = (graph?.nodes ?? []).map((node) => {
+    const master = (node.agent_template_id ?? "").trim();
+    const subAgents = (node.sub_agent_template_ids ?? []).map((item) => (item ?? "").trim()).filter(Boolean);
+    return {
+      key: node.id || `tmp_${Math.random().toString(36).slice(2, 10)}`,
+      master,
+      subAgents,
+    } as AgentNodeForm;
+  });
+  const mode: OrchestrationMode = rows.some((row) => row.subAgents.length) ? "master_sub" : "linear";
+  return { mode, forms: rows.length ? rows : [newNodeForm()] };
 }
-
-type HubTab = "templates" | "builder" | "agents";
 
 /** Must match backend `workflow_template_files._PROTECTED_WORKFLOW_TEMPLATE_IDS`. */
 const PROTECTED_WORKFLOW_TEMPLATE_IDS = new Set([
@@ -106,11 +107,14 @@ export function WorkflowsHubPage() {
     name: "",
     description: "",
     workflow_template: "custom",
-    node_specs: "",
   });
+  const [nodeForms, setNodeForms] = useState<AgentNodeForm[]>([newNodeForm()]);
+  const [orchestrationMode, setOrchestrationMode] = useState<OrchestrationMode>("linear");
   const [editingWorkflowId, setEditingWorkflowId] = useState<string | null>(null);
+  const [builderSubTab, setBuilderSubTab] = useState<BuilderSubTab>("create");
 
-  const agentPlaceholder = useMemo(() => agents.map((agent) => agent.id).join(", "), [agents]);
+  const availableAgentIds = useMemo(() => agents.map((agent) => agent.id), [agents]);
+  const allowMasterSubMode = Boolean(editingWorkflowId);
 
   const loadPublishedWorkflowTemplates = useCallback(async () => {
     const items = await listPublishedWorkflowTemplates();
@@ -144,7 +148,9 @@ export function WorkflowsHubPage() {
 
   function resetWorkflowForm() {
     setEditingWorkflowId(null);
-    setForm({ id: "", name: "", description: "", workflow_template: "custom", node_specs: "" });
+    setForm({ id: "", name: "", description: "", workflow_template: "custom" });
+    setNodeForms([newNodeForm()]);
+    setOrchestrationMode("linear");
   }
 
   function beginEditWorkflow(workflow: WorkflowTemplate) {
@@ -154,9 +160,48 @@ export function WorkflowsHubPage() {
       name: workflow.name,
       description: workflow.description,
       workflow_template: workflow.workflow_template,
-      node_specs: nodeSpecsFromGraph(workflow.graph),
     });
+    const nodeConfig = nodeFormsFromGraph(workflow.graph);
+    setOrchestrationMode(nodeConfig.mode);
+    setNodeForms(nodeConfig.forms);
+    setBuilderSubTab("create");
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function addNodeForm() {
+    setNodeForms((prev) => [...prev, newNodeForm()]);
+  }
+
+  function removeNodeForm(key: string) {
+    setNodeForms((prev) => {
+      const next = prev.filter((item) => item.key !== key);
+      return next.length ? next : [newNodeForm()];
+    });
+  }
+
+  function updateNodeForm(key: string, patch: Partial<AgentNodeForm>) {
+    setNodeForms((prev) =>
+      prev.map((item) => {
+        if (item.key !== key) return item;
+        const next: AgentNodeForm = { ...item, ...patch };
+        next.subAgents = next.subAgents.filter((id) => id !== next.master);
+        return next;
+      }),
+    );
+  }
+
+  function toggleSubAgentForNode(key: string, agentId: string) {
+    if (orchestrationMode !== "master_sub") return;
+    setNodeForms((prev) =>
+      prev.map((item) => {
+        if (item.key !== key) return item;
+        const has = item.subAgents.includes(agentId);
+        return {
+          ...item,
+          subAgents: has ? item.subAgents.filter((id) => id !== agentId) : [...item.subAgents, agentId],
+        };
+      }),
+    );
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -167,8 +212,11 @@ export function WorkflowsHubPage() {
         name: form.name,
         description: form.description,
         workflow_template: form.workflow_template,
-        graph: graphFromNodeSpecs(form.node_specs),
+        graph: graphFromNodeForms(nodeForms, allowMasterSubMode ? orchestrationMode : "linear"),
       };
+      if (!payload.graph.nodes.length) {
+        throw new Error("请至少配置一个节点并选择主Agent。");
+      }
       if (editingWorkflowId) {
         await updateWorkflowTemplate(editingWorkflowId, payload);
       } else {
@@ -213,7 +261,7 @@ export function WorkflowsHubPage() {
     const publishedHint =
       workflow.status === "published"
         ? "该模板已发布，删除后「模板应用」中将不再出现。确定删除吗？"
-        : "确定删除该草稿模板吗？";
+        : "确定删除该未发布模板吗？";
     if (!window.confirm(`${publishedHint}\n\n「${workflow.name}」 (${workflow.id})`)) {
       return;
     }
@@ -230,7 +278,7 @@ export function WorkflowsHubPage() {
     activeTab === "templates"
       ? "选择已发布 Workflow Template，一键创建绑定公司的 Engagement。"
       : activeTab === "builder"
-        ? "新建或编辑草稿、编排 Agent、发布后与「模板应用」页同步；内置模板可修改但不可删除。"
+        ? "新建或编辑模板、编排 Agent、发布后与「模板应用」页同步；内置模板可修改但不可删除。"
         : "维护提示词、Skill 包、工具与资源配置，供流程模板引用。";
 
   return (
@@ -294,13 +342,40 @@ export function WorkflowsHubPage() {
           {!builderLoaded ? <p className="notice">加载流程与 Agent 目录…</p> : null}
           {builderLoaded ? (
             <>
-              <div className="grid two">
+              <nav className="hub-tab-bar" aria-label="模板管理子页面">
+                <button
+                  type="button"
+                  className="hub-tab"
+                  aria-current={builderSubTab === "create" ? "page" : undefined}
+                  onClick={() => setBuilderSubTab("create")}
+                >
+                  新增流程模板
+                </button>
+                <button
+                  type="button"
+                  className="hub-tab"
+                  aria-current={builderSubTab === "agents" ? "page" : undefined}
+                  onClick={() => setBuilderSubTab("agents")}
+                >
+                  可用Agent
+                </button>
+                <button
+                  type="button"
+                  className="hub-tab"
+                  aria-current={builderSubTab === "saved" ? "page" : undefined}
+                  onClick={() => setBuilderSubTab("saved")}
+                >
+                  已保存模板
+                </button>
+              </nav>
+
+              {builderSubTab === "create" ? (
                 <SectionCard
                   title={editingWorkflowId ? "编辑流程模板" : "新增流程模板"}
                   description={
                     editingWorkflowId
                       ? `正在编辑 ${editingWorkflowId}；保存后更新模板内容，已发布场景需重新发布才会同步到「使用场景」。`
-                      : "逗号分隔 Agent 顺序；保存为草稿后在此页发布。"
+                      : "逗号分隔 Agent 顺序；先保存，再在「已保存模板」里发布。"
                   }
                 >
                   {editingWorkflowId ? (
@@ -334,13 +409,87 @@ export function WorkflowsHubPage() {
                       />
                     </label>
                     <label>
-                      节点配置（支持 master + sub）
-                      <textarea
-                        rows={6}
-                        placeholder={`每行一个节点：\nCoordinatorAgent > CompanyProfileAgent, WebResearchAgent\nReportWriterAgent\n\n也兼容旧写法（单行逗号分隔）：\n${agentPlaceholder}`}
-                        value={form.node_specs}
-                        onChange={(event) => setForm({ ...form, node_specs: event.target.value })}
-                      />
+                      编排模式
+                      <select
+                        value={orchestrationMode}
+                        onChange={(event) => {
+                          const next = event.target.value as OrchestrationMode;
+                          if (!allowMasterSubMode && next === "master_sub") return;
+                          setOrchestrationMode(next);
+                        }}
+                      >
+                        <option value="linear">串行编排（单Agent节点）</option>
+                        {allowMasterSubMode ? <option value="master_sub">主从编排（主Agent + 从Agent）</option> : null}
+                      </select>
+                      {!allowMasterSubMode ? (
+                        <small className="muted">新增流程模板暂不支持主从编排。</small>
+                      ) : null}
+                    </label>
+                    <label>
+                      节点配置
+                      <div className="workflow-node-editor">
+                        {nodeForms.map((node, index) => (
+                          <div key={node.key} className="workflow-node-editor__row">
+                            <div className="workflow-node-editor__row-head">
+                              <strong>节点 {index + 1}</strong>
+                              <button type="button" className="secondary-button" onClick={() => removeNodeForm(node.key)}>
+                                删除节点
+                              </button>
+                            </div>
+                            <label>
+                              主Agent
+                              <select
+                                value={node.master}
+                                onChange={(event) => updateNodeForm(node.key, { master: event.target.value })}
+                              >
+                                <option value="">请选择</option>
+                                {availableAgentIds.map((agentId) => (
+                                  <option key={`${node.key}-${agentId}`} value={agentId}>
+                                    {agentId}
+                                  </option>
+                                ))}
+                                {node.master && !availableAgentIds.includes(node.master) ? (
+                                  <option value={node.master}>{node.master}</option>
+                                ) : null}
+                              </select>
+                            </label>
+                            {allowMasterSubMode && orchestrationMode === "master_sub" ? (
+                              <fieldset>
+                                <legend>从Agent（可多选）</legend>
+                                <div className="checkbox-group">
+                                  {availableAgentIds
+                                    .filter((agentId) => agentId !== node.master)
+                                    .map((agentId) => (
+                                      <label key={`${node.key}-sub-${agentId}`}>
+                                        <input
+                                          type="checkbox"
+                                          checked={node.subAgents.includes(agentId)}
+                                          onChange={() => toggleSubAgentForNode(node.key, agentId)}
+                                        />
+                                        {agentId}
+                                      </label>
+                                    ))}
+                                  {node.subAgents
+                                    .filter((agentId) => !availableAgentIds.includes(agentId))
+                                    .map((agentId) => (
+                                      <label key={`${node.key}-sub-missing-${agentId}`}>
+                                        <input
+                                          type="checkbox"
+                                          checked
+                                          onChange={() => toggleSubAgentForNode(node.key, agentId)}
+                                        />
+                                        {agentId}
+                                      </label>
+                                    ))}
+                                </div>
+                              </fieldset>
+                            ) : null}
+                          </div>
+                        ))}
+                        <button type="button" className="secondary-button" onClick={addNodeForm}>
+                          + 新增节点
+                        </button>
+                      </div>
                     </label>
                     <label>
                       描述
@@ -349,10 +498,13 @@ export function WorkflowsHubPage() {
                         onChange={(event) => setForm({ ...form, description: event.target.value })}
                       />
                     </label>
-                    <button type="submit">{editingWorkflowId ? "保存修改" : "保存为草稿"}</button>
+                    <button type="submit">{editingWorkflowId ? "保存修改" : "保存"}</button>
                   </form>
                 </SectionCard>
-                <SectionCard title="可用 Agent">
+              ) : null}
+
+              {builderSubTab === "agents" ? (
+                <SectionCard title="可用 Agent" description="流程模板可引用的 Agent 列表。">
                   <ul className="list">
                     {agents.map((agent) => (
                       <li key={agent.id}>
@@ -363,48 +515,51 @@ export function WorkflowsHubPage() {
                     ))}
                   </ul>
                 </SectionCard>
-              </div>
-              <SectionCard title="草稿与已保存模板" description="发布后即在「使用场景」中可选。">
-                <div className="workflow-list">
-                  {workflows.map((workflow) => (
-                    <article key={workflow.id} className="workflow-row">
-                      <div>
-                        <span className={`status ${workflow.status}`}>{workflow.status}</span>
-                        <h3>{workflow.name}</h3>
-                        <p>{workflow.description}</p>
-                        <small>
-                          {workflow.id} · v{workflow.version} · {workflow.graph.nodes.length} agents
-                        </small>
-                      </div>
-                      <ol className="agent-chain">
-                        {resolveGraphAgentOrder(workflow.graph).map((agentId, index) => (
-                          <li key={`${workflow.id}-${agentId}-${index}`}>{agentId}</li>
-                        ))}
-                      </ol>
-                      <div className="row-actions">
-                        <button type="button" className="secondary-button" onClick={() => beginEditWorkflow(workflow)}>
-                          编辑
-                        </button>
-                        <button type="button" onClick={() => handlePublish(workflow.id)}>
-                          发布
-                        </button>
-                        <button type="button" className="secondary-button" onClick={() => handleClone(workflow.id)}>
-                          克隆
-                        </button>
-                        {!PROTECTED_WORKFLOW_TEMPLATE_IDS.has(workflow.id) ? (
-                          <button
-                            type="button"
-                            className="danger-button"
-                            onClick={() => void handleDelete(workflow)}
-                          >
-                            删除
+              ) : null}
+
+              {builderSubTab === "saved" ? (
+                <SectionCard title="已保存模板" description="发布后即在「使用场景」中可选。">
+                  <div className="workflow-list">
+                    {workflows.map((workflow) => (
+                      <article key={workflow.id} className="workflow-row">
+                        <div>
+                          <span className={`status ${workflow.status}`}>{workflow.status}</span>
+                          <h3>{workflow.name}</h3>
+                          <p>{workflow.description}</p>
+                          <small>
+                            {workflow.id} · v{workflow.version} · {workflow.graph.nodes.length} agents
+                          </small>
+                        </div>
+                        <ol className="agent-chain">
+                          {resolveGraphAgentOrder(workflow.graph).map((agentId, index) => (
+                            <li key={`${workflow.id}-${agentId}-${index}`}>{agentId}</li>
+                          ))}
+                        </ol>
+                        <div className="row-actions">
+                          <button type="button" className="secondary-button" onClick={() => beginEditWorkflow(workflow)}>
+                            编辑
                           </button>
-                        ) : null}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </SectionCard>
+                          <button type="button" onClick={() => handlePublish(workflow.id)}>
+                            发布
+                          </button>
+                          <button type="button" className="secondary-button" onClick={() => handleClone(workflow.id)}>
+                            克隆
+                          </button>
+                          {!PROTECTED_WORKFLOW_TEMPLATE_IDS.has(workflow.id) ? (
+                            <button
+                              type="button"
+                              className="danger-button"
+                              onClick={() => void handleDelete(workflow)}
+                            >
+                              删除
+                            </button>
+                          ) : null}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </SectionCard>
+              ) : null}
             </>
           ) : null}
         </>

@@ -26,7 +26,7 @@ Every agent must follow these rules:
 
 ## Workflow
 
-Workflow templates are file-backed as **workflow template folders** under `catalog/workflow_templates/` (built-in) and `.dd_project/users/{user_id}/_workflows/` (user-created). Each folder contains `workflow_template.yaml` plus an `agents/` subdirectory. A company engagement selects one published template through `company_config.workflow_template_id`.
+Workflow templates are file-backed as **workflow template folders** under `catalog/workflow_templates/` (published catalog) and `.dd_project/users/{user_id}/workflows/` (user draft/save area). Each folder contains `workflow_template.yaml` plus an `agents/` subdirectory. A company engagement selects one published template through `company_config.workflow_template_id`.
 
 Current templates:
 

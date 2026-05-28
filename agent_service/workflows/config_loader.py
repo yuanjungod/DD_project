@@ -34,7 +34,7 @@ def _data_workflow_template_dirs() -> list[Path]:
     for user_dir in users_root.iterdir():
         if not user_dir.is_dir():
             continue
-        wf_root = user_dir / "_workflows"
+        wf_root = user_dir / "workflows"
         if wf_root.is_dir():
             roots.append(wf_root)
     return roots

@@ -19,6 +19,8 @@ from app.services.agent_catalog_files import copy_global_agents_to_workflow_temp
 from app.services.agent_record_utils import normalize_agent_record
 from app.services.catalog_layout import (
     assert_safe_workflow_template_id,
+    builtin_workflow_templates_root,
+    data_workflow_templates_root,
     is_protected_workflow_template,
     list_workflow_template_config_dirs,
     protected_workflow_template_ids,
@@ -126,7 +128,7 @@ def save_workflow_bundle(
     wf = bundle.get("workflow", {})
     graph_ids = resolve_graph_agent_order(wf.get("graph") or {})
     if validate_agent_refs:
-        pool = union_agent_by_id()
+        pool = union_agent_by_id(user_id=user_id)
         missing = [aid for aid in graph_ids if aid and aid not in pool]
         if missing:
             raise HTTPException(status_code=400, detail=f"Unknown agents referenced by workflow template graph: {missing}")
@@ -185,9 +187,9 @@ def workflow_template_agent_by_id(workflow_template_id: str, *, user_id: str | N
     return {row["id"]: row for row in _load_workflow_template_agent_rows(workflow_template_id, user_id=user_id)}
 
 
-def union_agent_by_id() -> dict[str, dict[str, Any]]:
+def union_agent_by_id(*, user_id: str | None = None) -> dict[str, dict[str, Any]]:
     """Global agent library used when validating graph references."""
-    return global_agent_by_id()
+    return global_agent_by_id(user_id=user_id)
 
 
 def _pick_agents_for_graph(agent_ids: list[str], pool: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
@@ -213,7 +215,7 @@ def create_workflow_template(payload: WorkflowTemplateCreate, *, user_id: str) -
         raise HTTPException(status_code=409, detail=f"Workflow id already exists: {wf_id}")
     graph = data["graph"]
     agent_ids = resolve_graph_agent_order(graph)
-    pool = union_agent_by_id()
+    pool = union_agent_by_id(user_id=user_id)
     _pick_agents_for_graph(agent_ids, pool)
     bundle = {
         "version": 1,
@@ -242,7 +244,7 @@ def update_workflow_template(workflow_id: str, payload: WorkflowTemplateUpdate, 
             wf[key] = value
     if "graph" in updates and updates["graph"] is not None:
         agent_ids = resolve_graph_agent_order(updates["graph"])
-        pool = union_agent_by_id()
+        pool = union_agent_by_id(user_id=user_id)
         _pick_agents_for_graph(agent_ids, pool)
     path = save_workflow_bundle(workflow_id, bundle, user_id=user_id)
     return _bundle_to_read(path, _normalize_bundle(copy.deepcopy(_load_yaml(path))))
@@ -259,12 +261,47 @@ def delete_workflow_template(workflow_id: str, *, user_id: str) -> None:
 
 
 def publish_workflow_template(workflow_id: str, *, user_id: str) -> WorkflowTemplateRead:
-    bundle = load_workflow_bundle(workflow_id, user_id=user_id)
+    source_root = data_workflow_templates_root(user_id) / workflow_id
+    source_yaml = source_root / "workflow_template.yaml"
+    if not source_yaml.is_file():
+        raise HTTPException(status_code=404, detail="Workflow draft not found under user workflows")
+    bundle = _normalize_bundle(copy.deepcopy(_load_yaml(source_yaml)))
     wf = bundle["workflow"]
     wf["status"] = "published"
     wf["version"] = int(wf.get("version", 1)) + 1
-    path = save_workflow_bundle(workflow_id, bundle, user_id=user_id)
-    return _bundle_to_read(path, _normalize_bundle(copy.deepcopy(_load_yaml(path))))
+    target_root = builtin_workflow_templates_root() / workflow_id
+    target_root.mkdir(parents=True, exist_ok=True)
+    target_workflow_yaml = target_root / "workflow_template.yaml"
+    document = {"version": bundle.get("version", 1), "workflow": wf}
+    text = yaml.safe_dump(
+        document,
+        sort_keys=False,
+        allow_unicode=True,
+        default_flow_style=False,
+        width=4096,
+    )
+    header = (
+        "# Workflow template folder — workflow graph and metadata. "
+        "Agent definitions for this workflow template live in ./agents/.\n\n"
+    )
+    target_workflow_yaml.write_text(header + text, encoding="utf-8")
+
+    source_agents = source_root / "agents"
+    target_agents = target_root / "agents"
+    target_agents.mkdir(parents=True, exist_ok=True)
+    for stale in target_agents.glob("*.yaml"):
+        if stale.name.startswith("_"):
+            continue
+        stale.unlink(missing_ok=True)
+    if source_agents.is_dir():
+        for agent_path in source_agents.glob("*.yaml"):
+            if agent_path.name.startswith("_"):
+                continue
+            shutil.copy2(agent_path, target_agents / agent_path.name)
+
+    # Keep user draft status/version in sync with the published state.
+    _write_workflow_template_yaml(workflow_id, bundle, user_id=user_id)
+    return _bundle_to_read(target_workflow_yaml, _normalize_bundle(copy.deepcopy(_load_yaml(target_workflow_yaml))))
 
 
 def clone_workflow_template(workflow_id: str, *, user_id: str) -> WorkflowTemplateRead:
@@ -317,22 +354,28 @@ def workflow_template_agent_display_names(agent_ids: list[str]) -> dict[str, str
     return {aid: pool.get(aid, {}).get("name", aid) for aid in agent_ids}
 
 
-def list_union_agent_reads(*, only_enabled_non_admin: bool):
-    from app.services.agent_catalog_files import list_global_agent_reads
+def list_union_agent_reads(*, only_enabled_non_admin: bool, user_id: str | None = None):
+    from app.services.agent_catalog_files import list_agent_reads
 
-    return list_global_agent_reads(only_enabled_non_admin=only_enabled_non_admin)
-
-
-def create_agent(payload):
-    from app.services.agent_catalog_files import create_global_agent
-
-    return create_global_agent(payload)
+    return list_agent_reads(only_enabled_non_admin=only_enabled_non_admin, user_id=user_id)
 
 
-def update_agent(agent_id: str, payload):
-    from app.services.agent_catalog_files import update_global_agent
+def create_agent(payload, *, user_id: str):
+    from app.services.agent_catalog_files import create_agent as create_user_agent
 
-    return update_global_agent(agent_id, payload)
+    return create_user_agent(payload, user_id=user_id)
+
+
+def update_agent(agent_id: str, payload, *, user_id: str):
+    from app.services.agent_catalog_files import update_agent as update_user_agent
+
+    return update_user_agent(agent_id, payload, user_id=user_id)
+
+
+def publish_agent(agent_id: str, *, user_id: str):
+    from app.services.agent_catalog_files import publish_agent as publish_user_agent
+
+    return publish_user_agent(agent_id, user_id=user_id)
 
 
 __all__ = [
@@ -345,6 +388,7 @@ __all__ = [
     "list_union_agent_reads",
     "list_workflow_reads_for_api",
     "load_workflow_bundle",
+    "publish_agent",
     "protected_workflow_template_ids",
     "publish_workflow_template",
     "resolve_agents_for_snapshot",

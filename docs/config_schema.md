@@ -69,12 +69,12 @@ catalog/workflow_templates/{workflow_template_id}/ # built-in workflow templates
   agents/
     {agent_id}.yaml                       # agents used by this workflow template
 
-.dd_project/users/{user_id}/_workflows/{workflow_template_id}/ # user-created workflow templates
+.dd_project/users/{user_id}/workflows/{workflow_template_id}/ # user-created workflow templates
   workflow_template.yaml
   agents/
     {agent_id}.yaml
 
-.dd_project/users/{user_id}/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/{workflow_template_id}/
+.dd_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/{workflow_template_id}/
   {run_id}.json
   outputs/{run_id}_outputs/{step}_{agent}/
 ```
@@ -86,19 +86,19 @@ Skill packages are file-backed under **`agent_service/skills/<directory_name>/`*
 Engagement-scoped uploaded files (PDFs, Excel, etc.) have two layers:
 
 - Resource metadata rows live in the database as `Resource(type=\"file_reference\", value=<file_id>)`.
-- Binary blobs are stored under `.dd_project/users/{user_id}/{workflow_template_id}/{engagement_id}/shared/uploads/{file_id}`.
+- Binary blobs are stored under `.dd_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/shared/uploads/{file_id}`.
 
 Platform-wide library uploads share the same pattern:
 
 - Rows are exposed via `/library/uploads` and merged into `company_config.resources.uploaded_files`.
 - Binary blobs live under `.dd_project/data/platform/uploads/{file_id}` with manifest `.dd_project/data/platform/uploads_manifest.json`.
-- On engagement creation, only platform blobs explicitly selected in `company_config.resources.uploaded_files` (and `agent_resource_scopes.*.uploaded_file_ids`) are copied into `.dd_project/users/{user_id}/{workflow_template_id}/{engagement_id}/shared/uploads/` so engagement-only mounts (e.g., Docker bind mount for one engagement) can access the same `file_id` files locally.
+- On engagement creation, only platform blobs explicitly selected in `company_config.resources.uploaded_files` (and `agent_resource_scopes.*.uploaded_file_ids`) are copied into `.dd_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/shared/uploads/` so engagement-only mounts (e.g., Docker bind mount for one engagement) can access the same `file_id` files locally.
 - On engagement updates (`PATCH /engagements/{engagement_id}` with `company_config`), the backend incrementally copies any newly selected platform blobs into the same engagement-local uploads directory.
 
 Skill packages follow the same engagement-localization principle:
 
 - Agent skill packages are still defined globally under `agent_service/skills/{directory_name}`.
-- On engagement creation, only skill packages referenced by the selected workflow snapshot are copied into `.dd_project/users/{user_id}/{workflow_template_id}/{engagement_id}/shared/skills/{directory_name}`.
+- On engagement creation, only skill packages referenced by the selected workflow snapshot are copied into `.dd_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/shared/skills/{directory_name}`.
 - On engagement updates (`PATCH /engagements/{engagement_id}` with `company_config`), the backend incrementally copies newly referenced skill package directories into the same engagement-local skills directory.
 
 ## Company Configuration
@@ -130,8 +130,8 @@ Reusable workflows are managed through the backend configuration catalog:
 - `SkillPackage` (file-backed): Anthropic/Cursor-style skill package with `SKILL.md`, directory name, editable package files, and optional bundled resources such as references, scripts, and assets. Skill packages live under `agent_service/skills/<directory_name>/`. Admins may **`POST /skills/import-zip`** (`multipart/form-data`: **`file`** = single-skill `.zip` with one top-level folder containing `SKILL.md`; optional **`directory_name`** form field overrides the disk directory slug).
 - `ToolConfig` (file-backed): optional executable platform capabilities; persisted under `agent_service/configs/tools.yaml`.
 - `ResourceConfig`: data resource available to agents, such as public web, uploaded files, vector stores, databases, or external APIs.
-- `AgentTemplate` (file-backed): definitions are stored in **`catalog/agents/{agent_id}.yaml`**. Each record has `id`, `name`, `role`, inline `prompt`, optional `sub_agent_ids`, `skill_package_ids`, `tool_ids`, `skill_ids`, `resource_ids`, `react_config`, and `enabled`. The Admin UI uses **`GET/POST/PATCH /agent-templates`**; **`POST`** and **`PATCH`** write the global library.
-- `WorkflowTemplate` (file-backed template): one folder per workflow template under **`catalog/workflow_templates/{workflow_id}/`** (built-in) or **`.dd_project/users/{user_id}/_workflows/{workflow_id}/`** (user-created). Each folder contains **`workflow_template.yaml`** (workflow graph and metadata) and an **`agents/`** subdirectory with the agents referenced by that template. **`GET/POST/PATCH /workflow-templates`** and publish/clone operate on these folders; only **`published`** templates are listed for non-admin callers and for run snapshots.
+- `AgentTemplate` (file-backed): definitions are stored in **`catalog/agents/{agent_id}.yaml`** (published catalog) and **`.dd_project/users/{user_id}/workflows/_agent_templates/{agent_id}.yaml`** (user draft/save area). Each record has `id`, `name`, `role`, inline `prompt`, optional `sub_agent_ids`, `skill_package_ids`, `tool_ids`, `skill_ids`, `resource_ids`, `react_config`, and `enabled`. The Admin UI uses **`GET/POST/PATCH /agent-templates`** to save drafts under the current user, and **`POST /agent-templates/{agent_id}/publish`** to publish into `catalog/agents/`.
+- `WorkflowTemplate` (file-backed template): one folder per workflow template under **`catalog/workflow_templates/{workflow_id}/`** (published catalog) or **`.dd_project/users/{user_id}/workflows/{workflow_id}/`** (user draft/save area). Each folder contains **`workflow_template.yaml`** (workflow graph and metadata) and an **`agents/`** subdirectory with the agents referenced by that template. **`GET/POST/PATCH /workflow-templates`** save to the user draft area; **`POST /workflow-templates/{workflow_id}/publish`** publishes that draft into `catalog/workflow_templates/{workflow_id}/`. Only **`published`** templates are listed for non-admin callers and for run snapshots.
 
 Only **`published`** workflow templates should be selected by downstream engagements. When a run starts, the backend creates a **workflow snapshot** from the current file-backed template, agent catalog, and DB/file-backed skill/tool/resource mirrors. The snapshot sent to the agent service includes `skill_packages` (with `package_files`), executable `tools`, `resources`, and each agent's `react_config`. By default, `react_config.model` uses the local Anthropic Messages-compatible `kimi-code` provider at `http://127.0.0.1:8081/v1`.
 

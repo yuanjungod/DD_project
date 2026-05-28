@@ -121,7 +121,10 @@ def _lookup_engagement_tree(engagement_id: str) -> tuple[str, str]:
     for user_dir in users_root.iterdir():
         if not user_dir.is_dir():
             continue
-        for workflow_dir in user_dir.iterdir():
+        workflow_root = user_dir / "workflows"
+        if not workflow_root.is_dir():
+            continue
+        for workflow_dir in workflow_root.iterdir():
             if not workflow_dir.is_dir() or workflow_dir.name.startswith("_"):
                 continue
             candidate = workflow_dir / engagement_id
@@ -134,7 +137,7 @@ def _lookup_engagement_tree(engagement_id: str) -> tuple[str, str]:
 
 def engagement_tree_dir(engagement_id: str) -> Path:
     uid, wid = _lookup_engagement_tree(engagement_id)
-    d = dd_flow_users_dir() / uid / wid / engagement_id
+    d = dd_flow_users_dir() / uid / "workflows" / wid / engagement_id
     d.mkdir(parents=True, exist_ok=True)
     return d
 

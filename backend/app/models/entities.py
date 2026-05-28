@@ -17,7 +17,7 @@ class Project(Base):
     __tablename__ = "projects"
     __table_args__ = (UniqueConstraint("company_key", "application_id", "version", name="uq_project_company_app_version"),)
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("proj"))
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("eng"))
     name: Mapped[str] = mapped_column(String, nullable=False)
     company_key: Mapped[str] = mapped_column(String, nullable=False, default="company")
     application_id: Mapped[str] = mapped_column(String, nullable=False, default="default")

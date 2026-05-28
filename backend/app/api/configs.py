@@ -33,6 +33,7 @@ from app.services.workflow_template_files import create_workflow_template as cre
 from app.services.workflow_template_files import delete_workflow_template as delete_workflow_on_disk
 from app.services.workflow_template_files import list_union_agent_reads as list_agent_template_reads_from_disk
 from app.services.workflow_template_files import list_workflow_reads_for_api as list_workflow_reads_from_disk
+from app.services.workflow_template_files import publish_agent as publish_agent_on_disk
 from app.services.workflow_template_files import publish_workflow_template as publish_workflow_on_disk
 from app.services.workflow_template_files import update_agent as update_agent_on_disk
 from app.services.workflow_template_files import update_workflow_template as update_workflow_on_disk
@@ -219,24 +220,32 @@ def delete_resource_config(
 def list_agent_templates(
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
 ) -> list[AgentTemplateRead]:
-    return list_agent_template_reads_from_disk(only_enabled_non_admin=user.role != "admin")
+    return list_agent_template_reads_from_disk(only_enabled_non_admin=user.role != "admin", user_id=user.id)
 
 
 @router.post("/agent-templates", response_model=AgentTemplateRead)
 def create_agent_template(
     payload: AgentTemplateCreate,
-    _: User = Depends(require_roles("admin")),
+    user: User = Depends(require_roles("admin")),
 ) -> AgentTemplateRead:
-    return create_agent_on_disk(payload)
+    return create_agent_on_disk(payload, user_id=user.id)
 
 
 @router.patch("/agent-templates/{agent_id}", response_model=AgentTemplateRead)
 def update_agent_template(
     agent_id: str,
     payload: AgentTemplateUpdate,
-    _: User = Depends(require_roles("admin")),
+    user: User = Depends(require_roles("admin")),
 ) -> AgentTemplateRead:
-    return update_agent_on_disk(agent_id, payload)
+    return update_agent_on_disk(agent_id, payload, user_id=user.id)
+
+
+@router.post("/agent-templates/{agent_id}/publish", response_model=AgentTemplateRead)
+def publish_agent_template(
+    agent_id: str,
+    user: User = Depends(require_roles("admin")),
+) -> AgentTemplateRead:
+    return publish_agent_on_disk(agent_id, user_id=user.id)
 
 
 @router.get("/workflow-templates", response_model=list[WorkflowTemplateRead])

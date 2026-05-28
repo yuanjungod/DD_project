@@ -503,6 +503,10 @@ export function updateAgentTemplate(
   });
 }
 
+export function publishAgentTemplate(agentId: string): Promise<AgentTemplate> {
+  return request<AgentTemplate>(`/agent-templates/${encodeURIComponent(agentId)}/publish`, { method: "POST" });
+}
+
 export function listWorkflowTemplates(): Promise<WorkflowTemplate[]> {
   return request<WorkflowTemplate[]>("/workflow-templates");
 }

@@ -387,7 +387,10 @@ class ResourceCreate(BaseModel):
 
 class ResourceRead(BaseModel):
     id: str
-    engagement_id: str = Field(validation_alias=AliasChoices("engagement_id", "project_id"))
+    engagement_id: str = Field(
+        validation_alias=AliasChoices("engagement_id", "project_id"),
+        serialization_alias="engagement_id",
+    )
     type: str
     value: str
     metadata_json: dict[str, Any]
@@ -421,7 +424,10 @@ class AgentStepRead(BaseModel):
 
 class ReportRead(BaseModel):
     id: str
-    engagement_id: str = Field(validation_alias=AliasChoices("engagement_id", "project_id"))
+    engagement_id: str = Field(
+        validation_alias=AliasChoices("engagement_id", "project_id"),
+        serialization_alias="engagement_id",
+    )
     run_id: str
     title: str
     executive_summary: str
@@ -478,7 +484,10 @@ class StepReviewChatOut(BaseModel):
 
 class AgentRunBriefRead(BaseModel):
     id: str
-    engagement_id: str = Field(validation_alias=AliasChoices("engagement_id", "project_id"))
+    engagement_id: str = Field(
+        validation_alias=AliasChoices("engagement_id", "project_id"),
+        serialization_alias="engagement_id",
+    )
     status: str
     attempt_index: int | None = None
     session_id: str | None = None
@@ -493,7 +502,10 @@ class AgentRunBriefRead(BaseModel):
 
 class DiligenceSessionRead(BaseModel):
     id: str
-    engagement_id: str = Field(validation_alias=AliasChoices("engagement_id", "project_id"))
+    engagement_id: str = Field(
+        validation_alias=AliasChoices("engagement_id", "project_id"),
+        serialization_alias="engagement_id",
+    )
     status: str
     created_at: datetime
     updated_at: datetime
@@ -512,7 +524,10 @@ class DiligenceSessionRead(BaseModel):
 
 class AgentRunRead(BaseModel):
     id: str
-    engagement_id: str = Field(validation_alias=AliasChoices("engagement_id", "project_id"))
+    engagement_id: str = Field(
+        validation_alias=AliasChoices("engagement_id", "project_id"),
+        serialization_alias="engagement_id",
+    )
     session_id: str | None = None
     attempt_index: int | None = None
     status: str

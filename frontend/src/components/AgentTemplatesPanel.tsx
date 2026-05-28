@@ -4,6 +4,7 @@ import {
   createAgentTemplate,
   listAgentTemplates,
   listLibraryUploads,
+  publishAgentTemplate,
   listResourceConfigs,
   listSkills,
   listToolConfigs,
@@ -519,6 +520,17 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
     }
   }
 
+  async function handlePublish(agentId: string) {
+    setError("");
+    try {
+      await publishAgentTemplate(agentId);
+      await refresh();
+      onAgentsChanged?.();
+    } catch (err) {
+      setError(String(err));
+    }
+  }
+
   return (
     <>
       {error ? <div className="error">{error}</div> : null}
@@ -706,6 +718,9 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
                   <div className="row-actions">
                     <button type="button" className="secondary-button" onClick={() => beginEditAgent(agent)}>
                       编辑
+                    </button>
+                    <button type="button" onClick={() => void handlePublish(agent.id)}>
+                      发布
                     </button>
                   </div>
                 </li>

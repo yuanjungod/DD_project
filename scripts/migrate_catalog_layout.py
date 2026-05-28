@@ -140,7 +140,7 @@ def _migrate_user_scoped_runs() -> None:
             for child in runs_root.iterdir():
                 if not child.is_dir() or child.name == legacy_user:
                     continue
-                if not child.name.startswith("proj_"):
+                if not child.name.startswith("eng_"):
                     continue
                 target = runs_root / legacy_user / child.name
                 if target.exists():

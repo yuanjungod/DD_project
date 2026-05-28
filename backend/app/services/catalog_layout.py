@@ -62,7 +62,14 @@ def builtin_workflow_templates_root() -> Path:
 
 def data_workflow_templates_root(user_id: str) -> Path:
     safe_user = assert_safe_workflow_template_id(user_id)
-    directory = dd_flow_users_dir() / safe_user / "_workflows"
+    directory = dd_flow_users_dir() / safe_user / "workflows"
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
+def data_agent_templates_root(user_id: str) -> Path:
+    safe_user = assert_safe_workflow_template_id(user_id)
+    directory = dd_flow_users_dir() / safe_user / "workflows" / "_agent_templates"
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 
@@ -75,9 +82,23 @@ def _all_user_workflow_template_roots() -> list[Path]:
     for user_dir in users_root.iterdir():
         if not user_dir.is_dir():
             continue
-        wf_root = user_dir / "_workflows"
-        if wf_root.is_dir():
-            roots.append(wf_root)
+        candidate = user_dir / "workflows"
+        if candidate.is_dir():
+            roots.append(candidate)
+    return roots
+
+
+def _all_user_agent_template_roots() -> list[Path]:
+    roots: list[Path] = []
+    users_root = dd_flow_users_dir()
+    if not users_root.is_dir():
+        return roots
+    for user_dir in users_root.iterdir():
+        if not user_dir.is_dir():
+            continue
+        candidate = user_dir / "workflows" / "_agent_templates"
+        if candidate.is_dir():
+            roots.append(candidate)
     return roots
 
 
@@ -118,10 +139,9 @@ def workflow_template_home(workflow_template_id: str, user_id: str | None = None
 def workflow_template_config_write_root(workflow_template_id: str, user_id: str) -> Path:
     """Directory for workflow_template.yaml and agents/ when creating or updating."""
     assert_safe_workflow_template_id(workflow_template_id)
-    if is_protected_workflow_template(workflow_template_id) or workflow_template_is_builtin(workflow_template_id):
-        directory = builtin_workflow_templates_root() / workflow_template_id
-    else:
-        directory = data_workflow_templates_root(user_id) / workflow_template_id
+    # Save/patch always writes to the caller user's private workflow area.
+    # Publishing is responsible for syncing a chosen draft into catalog/.
+    directory = data_workflow_templates_root(user_id) / workflow_template_id
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 
@@ -184,3 +204,21 @@ def list_workflow_template_config_dirs(user_id: str | None = None) -> list[Path]
 
 def protected_workflow_template_ids() -> frozenset[str]:
     return _BUILTIN_WORKFLOW_TEMPLATE_IDS
+
+
+def user_agent_template_path(user_id: str, agent_id: str) -> Path:
+    assert_safe_workflow_template_id(agent_id)
+    return data_agent_templates_root(user_id) / f"{agent_id}.yaml"
+
+
+def list_user_agent_template_paths(user_id: str | None = None) -> list[Path]:
+    roots = [data_agent_templates_root(user_id)] if user_id else _all_user_agent_template_roots()
+    out: list[Path] = []
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for path in root.glob("*.yaml"):
+            if path.name.startswith("_"):
+                continue
+            out.append(path)
+    return sorted(out, key=lambda p: p.name.lower())

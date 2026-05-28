@@ -71,7 +71,10 @@ def _backfill_project_identity(db) -> None:
             project.company_key = key
             changed = True
         if not getattr(project, "application_id", None) or project.application_id in ("default", ""):
-            project.application_id = f"app-{project.id.replace('proj_', '')[:20]}"
+            short_id = project.id
+            if short_id.startswith("eng_"):
+                short_id = short_id.replace("eng_", "", 1)
+            project.application_id = f"app-{short_id[:20]}"
             changed = True
         if not getattr(project, "version", None) or project.version < 1:
             project.version = 1

@@ -17,7 +17,7 @@ from agent_service.workflows.due_diligence import DueDiligenceWorkflow  # noqa: 
 def main() -> None:
     config_path = ROOT / "shared" / "schemas" / "example_company_config.json"
     config = CompanyConfig.model_validate_json(config_path.read_text(encoding="utf-8"))
-    result = DueDiligenceWorkflow().run("proj_demo", config, workflow_snapshot=_load_workflow_snapshot(config))
+    result = DueDiligenceWorkflow().run("eng_demo", config, workflow_snapshot=_load_workflow_snapshot(config))
     print(
         json.dumps(
             {
