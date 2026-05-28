@@ -246,7 +246,7 @@ export type WorkflowTemplate = {
   id: string;
   name: string;
   description: string;
-  scenario: string;
+  workflow_template: string;
   graph: WorkflowGraph;
   status: "draft" | "published";
   version: number;

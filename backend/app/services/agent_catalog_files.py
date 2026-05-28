@@ -13,7 +13,7 @@ from fastapi import HTTPException
 from app.models.entities import new_id
 from app.schemas.dto import AgentTemplateBase, AgentTemplateCreate, AgentTemplateRead, AgentTemplateUpdate
 from app.services.agent_record_utils import normalize_agent_record
-from app.services.catalog_layout import assert_safe_scenario_id, global_agent_path, global_agents_dir
+from app.services.catalog_layout import assert_safe_workflow_template_id, global_agent_path, global_agents_dir
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -58,7 +58,7 @@ def global_agent_by_id() -> dict[str, dict[str, Any]]:
 
 
 def load_global_agent(agent_id: str) -> dict[str, Any]:
-    assert_safe_scenario_id(agent_id)
+    assert_safe_workflow_template_id(agent_id)
     path = global_agent_path(agent_id)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Agent template not found")
@@ -99,7 +99,7 @@ def create_global_agent(payload: AgentTemplateCreate) -> AgentTemplateRead:
     if not data.get("id"):
         data["id"] = new_id("agent_tpl")
     norm_id = data["id"]
-    assert_safe_scenario_id(norm_id)
+    assert_safe_workflow_template_id(norm_id)
     pool = global_agent_by_id()
     if norm_id in pool:
         raise HTTPException(status_code=409, detail=f"Agent id already exists: {norm_id}")
@@ -136,10 +136,10 @@ def update_global_agent(agent_id: str, payload: AgentTemplateUpdate) -> AgentTem
     )
 
 
-def copy_global_agents_to_scenario(scenario_id: str, agent_ids: list[str]) -> None:
-    from app.services.catalog_layout import scenario_agents_write_dir
+def copy_global_agents_to_workflow_template(workflow_template_id: str, agent_ids: list[str], *, user_id: str) -> None:
+    from app.services.catalog_layout import workflow_template_agents_write_dir
 
-    target_dir = scenario_agents_write_dir(scenario_id)
+    target_dir = workflow_template_agents_write_dir(workflow_template_id, user_id=user_id)
     pool = global_agent_by_id()
     missing = [aid for aid in agent_ids if aid not in pool]
     if missing:

@@ -105,7 +105,7 @@ export function WorkflowsHubPage() {
     id: "",
     name: "",
     description: "",
-    scenario: "custom",
+    workflow_template: "custom",
     node_specs: "",
   });
   const [editingWorkflowId, setEditingWorkflowId] = useState<string | null>(null);
@@ -144,7 +144,7 @@ export function WorkflowsHubPage() {
 
   function resetWorkflowForm() {
     setEditingWorkflowId(null);
-    setForm({ id: "", name: "", description: "", scenario: "custom", node_specs: "" });
+    setForm({ id: "", name: "", description: "", workflow_template: "custom", node_specs: "" });
   }
 
   function beginEditWorkflow(workflow: WorkflowTemplate) {
@@ -153,7 +153,7 @@ export function WorkflowsHubPage() {
       id: workflow.id,
       name: workflow.name,
       description: workflow.description,
-      scenario: workflow.scenario,
+      workflow_template: workflow.workflow_template,
       node_specs: nodeSpecsFromGraph(workflow.graph),
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -166,7 +166,7 @@ export function WorkflowsHubPage() {
       const payload = {
         name: form.name,
         description: form.description,
-        scenario: form.scenario,
+        workflow_template: form.workflow_template,
         graph: graphFromNodeSpecs(form.node_specs),
       };
       if (editingWorkflowId) {
@@ -327,10 +327,10 @@ export function WorkflowsHubPage() {
                       <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
                     </label>
                     <label>
-                      场景分类
+                      模板分类
                       <input
-                        value={form.scenario}
-                        onChange={(event) => setForm({ ...form, scenario: event.target.value })}
+                        value={form.workflow_template}
+                        onChange={(event) => setForm({ ...form, workflow_template: event.target.value })}
                       />
                     </label>
                     <label>

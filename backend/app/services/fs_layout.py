@@ -116,8 +116,20 @@ def _lookup_engagement_tree(engagement_id: str) -> tuple[str, str]:
     row = idx.get(engagement_id)
     if row:
         return row["user_id"], row["workflow_id"]
-    # Legacy fallback keeps existing operations working for old rows.
-    return "_unknown_user", "_unknown_workflow"
+    users_root = dd_flow_users_dir()
+    matches: list[tuple[str, str]] = []
+    for user_dir in users_root.iterdir():
+        if not user_dir.is_dir():
+            continue
+        for workflow_dir in user_dir.iterdir():
+            if not workflow_dir.is_dir() or workflow_dir.name.startswith("_"):
+                continue
+            candidate = workflow_dir / engagement_id
+            if candidate.is_dir():
+                matches.append((user_dir.name, workflow_dir.name))
+    if len(matches) == 1:
+        return matches[0]
+    raise FileNotFoundError(f"engagement tree not found for id={engagement_id}")
 
 
 def engagement_tree_dir(engagement_id: str) -> Path:

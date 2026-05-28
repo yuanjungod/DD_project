@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from agent_service.agents.agentscope_adapter import initialize_agentscope
 from agent_service.api.schemas import RunRequest, RunResult, StepReviewChatRequest, StepReviewChatResponse
 from agent_service.session_history import (
-    list_all_session_scenario_ids,
+    list_all_session_workflow_template_ids,
     list_session_files,
     list_session_project_ids as list_session_engagement_ids,
     list_session_user_ids,
@@ -13,7 +13,7 @@ from agent_service.session_history import (
 )
 from agent_service.workflows.config_loader import (
     load_agent_template_catalog,
-    load_scenario_template_catalog,
+    load_workflow_template_catalog,
     load_tool_config,
 )
 from agent_service.workflows.due_diligence import DueDiligenceWorkflow
@@ -36,7 +36,7 @@ def health() -> dict[str, str]:
 @app.get("/config")
 def config() -> dict[str, object]:
     tool_config = load_tool_config()
-    workflows, default_workflow_id = load_scenario_template_catalog()
+    workflows, default_workflow_id = load_workflow_template_catalog()
     return {
         "agents": load_agent_template_catalog(),
         "default_workflow_id": default_workflow_id,
@@ -73,11 +73,10 @@ def assist_step_review_chat(request: StepReviewChatRequest) -> StepReviewChatRes
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.get("/sessions/{scenario_id}/{user_id}/{engagement_id}/{run_id}")
-@app.get("/sessions/{scenario_id}/{user_id}/{project_id}/{run_id}", include_in_schema=False)
-def get_session_json(scenario_id: str, user_id: str, engagement_id: str, run_id: str) -> dict[str, object]:
+@app.get("/sessions/{workflow_template_id}/{user_id}/{engagement_id}/{run_id}")
+def get_session_json(workflow_template_id: str, user_id: str, engagement_id: str, run_id: str) -> dict[str, object]:
     try:
-        payload = read_session_document(scenario_id, user_id, engagement_id, run_id)
+        payload = read_session_document(workflow_template_id, user_id, engagement_id, run_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if payload is None:
@@ -85,34 +84,38 @@ def get_session_json(scenario_id: str, user_id: str, engagement_id: str, run_id:
     return payload
 
 
-@app.get("/sessions/{scenario_id}/{user_id}/{engagement_id}")
-@app.get("/sessions/{scenario_id}/{user_id}/{project_id}", include_in_schema=False)
-def list_session_entries(scenario_id: str, user_id: str, engagement_id: str) -> dict[str, object]:
+@app.get("/sessions/{workflow_template_id}/{user_id}/{engagement_id}")
+def list_session_entries(workflow_template_id: str, user_id: str, engagement_id: str) -> dict[str, object]:
     try:
-        ids = list_session_files(scenario_id, user_id, engagement_id)
+        ids = list_session_files(workflow_template_id, user_id, engagement_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"scenario_id": scenario_id, "user_id": user_id, "engagement_id": engagement_id, "run_ids": ids}
+    return {
+        "workflow_template_id": workflow_template_id,
+        "user_id": user_id,
+        "engagement_id": engagement_id,
+        "run_ids": ids,
+    }
 
 
-@app.get("/sessions/{scenario_id}/{user_id}")
-def list_session_engagements(scenario_id: str, user_id: str) -> dict[str, object]:
+@app.get("/sessions/{workflow_template_id}/{user_id}")
+def list_session_engagements(workflow_template_id: str, user_id: str) -> dict[str, object]:
     try:
-        ids = list_session_engagement_ids(scenario_id, user_id)
+        ids = list_session_engagement_ids(workflow_template_id, user_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"scenario_id": scenario_id, "user_id": user_id, "engagement_ids": ids}
+    return {"workflow_template_id": workflow_template_id, "user_id": user_id, "engagement_ids": ids}
 
 
-@app.get("/sessions/{scenario_id}")
-def list_session_users(scenario_id: str) -> dict[str, object]:
+@app.get("/sessions/{workflow_template_id}")
+def list_session_users(workflow_template_id: str) -> dict[str, object]:
     try:
-        ids = list_session_user_ids(scenario_id)
+        ids = list_session_user_ids(workflow_template_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"scenario_id": scenario_id, "user_ids": ids}
+    return {"workflow_template_id": workflow_template_id, "user_ids": ids}
 
 
 @app.get("/sessions")
-def list_session_scenarios() -> dict[str, object]:
-    return {"scenario_ids": list_all_session_scenario_ids()}
+def list_session_workflow_templates() -> dict[str, object]:
+    return {"workflow_template_ids": list_all_session_workflow_template_ids()}

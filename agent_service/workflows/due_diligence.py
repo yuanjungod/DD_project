@@ -66,7 +66,7 @@ class DueDiligenceWorkflow:
         if not workflow_snapshot:
             raise ValueError("workflow_snapshot is required")
         workflow = self._workflow_from_snapshot(workflow_snapshot)
-        scenario_id = workflow.id
+        workflow_template_id = workflow.id
         agent_definitions = self._agent_definitions_from_snapshot(workflow_snapshot)
         steps: list[AgentStep] = list(done_steps)
         results: list[AgentResult] = []
@@ -102,7 +102,7 @@ class DueDiligenceWorkflow:
             "pause_after_each_step": pause_after_each_step,
         }
         resumed = open_session_recorder_for_resume(
-            scenario_id,
+            workflow_template_id,
             safe_user_id,
             engagement_id,
             run_id,
@@ -118,7 +118,7 @@ class DueDiligenceWorkflow:
             )
         else:
             recorder = build_session_recorder(
-                scenario_id,
+                workflow_template_id,
                 safe_user_id,
                 engagement_id,
                 run_id,
@@ -139,7 +139,7 @@ class DueDiligenceWorkflow:
             inject_ctx = continuation_context if step_idx == 0 and resume_from_step_index == 0 else None
             planned_output_dir = str(
                 agent_step_output_dir(
-                    scenario_id=scenario_id,
+                    workflow_template_id=workflow_template_id,
                     user_id=safe_user_id,
                     project_id=engagement_id,
                     session_id=safe_session_id,
@@ -228,7 +228,7 @@ class DueDiligenceWorkflow:
                 "workflow_id": w.get("id"),
                 "workflow_name": w.get("name"),
                 "workflow_version": w.get("version"),
-                "scenario": w.get("scenario"),
+                "workflow_template": w.get("workflow_template"),
                 "graph_agent_order": ids,
             }
         return {
@@ -236,7 +236,7 @@ class DueDiligenceWorkflow:
             "workflow_id": workflow.id,
             "workflow_name": workflow.name,
             "workflow_version": None,
-            "scenario": getattr(workflow, "scenario", "standard"),
+            "workflow_template": getattr(workflow, "workflow_template", "standard"),
             "graph_agent_order": self._ordered_agents(workflow),
         }
 
@@ -274,7 +274,7 @@ class DueDiligenceWorkflow:
             id=workflow["id"],
             name=workflow["name"],
             description=workflow.get("description", ""),
-            scenario=workflow.get("scenario", "standard"),
+            workflow_template=workflow.get("workflow_template", "standard"),
             ordered_agents=agent_ids,
             coordinator=agent_ids[0],
             research_agents=agent_ids[1:-1] if len(agent_ids) >= 2 else agent_ids[1:],

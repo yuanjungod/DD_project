@@ -45,7 +45,7 @@ def build_workflow_snapshot(company_config: dict, *, project_id: str | None = No
             "id": workflow_section["id"],
             "name": workflow_section["name"],
             "description": workflow_section.get("description", ""),
-            "scenario": workflow_section.get("scenario", "standard"),
+            "workflow_template": workflow_section.get("workflow_template", "standard"),
             "version": workflow_section.get("version", 1),
             "graph": workflow_section["graph"],
         },

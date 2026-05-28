@@ -14,11 +14,30 @@ from agent_service.settings import get_agent_settings
 ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ROOT.parent
 GLOBAL_AGENTS_DIR = REPO_ROOT / "catalog" / "agents"
-BUILTIN_SCENARIOS_DIR = REPO_ROOT / "catalog" / "scenarios"
+BUILTIN_WORKFLOW_TEMPLATES_DIR = REPO_ROOT / "catalog" / "workflow_templates"
+WORKFLOW_TEMPLATE_FILENAMES = ("workflow_template.yaml",)
 
 
-def _data_scenarios_dir() -> Path:
-    return get_agent_settings().repo_root / ".dd_project" / "_shared" / "workflows"
+def _workflow_template_yaml_in(directory: Path) -> Path | None:
+    for filename in WORKFLOW_TEMPLATE_FILENAMES:
+        candidate = directory / filename
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _data_workflow_template_dirs() -> list[Path]:
+    users_root = get_agent_settings().repo_root / ".dd_project" / "users"
+    if not users_root.is_dir():
+        return []
+    roots: list[Path] = []
+    for user_dir in users_root.iterdir():
+        if not user_dir.is_dir():
+            continue
+        wf_root = user_dir / "_workflows"
+        if wf_root.is_dir():
+            roots.append(wf_root)
+    return roots
 
 
 class AgentDefinition(BaseModel):
@@ -42,7 +61,7 @@ class WorkflowDefinition(BaseModel):
     id: str = "standard_due_diligence"
     name: str = "标准完整尽调"
     description: str = ""
-    scenario: str = "standard"
+    workflow_template: str = "standard"
     ordered_agents: list[str] = Field(default_factory=list)
     coordinator: str = ""
     research_agents: list[str] = Field(default_factory=list)
@@ -67,12 +86,13 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return loaded if isinstance(loaded, dict) else {}
 
 
-def _scenario_config_root(scenario_id: str) -> Path | None:
-    data_dir = _data_scenarios_dir() / scenario_id
-    builtin_dir = BUILTIN_SCENARIOS_DIR / scenario_id
-    if (data_dir / "scenario.yaml").is_file():
-        return data_dir
-    if (builtin_dir / "scenario.yaml").is_file():
+def _workflow_template_config_root(workflow_template_id: str) -> Path | None:
+    for root in _data_workflow_template_dirs():
+        data_dir = root / workflow_template_id
+        if _workflow_template_yaml_in(data_dir) is not None:
+            return data_dir
+    builtin_dir = BUILTIN_WORKFLOW_TEMPLATES_DIR / workflow_template_id
+    if _workflow_template_yaml_in(builtin_dir) is not None:
         return builtin_dir
     return None
 
@@ -98,19 +118,20 @@ def load_agent_template_catalog() -> list[dict[str, Any]]:
 
 
 @lru_cache
-def load_scenario_template_catalog() -> tuple[list[dict[str, Any]], str]:
+def load_workflow_template_catalog() -> tuple[list[dict[str, Any]], str]:
     workflows: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for root in (BUILTIN_SCENARIOS_DIR, _data_scenarios_dir()):
+    roots: list[Path] = [BUILTIN_WORKFLOW_TEMPLATES_DIR, *_data_workflow_template_dirs()]
+    for root in roots:
         if not root.is_dir():
             continue
         for child in sorted(root.iterdir()):
             if not child.is_dir() or child.name.startswith("_"):
                 continue
-            scenario_yaml = child / "scenario.yaml"
-            if not scenario_yaml.is_file() or child.name in seen:
+            workflow_template_yaml = _workflow_template_yaml_in(child)
+            if workflow_template_yaml is None or child.name in seen:
                 continue
-            doc = _load_yaml(scenario_yaml)
+            doc = _load_yaml(workflow_template_yaml)
             workflow = doc.get("workflow")
             if isinstance(workflow, dict):
                 workflows.append(workflow)
@@ -119,8 +140,8 @@ def load_scenario_template_catalog() -> tuple[list[dict[str, Any]], str]:
     return workflows, default_id
 
 
-def load_scenario_agents(scenario_id: str) -> list[dict[str, Any]]:
-    root = _scenario_config_root(scenario_id)
+def load_workflow_template_agents(workflow_template_id: str) -> list[dict[str, Any]]:
+    root = _workflow_template_config_root(workflow_template_id)
     if root is None:
         return []
     agents_dir = root / "agents"

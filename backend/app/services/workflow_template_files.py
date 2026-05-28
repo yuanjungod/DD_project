@@ -15,27 +15,27 @@ from app.schemas.dto import (
     WorkflowTemplateRead,
     WorkflowTemplateUpdate,
 )
-from app.services.agent_catalog_files import copy_global_agents_to_scenario, global_agent_by_id
+from app.services.agent_catalog_files import copy_global_agents_to_workflow_template, global_agent_by_id
 from app.services.agent_record_utils import normalize_agent_record
 from app.services.catalog_layout import (
-    assert_safe_scenario_id,
-    data_scenarios_root,
-    is_protected_scenario,
-    list_scenario_config_dirs,
-    protected_scenario_ids,
-    scenario_agents_dir,
-    scenario_config_root,
-    scenario_config_write_root,
-    scenario_yaml_path,
+    assert_safe_workflow_template_id,
+    is_protected_workflow_template,
+    list_workflow_template_config_dirs,
+    protected_workflow_template_ids,
+    workflow_template_agents_dir,
+    workflow_template_agents_write_dir,
+    workflow_template_config_root,
+    workflow_template_config_write_root,
+    workflow_template_yaml_path,
 )
 from app.services.workflow_graph import resolve_graph_agent_order
 
 
 def workflow_templates_dir() -> Path:
-    """Legacy helper — returns builtin scenarios root for compatibility."""
-    from app.services.catalog_layout import builtin_scenarios_root
+    """Legacy helper — returns builtin workflow templates root for compatibility."""
+    from app.services.catalog_layout import builtin_workflow_templates_root
 
-    return builtin_scenarios_root()
+    return builtin_workflow_templates_root()
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -48,32 +48,31 @@ def _utc_from_mtime(path: Path) -> datetime:
     return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
 
 
-def ensure_scenario_templates_dir() -> None:
-    from app.services.catalog_layout import builtin_scenarios_root, global_agents_dir
+def ensure_workflow_templates_dir() -> None:
+    from app.services.catalog_layout import builtin_workflow_templates_root, global_agents_dir
 
-    builtin_scenarios_root()
+    builtin_workflow_templates_root()
     global_agents_dir()
-    data_scenarios_root()
 
 
 def _assert_safe_workflow_id(workflow_id: str) -> None:
     try:
-        assert_safe_scenario_id(workflow_id)
+        assert_safe_workflow_template_id(workflow_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-def workflow_bundle_path(workflow_id: str) -> Path:
+def workflow_bundle_path(workflow_id: str, user_id: str | None = None) -> Path:
     _assert_safe_workflow_id(workflow_id)
-    return scenario_yaml_path(workflow_id)
+    return workflow_template_yaml_path(workflow_id, user_id=user_id)
 
 
 def _normalize_bundle(doc: dict[str, Any]) -> dict[str, Any]:
     wf = doc.get("workflow")
     if not isinstance(wf, dict):
-        raise HTTPException(status_code=400, detail="Scenario template missing workflow section")
+        raise HTTPException(status_code=400, detail="Workflow template missing workflow section")
     wf.setdefault("description", "")
-    wf.setdefault("scenario", "standard")
+    wf["workflow_template"] = str(wf.get("workflow_template") or "standard")
     wf.setdefault("status", "draft")
     wf.setdefault("version", 1)
     if "graph" not in wf or not wf["graph"]:
@@ -86,12 +85,12 @@ def _normalize_bundle(doc: dict[str, Any]) -> dict[str, Any]:
     return doc
 
 
-def _write_scenario_yaml(scenario_id: str, bundle: dict[str, Any]) -> Path:
-    root = scenario_config_write_root(scenario_id)
-    path = root / "scenario.yaml"
+def _write_workflow_template_yaml(workflow_template_id: str, bundle: dict[str, Any], *, user_id: str) -> Path:
+    root = workflow_template_config_write_root(workflow_template_id, user_id=user_id)
+    path = root / "workflow_template.yaml"
     wf = bundle.get("workflow", {})
-    if wf.get("id") != scenario_id:
-        wf["id"] = scenario_id
+    if wf.get("id") != workflow_template_id:
+        wf["id"] = workflow_template_id
     document = {"version": bundle.get("version", 1), "workflow": wf}
     text = yaml.safe_dump(
         document,
@@ -101,22 +100,28 @@ def _write_scenario_yaml(scenario_id: str, bundle: dict[str, Any]) -> Path:
         width=4096,
     )
     header = (
-        "# Scenario folder — workflow graph and metadata. "
-        "Agent definitions for this scenario live in ./agents/.\n\n"
+        "# Workflow template folder — workflow graph and metadata. "
+        "Agent definitions for this workflow template live in ./agents/.\n\n"
     )
     path.write_text(header + text, encoding="utf-8")
     return path
 
 
-def load_workflow_bundle(workflow_id: str) -> dict[str, Any]:
+def load_workflow_bundle(workflow_id: str, *, user_id: str | None = None) -> dict[str, Any]:
     _assert_safe_workflow_id(workflow_id)
-    if scenario_config_root(workflow_id) is None:
+    if workflow_template_config_root(workflow_id, user_id=user_id) is None:
         raise HTTPException(status_code=404, detail="Workflow template not found")
-    path = scenario_yaml_path(workflow_id)
+    path = workflow_template_yaml_path(workflow_id, user_id=user_id)
     return _normalize_bundle(copy.deepcopy(_load_yaml(path)))
 
 
-def save_workflow_bundle(workflow_id: str, bundle: dict[str, Any], *, validate_agent_refs: bool = True) -> Path:
+def save_workflow_bundle(
+    workflow_id: str,
+    bundle: dict[str, Any],
+    *,
+    validate_agent_refs: bool = True,
+    user_id: str,
+) -> Path:
     _assert_safe_workflow_id(workflow_id)
     wf = bundle.get("workflow", {})
     graph_ids = resolve_graph_agent_order(wf.get("graph") or {})
@@ -124,9 +129,9 @@ def save_workflow_bundle(workflow_id: str, bundle: dict[str, Any], *, validate_a
         pool = union_agent_by_id()
         missing = [aid for aid in graph_ids if aid and aid not in pool]
         if missing:
-            raise HTTPException(status_code=400, detail=f"Unknown agents referenced by scenario graph: {missing}")
-    path = _write_scenario_yaml(workflow_id, bundle)
-    copy_global_agents_to_scenario(workflow_id, [aid for aid in graph_ids if aid])
+            raise HTTPException(status_code=400, detail=f"Unknown agents referenced by workflow template graph: {missing}")
+    path = _write_workflow_template_yaml(workflow_id, bundle, user_id=user_id)
+    copy_global_agents_to_workflow_template(workflow_id, [aid for aid in graph_ids if aid], user_id=user_id)
     return path
 
 
@@ -140,21 +145,21 @@ def _bundle_to_read(path: Path, bundle: dict[str, Any]) -> WorkflowTemplateRead:
         updated_at=nas,
         name=wf["name"],
         description=wf.get("description", ""),
-        scenario=wf.get("scenario", "standard"),
+        workflow_template=wf.get("workflow_template", "standard"),
         graph=wf["graph"],
         status=wf.get("status", "draft"),
         version=int(wf.get("version", 1)),
     )
 
 
-def list_workflow_bundle_paths() -> list[Path]:
-    ensure_scenario_templates_dir()
-    return [path / "scenario.yaml" for path in list_scenario_config_dirs()]
+def list_workflow_bundle_paths(*, user_id: str | None = None) -> list[Path]:
+    ensure_workflow_templates_dir()
+    return [workflow_template_yaml_path(path.name, user_id=user_id) for path in list_workflow_template_config_dirs(user_id=user_id)]
 
 
-def list_workflow_reads_for_api(*, include_drafts: bool) -> list[WorkflowTemplateRead]:
+def list_workflow_reads_for_api(*, include_drafts: bool, user_id: str | None = None) -> list[WorkflowTemplateRead]:
     items: list[tuple[Path, WorkflowTemplateRead]] = []
-    for path in list_workflow_bundle_paths():
+    for path in list_workflow_bundle_paths(user_id=user_id):
         bundle = _normalize_bundle(copy.deepcopy(_load_yaml(path)))
         wf = bundle["workflow"]
         if not include_drafts and wf.get("status") != "published":
@@ -164,8 +169,8 @@ def list_workflow_reads_for_api(*, include_drafts: bool) -> list[WorkflowTemplat
     return [read for _, read in items]
 
 
-def _load_scenario_agent_rows(scenario_id: str) -> list[dict[str, Any]]:
-    directory = scenario_agents_dir(scenario_id)
+def _load_workflow_template_agent_rows(workflow_template_id: str, user_id: str | None = None) -> list[dict[str, Any]]:
+    directory = workflow_template_agents_dir(workflow_template_id, user_id=user_id)
     rows: list[dict[str, Any]] = []
     for path in sorted(directory.glob("*.yaml")):
         if path.name.startswith("_"):
@@ -176,8 +181,8 @@ def _load_scenario_agent_rows(scenario_id: str) -> list[dict[str, Any]]:
     return rows
 
 
-def scenario_agent_by_id(scenario_id: str) -> dict[str, dict[str, Any]]:
-    return {row["id"]: row for row in _load_scenario_agent_rows(scenario_id)}
+def workflow_template_agent_by_id(workflow_template_id: str, *, user_id: str | None = None) -> dict[str, dict[str, Any]]:
+    return {row["id"]: row for row in _load_workflow_template_agent_rows(workflow_template_id, user_id=user_id)}
 
 
 def union_agent_by_id() -> dict[str, dict[str, Any]]:
@@ -199,12 +204,12 @@ def _pick_agents_for_graph(agent_ids: list[str], pool: dict[str, dict[str, Any]]
     return picked
 
 
-def create_workflow_template(payload: WorkflowTemplateCreate) -> WorkflowTemplateRead:
-    ensure_scenario_templates_dir()
+def create_workflow_template(payload: WorkflowTemplateCreate, *, user_id: str) -> WorkflowTemplateRead:
+    ensure_workflow_templates_dir()
     data = payload.model_dump(exclude_none=True)
     wf_id = data.get("id") or new_id("workflow_tpl")
     _assert_safe_workflow_id(wf_id)
-    if scenario_config_root(wf_id) is not None:
+    if workflow_template_config_root(wf_id, user_id=user_id) is not None:
         raise HTTPException(status_code=409, detail=f"Workflow id already exists: {wf_id}")
     graph = data["graph"]
     agent_ids = resolve_graph_agent_order(graph)
@@ -216,18 +221,18 @@ def create_workflow_template(payload: WorkflowTemplateCreate) -> WorkflowTemplat
             "id": wf_id,
             "name": data["name"],
             "description": data.get("description", ""),
-            "scenario": data.get("scenario", "standard"),
+            "workflow_template": data.get("workflow_template", "standard"),
             "graph": graph,
             "status": data.get("status") or "draft",
             "version": int(data.get("version") or 1),
         },
     }
-    path = save_workflow_bundle(wf_id, bundle)
+    path = save_workflow_bundle(wf_id, bundle, user_id=user_id)
     return _bundle_to_read(path, _normalize_bundle(copy.deepcopy(_load_yaml(path))))
 
 
-def update_workflow_template(workflow_id: str, payload: WorkflowTemplateUpdate) -> WorkflowTemplateRead:
-    bundle = load_workflow_bundle(workflow_id)
+def update_workflow_template(workflow_id: str, payload: WorkflowTemplateUpdate, *, user_id: str) -> WorkflowTemplateRead:
+    bundle = load_workflow_bundle(workflow_id, user_id=user_id)
     wf = bundle["workflow"]
     updates = payload.model_dump(exclude_unset=True)
     for key, value in updates.items():
@@ -239,31 +244,31 @@ def update_workflow_template(workflow_id: str, payload: WorkflowTemplateUpdate) 
         agent_ids = resolve_graph_agent_order(updates["graph"])
         pool = union_agent_by_id()
         _pick_agents_for_graph(agent_ids, pool)
-    path = save_workflow_bundle(workflow_id, bundle)
+    path = save_workflow_bundle(workflow_id, bundle, user_id=user_id)
     return _bundle_to_read(path, _normalize_bundle(copy.deepcopy(_load_yaml(path))))
 
 
-def delete_workflow_template(workflow_id: str) -> None:
+def delete_workflow_template(workflow_id: str, *, user_id: str) -> None:
     _assert_safe_workflow_id(workflow_id)
-    if is_protected_scenario(workflow_id):
+    if is_protected_workflow_template(workflow_id):
         raise HTTPException(status_code=403, detail="内置工作流模板不可删除")
-    root = scenario_config_root(workflow_id)
+    root = workflow_template_config_root(workflow_id, user_id=user_id)
     if root is None:
         raise HTTPException(status_code=404, detail="Workflow template not found")
     shutil.rmtree(root)
 
 
-def publish_workflow_template(workflow_id: str) -> WorkflowTemplateRead:
-    bundle = load_workflow_bundle(workflow_id)
+def publish_workflow_template(workflow_id: str, *, user_id: str) -> WorkflowTemplateRead:
+    bundle = load_workflow_bundle(workflow_id, user_id=user_id)
     wf = bundle["workflow"]
     wf["status"] = "published"
     wf["version"] = int(wf.get("version", 1)) + 1
-    path = save_workflow_bundle(workflow_id, bundle)
+    path = save_workflow_bundle(workflow_id, bundle, user_id=user_id)
     return _bundle_to_read(path, _normalize_bundle(copy.deepcopy(_load_yaml(path))))
 
 
-def clone_workflow_template(workflow_id: str) -> WorkflowTemplateRead:
-    source = load_workflow_bundle(workflow_id)
+def clone_workflow_template(workflow_id: str, *, user_id: str) -> WorkflowTemplateRead:
+    source = load_workflow_bundle(workflow_id, user_id=user_id)
     new_id_str = new_id("workflow_tpl")
     _assert_safe_workflow_id(new_id_str)
     wf = copy.deepcopy(source["workflow"])
@@ -272,9 +277,9 @@ def clone_workflow_template(workflow_id: str) -> WorkflowTemplateRead:
     wf["status"] = "draft"
     wf["version"] = 1
     bundle = {"version": 1, "workflow": wf}
-    path = save_workflow_bundle(new_id_str, bundle, validate_agent_refs=False)
-    source_agents = scenario_agents_dir(workflow_id)
-    target_agents = scenario_agents_write_dir(new_id_str)
+    path = save_workflow_bundle(new_id_str, bundle, validate_agent_refs=False, user_id=user_id)
+    source_agents = workflow_template_agents_dir(workflow_id, user_id=user_id)
+    target_agents = workflow_template_agents_write_dir(new_id_str, user_id=user_id)
     for agent_path in source_agents.glob("*.yaml"):
         if agent_path.name.startswith("_"):
             continue
@@ -282,18 +287,20 @@ def clone_workflow_template(workflow_id: str) -> WorkflowTemplateRead:
     return _bundle_to_read(path, _normalize_bundle(copy.deepcopy(_load_yaml(path))))
 
 
-def get_published_workflow_bundle(workflow_id: str) -> dict[str, Any]:
-    if scenario_config_root(workflow_id) is None:
+def get_published_workflow_bundle(workflow_id: str, *, user_id: str | None = None) -> dict[str, Any]:
+    if workflow_template_config_root(workflow_id, user_id=user_id) is None:
         raise HTTPException(status_code=404, detail=f"Workflow template not found: {workflow_id}")
-    bundle = _normalize_bundle(copy.deepcopy(_load_yaml(scenario_yaml_path(workflow_id))))
+    bundle = _normalize_bundle(copy.deepcopy(_load_yaml(workflow_template_yaml_path(workflow_id, user_id=user_id))))
     if bundle["workflow"].get("status") != "published":
         raise HTTPException(status_code=400, detail="Workflow template must be published before running")
     return bundle
 
 
-def resolve_agents_for_snapshot(bundle: dict[str, Any], agent_ids: list[str]) -> tuple[list[dict[str, Any]], list[str]]:
-    scenario_id = bundle["workflow"]["id"]
-    by_id = scenario_agent_by_id(scenario_id)
+def resolve_agents_for_snapshot(
+    bundle: dict[str, Any], agent_ids: list[str], *, user_id: str | None = None
+) -> tuple[list[dict[str, Any]], list[str]]:
+    workflow_template_id = bundle["workflow"]["id"]
+    by_id = workflow_template_agent_by_id(workflow_template_id, user_id=user_id)
     found: list[dict[str, Any]] = []
     missing: list[str] = []
     for aid in agent_ids:
@@ -305,7 +312,7 @@ def resolve_agents_for_snapshot(bundle: dict[str, Any], agent_ids: list[str]) ->
     return found, missing
 
 
-def scenario_agent_display_names(agent_ids: list[str]) -> dict[str, str]:
+def workflow_template_agent_display_names(agent_ids: list[str]) -> dict[str, str]:
     pool = union_agent_by_id()
     return {aid: pool.get(aid, {}).get("name", aid) for aid in agent_ids}
 
@@ -333,15 +340,15 @@ __all__ = [
     "create_agent",
     "create_workflow_template",
     "delete_workflow_template",
-    "ensure_scenario_templates_dir",
+    "ensure_workflow_templates_dir",
     "get_published_workflow_bundle",
     "list_union_agent_reads",
     "list_workflow_reads_for_api",
     "load_workflow_bundle",
-    "protected_scenario_ids",
+    "protected_workflow_template_ids",
     "publish_workflow_template",
     "resolve_agents_for_snapshot",
-    "scenario_agent_display_names",
+    "workflow_template_agent_display_names",
     "union_agent_by_id",
     "update_agent",
     "update_workflow_template",

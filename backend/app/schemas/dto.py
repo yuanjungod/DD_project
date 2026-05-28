@@ -334,7 +334,11 @@ class AgentTemplateRead(AgentTemplateBase):
 class WorkflowTemplateBase(BaseModel):
     name: str
     description: str = ""
-    scenario: str = "standard"
+    workflow_template: str = Field(
+        default="standard",
+        validation_alias=AliasChoices("workflow_template"),
+        serialization_alias="workflow_template",
+    )
     graph: dict[str, Any]
     status: str = "draft"
     version: int = 1
@@ -347,7 +351,11 @@ class WorkflowTemplateCreate(WorkflowTemplateBase):
 class WorkflowTemplateUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
-    scenario: str | None = None
+    workflow_template: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("workflow_template"),
+        serialization_alias="workflow_template",
+    )
     graph: dict[str, Any] | None = None
     status: str | None = None
     version: int | None = None

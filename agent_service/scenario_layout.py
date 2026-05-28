@@ -1,4 +1,4 @@
-"""Run/session storage under repository .dd_project/users/{user}/{workflow}/{engagement}/."""
+"""Run/session storage under repository .dd_project/users/{user}/{workflow_template}/{engagement}/."""
 
 from __future__ import annotations
 
@@ -7,8 +7,17 @@ from pathlib import Path
 
 from agent_service.settings import get_agent_settings
 
-_SCENARIO_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+_WORKFLOW_TEMPLATE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 _ID_SAFE = re.compile(r"^[a-zA-Z0-9_-]{1,160}$")
+_WORKFLOW_TEMPLATE_FILENAMES = ("workflow_template.yaml",)
+
+
+def _workflow_template_yaml_in(directory: Path) -> Path | None:
+    for filename in _WORKFLOW_TEMPLATE_FILENAMES:
+        candidate = directory / filename
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def _validate_id(seg: str, label: str) -> str:
@@ -17,10 +26,10 @@ def _validate_id(seg: str, label: str) -> str:
     return seg
 
 
-def _validate_scenario_id(scenario_id: str) -> str:
-    if not _SCENARIO_ID_PATTERN.fullmatch(scenario_id):
-        raise ValueError("Invalid scenario_id for session storage")
-    return scenario_id
+def _validate_workflow_template_id(workflow_template_id: str) -> str:
+    if not _WORKFLOW_TEMPLATE_ID_PATTERN.fullmatch(workflow_template_id):
+        raise ValueError("Invalid workflow_template_id for session storage")
+    return workflow_template_id
 
 
 def _repo_root() -> Path:
@@ -40,69 +49,84 @@ def projects_root() -> Path:
     return base
 
 
-def _engagement_root(project_id: str, user_id: str, scenario_id: str) -> Path:
+def _engagement_root(project_id: str, user_id: str, workflow_template_id: str) -> Path:
     safe_proj = _validate_id(project_id, "project_id")
     safe_user = _validate_id(user_id, "user_id")
-    safe_scenario = _validate_scenario_id(scenario_id)
-    base = projects_root() / safe_user / safe_scenario / safe_proj
+    safe_workflow_template = _validate_workflow_template_id(workflow_template_id)
+    base = projects_root() / safe_user / safe_workflow_template / safe_proj
     base.mkdir(parents=True, exist_ok=True)
     return base
 
 
-def _session_runs_root(project_id: str, user_id: str, scenario_id: str, session_id: str) -> Path:
+def _session_runs_root(project_id: str, user_id: str, workflow_template_id: str, session_id: str) -> Path:
     safe_session = _validate_id(session_id, "session_id")
-    base = _engagement_root(project_id, user_id, scenario_id) / "sessions" / safe_session / "runs"
+    base = _engagement_root(project_id, user_id, workflow_template_id) / "sessions" / safe_session / "runs"
     base.mkdir(parents=True, exist_ok=True)
     return base
 
 
-def data_scenarios_root() -> Path:
-    base = dd_project_root() / "_shared" / "workflows"
+def workflow_templates_root() -> Path:
+    base = dd_project_root() / "users"
     base.mkdir(parents=True, exist_ok=True)
     return base
 
 
-def builtin_scenarios_root() -> Path:
-    base = _repo_root() / "catalog" / "scenarios"
+def builtin_workflow_templates_root() -> Path:
+    base = _repo_root() / "catalog" / "workflow_templates"
     base.mkdir(parents=True, exist_ok=True)
     return base
 
 
-def scenario_home(scenario_id: str) -> Path:
-    """Canonical scenario folder containing scenario.yaml, agents/, and runs/."""
-    safe = _validate_scenario_id(scenario_id)
-    data_dir = data_scenarios_root() / safe
-    catalog_dir = builtin_scenarios_root() / safe
-    if (data_dir / "scenario.yaml").is_file():
-        return data_dir
-    if (catalog_dir / "scenario.yaml").is_file():
+def workflow_template_home(workflow_template_id: str) -> Path:
+    """Canonical workflow template folder containing workflow YAML and agents/."""
+    safe = _validate_workflow_template_id(workflow_template_id)
+    users_root = workflow_templates_root()
+    catalog_dir = builtin_workflow_templates_root() / safe
+    for user_dir in users_root.iterdir():
+        if not user_dir.is_dir():
+            continue
+        data_dir = user_dir / "_workflows" / safe
+        if _workflow_template_yaml_in(data_dir) is not None:
+            return data_dir
+    if _workflow_template_yaml_in(catalog_dir) is not None:
         return catalog_dir
-    raise FileNotFoundError(scenario_id)
+    raise FileNotFoundError(workflow_template_id)
 
 
-def scenario_runs_root(scenario_id: str, user_id: str, project_id: str, session_id: str) -> Path:
-    safe_scenario = _validate_scenario_id(scenario_id)
-    directory = _session_runs_root(project_id, user_id, safe_scenario, session_id)
+def workflow_template_runs_root(
+    workflow_template_id: str,
+    user_id: str,
+    project_id: str,
+    session_id: str,
+) -> Path:
+    safe_workflow_template = _validate_workflow_template_id(workflow_template_id)
+    directory = _session_runs_root(project_id, user_id, safe_workflow_template, session_id)
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 
 
-def session_json_path(scenario_id: str, user_id: str, project_id: str, run_id: str, session_id: str) -> Path:
-    safe_scenario = _validate_scenario_id(scenario_id)
+def session_json_path(
+    workflow_template_id: str,
+    user_id: str,
+    project_id: str,
+    run_id: str,
+    session_id: str,
+) -> Path:
+    safe_workflow_template = _validate_workflow_template_id(workflow_template_id)
     safe_run = _validate_id(run_id, "run_id")
-    return scenario_runs_root(safe_scenario, user_id, project_id, session_id) / f"{safe_run}.json"
+    return workflow_template_runs_root(safe_workflow_template, user_id, project_id, session_id) / f"{safe_run}.json"
 
 
-def list_session_files(scenario_id: str, user_id: str, project_id: str) -> list[str]:
-    safe_scenario = _validate_scenario_id(scenario_id)
+def list_session_files(workflow_template_id: str, user_id: str, project_id: str) -> list[str]:
+    safe_workflow_template = _validate_workflow_template_id(workflow_template_id)
     safe_user = _validate_id(user_id, "user_id")
     safe_proj = _validate_id(project_id, "project_id")
-    root = projects_root() / safe_user / safe_scenario / safe_proj / "sessions"
+    root = projects_root() / safe_user / safe_workflow_template / safe_proj / "sessions"
     if not root.is_dir():
         return []
     out: set[str] = set()
     for session_dir in root.iterdir():
-        folder = session_dir / "runs" / safe_scenario
+        folder = session_dir / "runs" / safe_workflow_template
         if not folder.is_dir():
             continue
         for path in folder.glob("*.json"):
@@ -110,11 +134,11 @@ def list_session_files(scenario_id: str, user_id: str, project_id: str) -> list[
     return sorted(out)
 
 
-def list_session_project_ids(scenario_id: str, user_id: str) -> list[str]:
-    safe_scenario = _validate_scenario_id(scenario_id)
+def list_session_project_ids(workflow_template_id: str, user_id: str) -> list[str]:
+    safe_workflow_template = _validate_workflow_template_id(workflow_template_id)
     safe_user = _validate_id(user_id, "user_id")
     out: set[str] = set()
-    engagements_root = projects_root() / safe_user / safe_scenario
+    engagements_root = projects_root() / safe_user / safe_workflow_template
     if not engagements_root.is_dir():
         return []
     for project_dir in engagements_root.iterdir():
@@ -130,13 +154,13 @@ def list_session_project_ids(scenario_id: str, user_id: str) -> list[str]:
     return sorted(out)
 
 
-def list_session_user_ids(scenario_id: str) -> list[str]:
-    safe_scenario = _validate_scenario_id(scenario_id)
+def list_session_user_ids(workflow_template_id: str) -> list[str]:
+    safe_workflow_template = _validate_workflow_template_id(workflow_template_id)
     out: set[str] = set()
     for user_dir in projects_root().iterdir():
         if not user_dir.is_dir():
             continue
-        engagements_root = user_dir / safe_scenario
+        engagements_root = user_dir / safe_workflow_template
         if not engagements_root.is_dir():
             continue
         for engagement_dir in engagements_root.iterdir():
@@ -147,28 +171,28 @@ def list_session_user_ids(scenario_id: str) -> list[str]:
     return sorted(out)
 
 
-def list_session_scenario_ids() -> list[str]:
+def list_session_workflow_template_ids() -> list[str]:
     ids: set[str] = set()
     for user_dir in projects_root().iterdir():
         for workflow_dir in user_dir.iterdir():
             if not workflow_dir.is_dir():
                 continue
             name = workflow_dir.name
-            if _SCENARIO_ID_PATTERN.fullmatch(name):
+            if _WORKFLOW_TEMPLATE_ID_PATTERN.fullmatch(name):
                 ids.add(name)
     return sorted(ids)
 
 
-def find_session_json_path(scenario_id: str, user_id: str, project_id: str, run_id: str) -> Path | None:
-    safe_scenario = _validate_scenario_id(scenario_id)
+def find_session_json_path(workflow_template_id: str, user_id: str, project_id: str, run_id: str) -> Path | None:
+    safe_workflow_template = _validate_workflow_template_id(workflow_template_id)
     safe_user = _validate_id(user_id, "user_id")
     safe_proj = _validate_id(project_id, "project_id")
     safe_run = _validate_id(run_id, "run_id")
-    root = projects_root() / safe_user / safe_scenario / safe_proj / "sessions"
+    root = projects_root() / safe_user / safe_workflow_template / safe_proj / "sessions"
     if not root.is_dir():
         return None
     for session_dir in root.iterdir():
-        candidate = session_dir / "runs" / safe_scenario / f"{safe_run}.json"
+        candidate = session_dir / "runs" / safe_workflow_template / f"{safe_run}.json"
         if candidate.is_file():
             return candidate
     return None

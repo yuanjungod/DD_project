@@ -36,22 +36,22 @@ def main() -> None:
     )
 
 
-def _scenario_root(scenario_id: str) -> Path | None:
-    for base in (ROOT / "catalog" / "scenarios", ROOT / "data" / "dd_store" / "scenarios"):
-        candidate = base / scenario_id
-        if (candidate / "scenario.yaml").is_file():
+def _workflow_template_root(workflow_template_id: str) -> Path | None:
+    for base in (ROOT / "catalog" / "workflow_templates", ROOT / "data" / "dd_store" / "workflow_templates"):
+        candidate = base / workflow_template_id
+        if (candidate / "workflow_template.yaml").is_file():
             return candidate
     return None
 
 
 def _load_workflow_snapshot(company_config: CompanyConfig) -> dict:
     workflow_id = company_config.workflow_template_id or company_config.workflow_id
-    scenario_root = _scenario_root(workflow_id)
-    if scenario_root is None:
-        raise FileNotFoundError(f"Scenario not found: {workflow_id}")
-    scenario_doc = _load_yaml(scenario_root / "scenario.yaml")
-    workflow = scenario_doc["workflow"]
-    agents_dir = scenario_root / "agents"
+    workflow_template_root = _workflow_template_root(workflow_id)
+    if workflow_template_root is None:
+        raise FileNotFoundError(f"Workflow template not found: {workflow_id}")
+    workflow_doc = _load_yaml(workflow_template_root / "workflow_template.yaml")
+    workflow = workflow_doc["workflow"]
+    agents_dir = workflow_template_root / "agents"
     agent_catalog = {
         row["id"]: row
         for row in (
@@ -70,7 +70,7 @@ def _load_workflow_snapshot(company_config: CompanyConfig) -> dict:
             "id": workflow["id"],
             "name": workflow["name"],
             "description": workflow.get("description", ""),
-            "scenario": workflow.get("scenario", "standard"),
+            "workflow_template": workflow.get("workflow_template", "standard"),
             "version": workflow.get("version", 1),
             "graph": workflow["graph"],
         },

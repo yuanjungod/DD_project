@@ -1,4 +1,4 @@
-"""Persist each agent run as a JSON session file under the scenario folder."""
+"""Persist each agent run as a JSON session file under workflow template folders."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from agent_service.scenario_layout import (
     find_session_json_path,
     list_session_files as _list_session_files,
     list_session_project_ids as _list_session_project_ids,
-    list_session_scenario_ids,
+    list_session_workflow_template_ids,
     list_session_user_ids as _list_session_user_ids,
     session_json_path,
 )
@@ -52,28 +52,35 @@ NOOP_SESSION_RECORDER: RunSessionRecorder = _NoopRecorder()
 
 
 class JsonSessionRecorder:
-    """Writes `scenarios/{scenario}/runs/{user}/{project}/{run}.json` with incremental events."""
+    """Writes run session JSON with incremental events."""
 
     __slots__ = ("_document", "_path")
 
-    def __init__(self, scenario_id: str, user_id: str, project_id: str, run_id: str, session_id: str) -> None:
-        self._path = session_json_path(scenario_id, user_id, project_id, run_id, session_id)
+    def __init__(
+        self,
+        workflow_template_id: str,
+        user_id: str,
+        project_id: str,
+        run_id: str,
+        session_id: str,
+    ) -> None:
+        self._path = session_json_path(workflow_template_id, user_id, project_id, run_id, session_id)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._document: dict[str, Any] | None = None
 
     @classmethod
     def open_for_resume(
         cls,
-        scenario_id: str,
+        workflow_template_id: str,
         user_id: str,
         project_id: str,
         run_id: str,
         session_id: str | None = None,
     ) -> "JsonSessionRecorder":
         path = (
-            session_json_path(scenario_id, user_id, project_id, run_id, session_id)
+            session_json_path(workflow_template_id, user_id, project_id, run_id, session_id)
             if session_id
-            else find_session_json_path(scenario_id, user_id, project_id, run_id)
+            else find_session_json_path(workflow_template_id, user_id, project_id, run_id)
         )
         if path is None:
             raise FileNotFoundError(run_id)
@@ -149,7 +156,7 @@ class JsonSessionRecorder:
 
 
 def build_session_recorder(
-    scenario_id: str,
+    workflow_template_id: str,
     user_id: str,
     project_id: str,
     run_id: str,
@@ -159,11 +166,11 @@ def build_session_recorder(
 
     if not getattr(get_agent_settings(), "session_history_enabled", True):
         return NOOP_SESSION_RECORDER
-    return JsonSessionRecorder(scenario_id, user_id, project_id, run_id, session_id)
+    return JsonSessionRecorder(workflow_template_id, user_id, project_id, run_id, session_id)
 
 
 def open_session_recorder_for_resume(
-    scenario_id: str,
+    workflow_template_id: str,
     user_id: str,
     project_id: str,
     run_id: str,
@@ -175,7 +182,7 @@ def open_session_recorder_for_resume(
         return None
     try:
         return JsonSessionRecorder.open_for_resume(
-            scenario_id,
+            workflow_template_id,
             user_id,
             project_id,
             run_id,
@@ -185,8 +192,8 @@ def open_session_recorder_for_resume(
         return None
 
 
-def read_session_document(scenario_id: str, user_id: str, project_id: str, run_id: str) -> dict[str, Any] | None:
-    path = find_session_json_path(scenario_id, user_id, project_id, run_id)
+def read_session_document(workflow_template_id: str, user_id: str, project_id: str, run_id: str) -> dict[str, Any] | None:
+    path = find_session_json_path(workflow_template_id, user_id, project_id, run_id)
     if path is None:
         return None
     if not path.is_file():
@@ -194,17 +201,17 @@ def read_session_document(scenario_id: str, user_id: str, project_id: str, run_i
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def list_session_files(scenario_id: str, user_id: str, project_id: str) -> list[str]:
-    return _list_session_files(scenario_id, user_id, project_id)
+def list_session_files(workflow_template_id: str, user_id: str, project_id: str) -> list[str]:
+    return _list_session_files(workflow_template_id, user_id, project_id)
 
 
-def list_session_project_ids(scenario_id: str, user_id: str) -> list[str]:
-    return _list_session_project_ids(scenario_id, user_id)
+def list_session_project_ids(workflow_template_id: str, user_id: str) -> list[str]:
+    return _list_session_project_ids(workflow_template_id, user_id)
 
 
-def list_session_user_ids(scenario_id: str) -> list[str]:
-    return _list_session_user_ids(scenario_id)
+def list_session_user_ids(workflow_template_id: str) -> list[str]:
+    return _list_session_user_ids(workflow_template_id)
 
 
-def list_all_session_scenario_ids() -> list[str]:
-    return list_session_scenario_ids()
+def list_all_session_workflow_template_ids() -> list[str]:
+    return list_session_workflow_template_ids()

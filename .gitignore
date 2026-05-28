@@ -9,7 +9,7 @@ dist/
 coverage/
 
 agent_service/sessions/
-catalog/scenarios/*/runs/
+catalog/workflow_templates/*/runs/
 .dd_project/
 __MACOSX/
 tianyancha-finance-analysis/

@@ -243,48 +243,48 @@ def update_agent_template(
 def list_workflow_templates(
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
 ) -> list[WorkflowTemplateRead]:
-    return list_workflow_reads_from_disk(include_drafts=user.role == "admin")
+    return list_workflow_reads_from_disk(include_drafts=user.role == "admin", user_id=user.id)
 
 
 @router.post("/workflow-templates", response_model=WorkflowTemplateRead)
 def create_workflow_template(
     payload: WorkflowTemplateCreate,
-    _: User = Depends(require_roles("admin")),
+    user: User = Depends(require_roles("admin")),
 ) -> WorkflowTemplateRead:
-    return create_workflow_on_disk(payload)
+    return create_workflow_on_disk(payload, user_id=user.id)
 
 
 @router.patch("/workflow-templates/{workflow_id}", response_model=WorkflowTemplateRead)
 def update_workflow_template(
     workflow_id: str,
     payload: WorkflowTemplateUpdate,
-    _: User = Depends(require_roles("admin")),
+    user: User = Depends(require_roles("admin")),
 ) -> WorkflowTemplateRead:
-    return update_workflow_on_disk(workflow_id, payload)
+    return update_workflow_on_disk(workflow_id, payload, user_id=user.id)
 
 
 @router.post("/workflow-templates/{workflow_id}/publish", response_model=WorkflowTemplateRead)
 def publish_workflow_template(
     workflow_id: str,
-    _: User = Depends(require_roles("admin")),
+    user: User = Depends(require_roles("admin")),
 ) -> WorkflowTemplateRead:
-    return publish_workflow_on_disk(workflow_id)
+    return publish_workflow_on_disk(workflow_id, user_id=user.id)
 
 
 @router.post("/workflow-templates/{workflow_id}/clone", response_model=WorkflowTemplateRead)
 def clone_workflow_template(
     workflow_id: str,
-    _: User = Depends(require_roles("admin")),
+    user: User = Depends(require_roles("admin")),
 ) -> WorkflowTemplateRead:
-    return clone_workflow_on_disk(workflow_id)
+    return clone_workflow_on_disk(workflow_id, user_id=user.id)
 
 
 @router.delete("/workflow-templates/{workflow_id}", status_code=204)
 def delete_workflow_template(
     workflow_id: str,
-    _: User = Depends(require_roles("admin")),
+    user: User = Depends(require_roles("admin")),
 ) -> Response:
-    delete_workflow_on_disk(workflow_id)
+    delete_workflow_on_disk(workflow_id, user_id=user.id)
     return Response(status_code=204)
 
 

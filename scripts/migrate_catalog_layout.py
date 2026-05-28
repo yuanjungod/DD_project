@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-time migration from flat agent/scenario YAML files to catalog layout."""
+"""One-time migration from flat agent/workflow-template YAML files to catalog layout."""
 
 from __future__ import annotations
 
@@ -12,10 +12,10 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 OLD_AGENTS = ROOT / "agent_service" / "configs" / "agent_templates.yaml"
-OLD_SCENARIOS = ROOT / "agent_service" / "configs" / "scenario_templates"
+OLD_WORKFLOW_TEMPLATES = ROOT / "agent_service" / "configs" / "workflow_template_templates"
 NEW_AGENTS = ROOT / "catalog" / "agents"
-NEW_BUILTIN_SCENARIOS = ROOT / "catalog" / "scenarios"
-NEW_DATA_SCENARIOS = ROOT / "data" / "dd_store" / "scenarios"
+NEW_BUILTIN_WORKFLOW_TEMPLATES = ROOT / "catalog" / "workflow_templates"
+NEW_DATA_WORKFLOW_TEMPLATES = ROOT / "data" / "dd_store" / "workflow_templates"
 
 BUILTIN_IDS = {
     "standard_due_diligence",
@@ -38,11 +38,11 @@ def _write_agent(path: Path, payload: dict) -> None:
     path.write_text(header + text, encoding="utf-8")
 
 
-def _write_scenario(path: Path, payload: dict) -> None:
+def _write_workflow_template(path: Path, payload: dict) -> None:
     text = yaml.safe_dump(payload, sort_keys=False, allow_unicode=True, default_flow_style=False, width=4096)
     header = (
-        "# Scenario folder — workflow graph and metadata. "
-        "Agent definitions for this scenario live in ./agents/.\n\n"
+        "# Workflow template folder — workflow graph and metadata. "
+        "Agent definitions for this workflow template live in ./agents/.\n\n"
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(header + text, encoding="utf-8")
@@ -62,37 +62,37 @@ def migrate() -> None:
                 _write_agent(target, copy.deepcopy(row))
                 print(f"  agent -> {target.relative_to(ROOT)}")
 
-    if not OLD_SCENARIOS.is_dir():
-        print("No legacy scenario_templates/ — skipping scenario migration")
+    if not OLD_WORKFLOW_TEMPLATES.is_dir():
+        print("No legacy workflow_template_templates/ — skipping workflow template migration")
         return
 
-    for path in sorted(OLD_SCENARIOS.glob("*.yaml")):
+    for path in sorted(OLD_WORKFLOW_TEMPLATES.glob("*.yaml")):
         if path.name.startswith("_"):
             continue
         doc = _load_yaml(path)
         workflow = doc.get("workflow")
         if not isinstance(workflow, dict) or not workflow.get("id"):
             continue
-        scenario_id = workflow["id"]
-        if scenario_id in BUILTIN_IDS:
-            scenario_root = NEW_BUILTIN_SCENARIOS / scenario_id
+        workflow_template_id = workflow["id"]
+        if workflow_template_id in BUILTIN_IDS:
+            workflow_template_root = NEW_BUILTIN_WORKFLOW_TEMPLATES / workflow_template_id
         else:
-            scenario_root = NEW_DATA_SCENARIOS / scenario_id
-        scenario_yaml = scenario_root / "scenario.yaml"
-        if scenario_yaml.exists():
-            print(f"  skip existing scenario {scenario_id}")
+            workflow_template_root = NEW_DATA_WORKFLOW_TEMPLATES / workflow_template_id
+        workflow_template_yaml = workflow_template_root / "workflow_template.yaml"
+        if workflow_template_yaml.exists():
+            print(f"  skip existing workflow template {workflow_template_id}")
             continue
-        _write_scenario(scenario_yaml, {"version": doc.get("version", 1), "workflow": workflow})
-        print(f"  scenario -> {scenario_yaml.relative_to(ROOT)}")
+        _write_workflow_template(workflow_template_yaml, {"version": doc.get("version", 1), "workflow": workflow})
+        print(f"  workflow template -> {workflow_template_yaml.relative_to(ROOT)}")
 
-        agents_dir = scenario_root / "agents"
+        agents_dir = workflow_template_root / "agents"
         agents_dir.mkdir(parents=True, exist_ok=True)
         nodes = workflow.get("graph", {}).get("nodes", [])
         agent_ids = [node.get("agent_template_id") for node in nodes if node.get("agent_template_id")]
         for agent_id in agent_ids:
             row = agent_catalog.get(agent_id)
             if not row:
-                print(f"    WARN missing agent {agent_id} for {scenario_id}")
+                print(f"    WARN missing agent {agent_id} for {workflow_template_id}")
                 continue
             agent_path = agents_dir / f"{agent_id}.yaml"
             if not agent_path.exists():
@@ -112,13 +112,13 @@ def migrate() -> None:
                     continue
                 if not isinstance(payload, dict):
                     continue
-                scenario_id = (
+                workflow_template_id = (
                     (payload.get("workflow_meta") or {}).get("workflow_id")
                     or (payload.get("company_config") or {}).get("workflow_template_id")
                     or (payload.get("company_config") or {}).get("workflow_id")
                     or "standard_due_diligence"
                 )
-                target_dir = _scenario_runs_target(scenario_id) / "_legacy" / project_dir.name
+                target_dir = _workflow_template_runs_target(workflow_template_id) / "_legacy" / project_dir.name
                 _copy_run_tree(session_file, target_dir, project_dir)
 
 
@@ -128,13 +128,13 @@ def migrate() -> None:
 def _migrate_user_scoped_runs() -> None:
     """Move pre-user-isolation runs/{project}/ into runs/_legacy/{project}/."""
     legacy_user = "_legacy"
-    for scenarios_root in (NEW_BUILTIN_SCENARIOS, NEW_DATA_SCENARIOS):
-        if not scenarios_root.is_dir():
+    for workflow_templates_root in (NEW_BUILTIN_WORKFLOW_TEMPLATES, NEW_DATA_WORKFLOW_TEMPLATES):
+        if not workflow_templates_root.is_dir():
             continue
-        for scenario_dir in scenarios_root.iterdir():
-            if not scenario_dir.is_dir():
+        for workflow_template_dir in workflow_templates_root.iterdir():
+            if not workflow_template_dir.is_dir():
                 continue
-            runs_root = scenario_dir / "runs"
+            runs_root = workflow_template_dir / "runs"
             if not runs_root.is_dir():
                 continue
             for child in runs_root.iterdir():
@@ -150,12 +150,12 @@ def _migrate_user_scoped_runs() -> None:
                 print(f"  user-scope -> {target.relative_to(ROOT)}")
 
 
-def _scenario_runs_target(scenario_id: str) -> Path:
-    data_home = NEW_DATA_SCENARIOS / scenario_id
-    catalog_home = NEW_BUILTIN_SCENARIOS / scenario_id
-    if (data_home / "scenario.yaml").is_file():
+def _workflow_template_runs_target(workflow_template_id: str) -> Path:
+    data_home = NEW_DATA_WORKFLOW_TEMPLATES / workflow_template_id
+    catalog_home = NEW_BUILTIN_WORKFLOW_TEMPLATES / workflow_template_id
+    if (data_home / "workflow_template.yaml").is_file():
         return data_home / "runs"
-    if (catalog_home / "scenario.yaml").is_file():
+    if (catalog_home / "workflow_template.yaml").is_file():
         return catalog_home / "runs"
     return data_home / "runs"
 
