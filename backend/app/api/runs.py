@@ -62,7 +62,7 @@ def _read_text_if_exists(path: Path, *, max_chars: int = 20000) -> str:
 
 
 async def _dispatch_agent_background(
-    project_id: str,
+    engagement_id: str,
     run_id: str,
     user_id: str,
     company_config: dict,
@@ -77,7 +77,7 @@ async def _dispatch_agent_background(
 ) -> None:
     await asyncio.to_thread(
         _execute_agent_pipeline_blocking,
-        project_id,
+        engagement_id,
         run_id,
         user_id,
         company_config,
@@ -92,7 +92,7 @@ async def _dispatch_agent_background(
 
 
 def _execute_agent_pipeline_blocking(
-    project_id: str,
+    engagement_id: str,
     run_id: str,
     user_id: str,
     company_config: dict,
@@ -111,7 +111,7 @@ def _execute_agent_pipeline_blocking(
         try:
             result = asyncio.run(
                 client.start_run(
-                    project_id,
+                    engagement_id,
                     company_config,
                     workflow_snapshot=workflow_snapshot,
                     user_id=user_id,
@@ -130,22 +130,22 @@ def _execute_agent_pipeline_blocking(
         if result.get("run_id") != run_id:
             mark_agent_run_failed(db, run_id, "Agent returned mismatched run_id")
             return
-        finalize_agent_run(db, project_id=project_id, run_id=run_id, result=result)
+        finalize_agent_run(db, project_id=engagement_id, run_id=run_id, result=result)
     finally:
         db.close()
 
 
-@router.get("/projects/{project_id}/diligence-sessions", response_model=list[DiligenceSessionRead])
+@router.get("/engagements/{engagement_id}/diligence-sessions", response_model=list[DiligenceSessionRead])
 def list_diligence_sessions(
-    project_id: str,
+    engagement_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
 ) -> list[DiligenceSessionRead]:
-    ensure_project_access(db, user, project_id)
+    ensure_project_access(db, user, engagement_id)
     sessions = (
         db.query(DiligenceSession)
         .options(joinedload(DiligenceSession.runs))
-        .filter(DiligenceSession.project_id == project_id)
+        .filter(DiligenceSession.project_id == engagement_id)
         .order_by(DiligenceSession.created_at.desc())
         .all()
     )
@@ -156,7 +156,7 @@ def list_diligence_sessions(
         out.append(
             DiligenceSessionRead(
                 id=sess.id,
-                project_id=sess.project_id,
+                engagement_id=sess.project_id,
                 status=sess.status,
                 created_at=sess.created_at,
                 updated_at=sess.updated_at,
@@ -168,15 +168,15 @@ def list_diligence_sessions(
 
 async def _execute_start_agent_run(
     *,
-    project_id: str,
+    engagement_id: str,
     db: Session,
     user: User,
     background_tasks: BackgroundTasks,
     body: StartAgentRunBody,
 ) -> AgentRun:
     """Create session + pending run row and enqueue agent dispatch."""
-    project = ensure_project_write_access(db, user, project_id)
-    workflow_snapshot = build_workflow_snapshot(project.company_config, project_id=project.id)
+    engagement = ensure_project_write_access(db, user, engagement_id)
+    workflow_snapshot = build_workflow_snapshot(engagement.company_config, project_id=engagement.id)
     run_id = f"run_{uuid4().hex[:12]}"
 
     continuation_context: dict | None = None
@@ -187,8 +187,8 @@ async def _execute_start_agent_run(
         if not body.diligence_session_id:
             raise HTTPException(status_code=400, detail="diligence_session_id required when session_mode is continue")
         diligence_sess = db.get(DiligenceSession, body.diligence_session_id)
-        if diligence_sess is None or diligence_sess.project_id != project.id:
-            raise HTTPException(status_code=404, detail="Diligence session not found for this project")
+        if diligence_sess is None or diligence_sess.project_id != engagement.id:
+            raise HTTPException(status_code=404, detail="Diligence session not found for this engagement")
         inflight = (
             db.query(AgentRun)
             .filter(AgentRun.session_id == diligence_sess.id, AgentRun.status == "running")
@@ -208,14 +208,14 @@ async def _execute_start_agent_run(
         db.add(diligence_sess)
         db.flush()
     else:
-        diligence_sess = DiligenceSession(project_id=project.id)
+        diligence_sess = DiligenceSession(project_id=engagement.id)
         db.add(diligence_sess)
         db.flush()
         attempt_ix = 1
 
     create_pending_agent_run(
         db,
-        project.id,
+        engagement.id,
         run_id,
         session_id=diligence_sess.id,
         attempt_index=attempt_ix,
@@ -223,8 +223,8 @@ async def _execute_start_agent_run(
     )
 
     snapshot_dict = dict(workflow_snapshot)
-    proj_records = project_resource_records_for_merge(project.id)
-    company_dict = merged_company_config_with_project_resources(dict(project.company_config), proj_records)
+    proj_records = project_resource_records_for_merge(engagement.id)
+    company_dict = merged_company_config_with_project_resources(dict(engagement.company_config), proj_records)
 
     loaded = (
         db.query(AgentRun)
@@ -238,7 +238,7 @@ async def _execute_start_agent_run(
     pause_gate = body.interaction_mode == "step_gated"
     background_tasks.add_task(
         _dispatch_agent_background,
-        project.id,
+        engagement.id,
         run_id,
         user.id,
         company_dict,
@@ -253,16 +253,16 @@ async def _execute_start_agent_run(
     return loaded
 
 
-@router.post("/projects/{project_id}/runs", response_model=AgentRunRead)
+@router.post("/engagements/{engagement_id}/runs", response_model=AgentRunRead)
 async def start_run(
-    project_id: str,
+    engagement_id: str,
     background_tasks: BackgroundTasks,
     body: Annotated[StartAgentRunBody, Depends(parse_start_run_body)],
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> AgentRun:
     return await _execute_start_agent_run(
-        project_id=project_id,
+        engagement_id=engagement_id,
         db=db,
         user=user,
         background_tasks=background_tasks,
@@ -280,23 +280,23 @@ def list_runs(
         .options(joinedload(AgentRun.steps), joinedload(AgentRun.report))
         .order_by(AgentRun.started_at.desc())
     )
-    project_ids = accessible_project_ids(db, user)
-    if project_ids is not None:
-        query = query.filter(AgentRun.project_id.in_(project_ids))
+    engagement_ids = accessible_project_ids(db, user)
+    if engagement_ids is not None:
+        query = query.filter(AgentRun.project_id.in_(engagement_ids))
     return query.all()
 
 
-@router.get("/projects/{project_id}/runs", response_model=list[AgentRunRead])
-def list_project_runs(
-    project_id: str,
+@router.get("/engagements/{engagement_id}/runs", response_model=list[AgentRunRead])
+def list_engagement_runs(
+    engagement_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
 ) -> list[AgentRun]:
-    ensure_project_access(db, user, project_id)
+    ensure_project_access(db, user, engagement_id)
     return (
         db.query(AgentRun)
         .options(joinedload(AgentRun.steps), joinedload(AgentRun.report))
-        .filter(AgentRun.project_id == project_id)
+        .filter(AgentRun.project_id == engagement_id)
         .order_by(AgentRun.started_at.desc())
         .all()
     )
@@ -403,11 +403,11 @@ async def continue_step_gated(
             detail=f"Another attempt is executing in this session ({conflict.id}).",
         )
 
-    project = db.get(Project, row.project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
+    engagement = db.get(Project, row.project_id)
+    if engagement is None:
+        raise HTTPException(status_code=404, detail="Engagement not found")
 
-    snapshot = dict(build_workflow_snapshot(project.company_config, project_id=project.id))
+    snapshot = dict(build_workflow_snapshot(engagement.company_config, project_id=engagement.id))
     completed_steps_payload = completed_slice_for_agent_service(db, run_id)
 
     row.status = "running"
@@ -416,8 +416,8 @@ async def continue_step_gated(
     resume_ix = len(completed_steps_payload)
     attempt_ix = getattr(row, "attempt_index", 1) or 1
     sess_id = row.session_id
-    proj_records = project_resource_records_for_merge(project.id)
-    company_merged = merged_company_config_with_project_resources(dict(project.company_config), proj_records)
+    proj_records = project_resource_records_for_merge(engagement.id)
+    company_merged = merged_company_config_with_project_resources(dict(engagement.company_config), proj_records)
     owner_user_id = row.started_by_user_id or user.id
     background_tasks.add_task(
         _dispatch_agent_background,
@@ -470,14 +470,14 @@ def agent_step_review_chat(
     if step is None or step.run_id != row.id:
         raise HTTPException(status_code=404, detail="Step not found for this run")
 
-    project = db.get(Project, row.project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
+    engagement = db.get(Project, row.project_id)
+    if engagement is None:
+        raise HTTPException(status_code=404, detail="Engagement not found")
 
-    proj_records = project_resource_records_for_merge(project.id)
-    merged_cfg = merged_company_config_with_project_resources(dict(project.company_config), proj_records)
+    proj_records = project_resource_records_for_merge(engagement.id)
+    merged_cfg = merged_company_config_with_project_resources(dict(engagement.company_config), proj_records)
 
-    snapshot = dict(build_workflow_snapshot(project.company_config, project_id=project.id))
+    snapshot = dict(build_workflow_snapshot(engagement.company_config, project_id=engagement.id))
 
     append_agent_step_chat_message(db, step_id=step_id, role="user", content=msg)
 
@@ -500,7 +500,7 @@ def agent_step_review_chat(
     }
 
     payload = {
-        "project_id": row.project_id,
+        "engagement_id": row.project_id,
         "company_config": merged_cfg,
         "workflow_snapshot": snapshot,
         "agent_name": step.agent,
@@ -566,7 +566,7 @@ async def retry_run(
     if run.session_id:
         retry_body = StartAgentRunBody(session_mode="continue", diligence_session_id=run.session_id)
     return await _execute_start_agent_run(
-        project_id=run.project_id,
+        engagement_id=run.project_id,
         db=db,
         user=user,
         background_tasks=background_tasks,

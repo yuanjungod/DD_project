@@ -1,4 +1,4 @@
-"""Multipart uploads for project file library (stored under .dd_project/data + manifest file_reference)."""
+"""Multipart uploads for engagement file library (stored under .dd_project/data + manifest file_reference)."""
 
 from __future__ import annotations
 
@@ -11,22 +11,22 @@ from app.models.entities import User
 from app.schemas import ResourceRead
 from app.services.project_uploads_store import save_project_upload
 
-router = APIRouter(prefix="/projects/{project_id}/uploads", tags=["uploads"])
+router = APIRouter(prefix="/engagements/{engagement_id}/uploads", tags=["uploads"])
 
 
 @router.post("", response_model=ResourceRead)
-async def upload_project_file(
-    project_id: str,
+async def upload_engagement_file(
+    engagement_id: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> ResourceRead:
-    ensure_project_write_access(db, user, project_id)
+    ensure_project_write_access(db, user, engagement_id)
     body = await file.read()
     filename = file.filename or "upload.bin"
     try:
         return save_project_upload(
-            project_id,
+            engagement_id,
             filename=filename,
             content_type=file.content_type,
             body=body,

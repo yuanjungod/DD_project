@@ -17,7 +17,7 @@ export type CompanyConfig = {
   };
 };
 
-export type Project = {
+export type Engagement = {
   id: string;
   name: string;
   company_key: string;
@@ -30,14 +30,14 @@ export type Project = {
 
 export type Resource = {
   id: string;
-  project_id: string;
+  engagement_id: string;
   type: string;
   value: string;
   metadata_json: Record<string, unknown>;
   created_at: string;
 };
 
-export type ProjectAgentOverride = {
+export type EngagementAgentOverride = {
   agent_id: string;
   prompt_append: string;
   prompt_override: string;
@@ -74,7 +74,7 @@ export type AgentStepOutputFolder = {
 
 export type Report = {
   id: string;
-  project_id: string;
+  engagement_id: string;
   run_id: string;
   title: string;
   executive_summary: string;
@@ -102,7 +102,7 @@ export type StepReviewChatApiResponse = {
 
 export type AgentRun = {
   id: string;
-  project_id: string;
+  engagement_id: string;
   session_id?: string | null;
   attempt_index?: number | null;
   status: string;
@@ -115,7 +115,7 @@ export type AgentRun = {
 
 export type AgentRunBrief = {
   id: string;
-  project_id: string;
+  engagement_id: string;
   status: string;
   attempt_index?: number | null;
   session_id?: string | null;
@@ -124,7 +124,7 @@ export type AgentRunBrief = {
 
 export type DiligenceSessionModel = {
   id: string;
-  project_id: string;
+  engagement_id: string;
   status: string;
   created_at: string;
   updated_at: string;
@@ -145,11 +145,11 @@ export type AuthSession = {
   user: User;
 };
 
-export type Scenario = {
+export type PublishedWorkflowTemplate = {
   id: string;
   name: string;
   description: string;
-  scenario: string;
+  workflow_template: string;
   agents: string[];
 };
 

@@ -1,11 +1,11 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  createProjectResourceConfig,
-  deleteProjectResourceConfig,
-  listProjectResourceConfigs,
-  updateProjectResourceConfig,
-  uploadProjectFile,
+  createEngagementResourceConfig,
+  deleteEngagementResourceConfig,
+  listEngagementResourceConfigs,
+  updateEngagementResourceConfig,
+  uploadEngagementFile,
 } from "../api/client";
 import { SectionCard } from "./SectionCard";
 import {
@@ -30,7 +30,7 @@ import type { ResourceConfig } from "../types/domain";
 
 type TabFilter = PlatformResourceType | "other";
 
-export function ProjectResourceCatalogPanel({ projectId }: { projectId: string }) {
+export function EngagementResourceCatalogPanel({ engagementId }: { engagementId: string }) {
   const [listFilter, setListFilter] = useState<TabFilter>("web");
   const [resources, setResources] = useState<ResourceConfig[]>([]);
   const [error, setError] = useState("");
@@ -61,8 +61,8 @@ export function ProjectResourceCatalogPanel({ projectId }: { projectId: string }
   const editingFileSize = editingResource ? formatFileStoreSize(editingResource.connection_config ?? {}) : "";
 
   const refresh = useCallback(async () => {
-    setResources(await listProjectResourceConfigs(projectId));
-  }, [projectId]);
+    setResources(await listEngagementResourceConfigs(engagementId));
+  }, [engagementId]);
 
   useEffect(() => {
     refresh().catch((err: unknown) => setError(String(err)));
@@ -155,7 +155,7 @@ export function ProjectResourceCatalogPanel({ projectId }: { projectId: string }
             return;
           }
           setSavingEdit(true);
-          const uploaded = await uploadProjectFile(projectId, filePick);
+          const uploaded = await uploadEngagementFile(engagementId, filePick);
           fileId = uploaded.value;
           originalFilename = String(uploaded.metadata_json?.original_filename ?? filePick.name);
           uploadedSizeBytes =
@@ -194,7 +194,7 @@ export function ProjectResourceCatalogPanel({ projectId }: { projectId: string }
 
       if (editingId) {
         setSavingEdit(true);
-        await updateProjectResourceConfig(projectId, editingId, {
+        await updateEngagementResourceConfig(engagementId, editingId, {
           name: resolvedName,
           description: form.description,
           type: effectiveType,
@@ -204,7 +204,7 @@ export function ProjectResourceCatalogPanel({ projectId }: { projectId: string }
         resetEditorForm();
       } else {
         setSavingEdit(true);
-        await createProjectResourceConfig(projectId, {
+        await createEngagementResourceConfig(engagementId, {
           id: form.id.trim() || undefined,
           name: resolvedName,
           type: effectiveType,
@@ -234,7 +234,7 @@ export function ProjectResourceCatalogPanel({ projectId }: { projectId: string }
     setDeletingId(resource.id);
     setError("");
     try {
-      await deleteProjectResourceConfig(projectId, resource.id);
+      await deleteEngagementResourceConfig(engagementId, resource.id);
       if (editingId === resource.id) resetEditorForm();
       await refresh();
     } catch (err: unknown) {
@@ -286,7 +286,7 @@ export function ProjectResourceCatalogPanel({ projectId }: { projectId: string }
           description={
             showFileLibraryPanel
               ? "选择文件并填写说明，点击「上传并保存」即写入应用文件库与资源登记（与平台资源相同）。"
-              : "公司级资源登记方式与平台资源一致；Run 时与本应用 Agent 绑定一并生效。"
+              : "公司级资源登记方式与平台资源一致；Run 时与当前 Engagement 的 Agent 绑定一并生效。"
           }
         >
           {editingId ? (

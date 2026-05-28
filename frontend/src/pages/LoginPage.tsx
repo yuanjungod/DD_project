@@ -39,7 +39,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         <p className="eyebrow">Permissioned Due Diligence</p>
         <h1>登录尽调平台</h1>
         <p className="muted">
-          默认账号：{defaultLoginEmail} / {defaultLoginPassword}。管理员可查看全部项目，分析师可创建并运行项目，只读用户只能查看。
+          默认账号：{defaultLoginEmail} / {defaultLoginPassword}。管理员可查看全部 Engagement，分析师可创建并运行 Engagement，只读用户只能查看。
         </p>
         {error ? <div className="error">{error}</div> : null}
         <form className="form" onSubmit={handleSubmit}>

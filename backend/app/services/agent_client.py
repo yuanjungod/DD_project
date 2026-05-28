@@ -15,7 +15,7 @@ class AgentServiceClient:
 
     async def start_run(
         self,
-        project_id: str,
+        engagement_id: str,
         company_config: dict,
         workflow_snapshot: dict | None = None,
         *,
@@ -29,7 +29,7 @@ class AgentServiceClient:
         completed_steps: list[dict] | None = None,
     ) -> dict:
         payload: dict = {
-            "project_id": project_id,
+            "engagement_id": engagement_id,
             "user_id": user_id,
             "company_config": company_config,
             "workflow_snapshot": workflow_snapshot,

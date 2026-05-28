@@ -3,15 +3,22 @@
 An MVP due diligence platform with:
 
 - React frontend workbench.
-- FastAPI backend for projects, resources, runs, and reports.
+- FastAPI backend for engagements, resources, runs, and reports.
 - AgentScope-oriented Python agent service with configurable agents, tools, prompts, and workflows.
+
+## Terminology
+
+- `Workflow Template` (formerly `Scenario`): defines **how** the diligence is executed (graph/stages/agent composition).
+- `Engagement` (formerly `Project`): defines **what/who** is being analyzed for one business instance (company, app id, version, resources, runs).
+
+In API and UI, `engagement` is the runtime/business object and `workflow template` is the reusable process template.
 
 ## Layout
 
 ```text
 backend/        FastAPI application
 agent_service/  AgentScope workflow service (+ configs/tools.yaml, skills/)
-catalog/        Global agent library (catalog/agents/) and built-in scenario folders (catalog/scenarios/)
+catalog/        Global agent library (catalog/agents/) and built-in workflow template folders (catalog/scenarios/)
 frontend/       React + Vite workbench
 shared/         Shared JSON schemas and example payloads
 docs/           Architecture, agent flow, configuration schema
@@ -35,18 +42,18 @@ catalog/
   default_users.yaml                    # Development seed users
 ```
 
-### `.dd_project/` (runtime/project state)
+### `.dd_project/` (runtime/engagement state)
 
 ```text
 .dd_project/
   projects/
-    {project_id}/
+    {engagement_id}/
       meta/
-        agent_overrides.json            # Project-scoped Agent override manifest
+        agent_overrides.json            # Engagement-scoped Agent override manifest
       shared/
-        resources/manifest.json         # Project resource metadata
-        resource_configs/*.yaml         # Project resource config overrides
-        uploads/{file_id}               # Project-shared uploaded binaries
+        resources/manifest.json         # Engagement resource metadata
+        resource_configs/*.yaml         # Engagement resource config overrides
+        uploads/{file_id}               # Engagement-shared uploaded binaries
       users/{user_id}/sessions/{session_id}/
         runs/{scenario_id}/{run_id}.json
         runs/{scenario_id}/outputs/{run_id}_outputs/{step}_{agent}/
@@ -90,13 +97,13 @@ npm run dev
 Writable runtime data defaults to `.dd_project/data/` from the repository root:
 
 - SQLite: `.dd_project/data/platform/dd_platform.db` (set `DATABASE_URL` to use PostgreSQL or another explicit database).
-- Project resources: `.dd_project/projects/<project_id>/shared/resources` + `.dd_project/projects/<project_id>/shared/resource_configs`.
-- Project uploads (binary blobs): `.dd_project/projects/<project_id>/shared/uploads/<file_id>`.
-- Project-local copied skills: `.dd_project/projects/<project_id>/shared/skills/<directory_name>`.
+- Engagement resources: `.dd_project/projects/<engagement_id>/shared/resources` + `.dd_project/projects/<engagement_id>/shared/resource_configs`.
+- Engagement uploads (binary blobs): `.dd_project/projects/<engagement_id>/shared/uploads/<file_id>`.
+- Engagement-local copied skills: `.dd_project/projects/<engagement_id>/shared/skills/<directory_name>`.
 - Platform uploads (binary blobs): `.dd_project/data/platform/uploads/<file_id>`.
 - Platform upload manifest: `.dd_project/data/platform/uploads_manifest.json`.
-- Agent run sessions and per-step outputs: `.dd_project/projects/<project_id>/users/<user_id>/sessions/<session_id>/runs/<scenario_id>/...`.
-- Project runtime config home: `.dd_project/projects/<project_id>/meta/agent_overrides.json`.
+- Agent run sessions and per-step outputs: `.dd_project/projects/<engagement_id>/users/<user_id>/sessions/<session_id>/runs/<workflow_template_id>/...`.
+- Engagement runtime config home: `.dd_project/projects/<engagement_id>/meta/agent_overrides.json`.
 
 Set `DD_DATA_ROOT` to move all writable file data together.
 
@@ -113,9 +120,9 @@ MVP flow:
 1. Log in.
 2. Configure Anthropic-style skill packages, executable tools, data resources, agent templates, and workflow templates as an admin.
 3. Publish a workflow template.
-4. Apply a published scenario to a specific company.
-5. Add project resources.
-6. Start a due diligence run from the project detail page.
+4. Apply a published workflow template to a specific company engagement.
+5. Add engagement resources.
+6. Start a due diligence run from the engagement detail page.
 7. Review agent steps, per-step output folders, report, workflow snapshot, and run history.
 
 After upgrading from a build that used the removed Evidence model, reset local SQLite under `.dd_project/data/platform/` (delete `dd_platform.db` and restart the backend) so `create_all` rebuilds the schema.

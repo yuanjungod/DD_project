@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   listAgentTemplates,
   listLibraryUploads,
-  listProjectAgentOverrides,
-  listProjectResourceConfigs,
+  listEngagementAgentOverrides,
+  listEngagementResourceConfigs,
   listResourceConfigs,
   listResources,
   listSkills,
@@ -18,7 +18,7 @@ import {
   uploadFilePickerItems,
 } from "../domain/catalogPickerItems";
 import { resolveGraphAgentOrder } from "../domain/workflowGraph";
-import type { AgentTemplate, ProjectAgentOverride, WorkflowTemplate } from "../types/domain";
+import type { AgentTemplate, EngagementAgentOverride, WorkflowTemplate } from "../types/domain";
 import { AgentOverrideEditor } from "./AgentOverrideEditor";
 import { SectionCard } from "./SectionCard";
 
@@ -27,41 +27,43 @@ function workflowAgentIds(workflowTemplateId: string | undefined, workflowTempla
   return resolveGraphAgentOrder(workflow?.graph);
 }
 
-export function ProjectAgentOverridesPanel({
-  projectId,
+export function EngagementAgentOverridesPanel({
+  engagementId,
   workflowTemplateId,
 }: {
-  projectId: string;
+  engagementId: string;
   workflowTemplateId?: string;
 }) {
-  const [agentOverrides, setAgentOverrides] = useState<ProjectAgentOverride[]>([]);
+  const [agentOverrides, setAgentOverrides] = useState<EngagementAgentOverride[]>([]);
   const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([]);
   const [agentTemplates, setAgentTemplates] = useState<AgentTemplate[]>([]);
   const [skills, setSkills] = useState<Awaited<ReturnType<typeof listSkills>>>([]);
   const [tools, setTools] = useState<Awaited<ReturnType<typeof listToolConfigs>>>([]);
   const [resourceConfigs, setResourceConfigs] = useState<Awaited<ReturnType<typeof listResourceConfigs>>>([]);
   const [libraryFiles, setLibraryFiles] = useState<Awaited<ReturnType<typeof listLibraryUploads>>>([]);
-  const [projectResourceConfigs, setProjectResourceConfigs] = useState<Awaited<ReturnType<typeof listProjectResourceConfigs>>>([]);
+  const [engagementResourceConfigs, setEngagementResourceConfigs] = useState<
+    Awaited<ReturnType<typeof listEngagementResourceConfigs>>
+  >([]);
   const [resources, setResources] = useState<Awaited<ReturnType<typeof listResources>>>([]);
   const [error, setError] = useState("");
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
 
   async function refresh() {
     const [overrideItems, workflowItems, resourceItems, companyResourceItems] = await Promise.all([
-      listProjectAgentOverrides(projectId),
+      listEngagementAgentOverrides(engagementId),
       listWorkflowTemplates(),
-      listResources(projectId),
-      listProjectResourceConfigs(projectId),
+      listResources(engagementId),
+      listEngagementResourceConfigs(engagementId),
     ]);
     setAgentOverrides(overrideItems);
     setWorkflowTemplates(workflowItems);
     setResources(resourceItems);
-    setProjectResourceConfigs(companyResourceItems);
+    setEngagementResourceConfigs(companyResourceItems);
   }
 
   useEffect(() => {
     refresh().catch((err: unknown) => setError(String(err)));
-  }, [projectId]);
+  }, [engagementId]);
 
   useEffect(() => {
     Promise.all([listSkills(), listToolConfigs(), listResourceConfigs(), listLibraryUploads()])
@@ -90,7 +92,10 @@ export function ProjectAgentOverridesPanel({
   const skillItems = useMemo(() => skillPickerItems(skills), [skills]);
   const toolItems = useMemo(() => toolPickerItems(tools), [tools]);
   const globalResourceItems = useMemo(() => resourceConfigPickerItems(resourceConfigs), [resourceConfigs]);
-  const projectResourceItems = useMemo(() => resourceConfigPickerItems(projectResourceConfigs), [projectResourceConfigs]);
+  const engagementResourceItems = useMemo(
+    () => resourceConfigPickerItems(engagementResourceConfigs),
+    [engagementResourceConfigs],
+  );
   const fileItems = useMemo(() => uploadFilePickerItems(resources, libraryFiles), [resources, libraryFiles]);
 
   return (
@@ -126,7 +131,7 @@ export function ProjectAgentOverridesPanel({
             {selectedAgentId ? (
               <AgentOverrideEditor
                 key={selectedAgentId}
-                projectId={projectId}
+                engagementId={engagementId}
                 agentId={selectedAgentId}
                 template={agentTemplates.find((t) => t.id === selectedAgentId)}
                 override={agentOverrides.find((item) => item.agent_id === selectedAgentId)}
@@ -134,7 +139,7 @@ export function ProjectAgentOverridesPanel({
                 skillItems={skillItems}
                 toolItems={toolItems}
                 globalResourceItems={globalResourceItems}
-                projectResourceItems={projectResourceItems}
+                engagementResourceItems={engagementResourceItems}
                 fileItems={fileItems}
               />
             ) : null}

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 
 from app.services.company_config_merge_constants import PROJECT_RESOURCE_TYPES
 
@@ -32,7 +32,7 @@ class CompanyConfig(BaseModel):
     resources: Resources = Field(default_factory=Resources)
 
 
-class ProjectCreate(BaseModel):
+class EngagementCreate(BaseModel):
     name: str
     company_config: CompanyConfig
     application_id: str
@@ -40,13 +40,13 @@ class ProjectCreate(BaseModel):
     initial_resources: list["ResourceCreate"] = Field(default_factory=list)
 
 
-class ProjectUpdate(BaseModel):
+class EngagementUpdate(BaseModel):
     name: str | None = None
     company_config: CompanyConfig | None = None
     application_id: str | None = None
 
 
-class ProjectRead(BaseModel):
+class EngagementRead(BaseModel):
     id: str
     name: str
     company_key: str
@@ -156,11 +156,11 @@ class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ScenarioRead(BaseModel):
+class WorkflowTemplateSummaryRead(BaseModel):
     id: str
     name: str
     description: str
-    scenario: str
+    workflow_template: str
     agents: list[str]
 
 
@@ -379,7 +379,7 @@ class ResourceCreate(BaseModel):
 
 class ResourceRead(BaseModel):
     id: str
-    project_id: str
+    engagement_id: str = Field(validation_alias=AliasChoices("engagement_id", "project_id"))
     type: str
     value: str
     metadata_json: dict[str, Any]
@@ -413,7 +413,7 @@ class AgentStepRead(BaseModel):
 
 class ReportRead(BaseModel):
     id: str
-    project_id: str
+    engagement_id: str = Field(validation_alias=AliasChoices("engagement_id", "project_id"))
     run_id: str
     title: str
     executive_summary: str
@@ -470,7 +470,7 @@ class StepReviewChatOut(BaseModel):
 
 class AgentRunBriefRead(BaseModel):
     id: str
-    project_id: str
+    engagement_id: str = Field(validation_alias=AliasChoices("engagement_id", "project_id"))
     status: str
     attempt_index: int | None = None
     session_id: str | None = None
@@ -485,7 +485,7 @@ class AgentRunBriefRead(BaseModel):
 
 class DiligenceSessionRead(BaseModel):
     id: str
-    project_id: str
+    engagement_id: str = Field(validation_alias=AliasChoices("engagement_id", "project_id"))
     status: str
     created_at: datetime
     updated_at: datetime
@@ -504,7 +504,7 @@ class DiligenceSessionRead(BaseModel):
 
 class AgentRunRead(BaseModel):
     id: str
-    project_id: str
+    engagement_id: str = Field(validation_alias=AliasChoices("engagement_id", "project_id"))
     session_id: str | None = None
     attempt_index: int | None = None
     status: str

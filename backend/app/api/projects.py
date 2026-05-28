@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import accessible_project_ids, ensure_project_access, ensure_project_write_access, require_roles
 from app.core.database import get_db
 from app.models.entities import Project, ProjectAccess, User
-from app.schemas import ProjectCreate, ProjectRead, ProjectUpdate
+from app.schemas import EngagementCreate, EngagementRead, EngagementUpdate
 from app.services.company_identity import company_key_from_name, normalize_application_id
 from app.services.platform_uploads_store import copy_platform_uploads_to_project
 from app.services.project_agent_overrides_store import project_agent_override_records
@@ -22,7 +22,7 @@ from app.services.workflow_snapshots import build_workflow_snapshot
 from app.services.fs_layout import project_agent_overrides_manifest_path, project_uploads_dir
 
 
-router = APIRouter(prefix="/projects", tags=["projects"])
+router = APIRouter(prefix="/engagements", tags=["engagements"])
 
 
 def _selected_platform_file_ids_from_company_config(company_config: dict) -> list[str]:
@@ -48,7 +48,7 @@ def _selected_platform_file_ids_from_company_config(company_config: dict) -> lis
     return out
 
 
-def _selected_platform_file_ids_for_project_create(payload: ProjectCreate) -> list[str]:
+def _selected_platform_file_ids_for_engagement_create(payload: EngagementCreate) -> list[str]:
     return _selected_platform_file_ids_from_company_config(payload.company_config.model_dump())
 
 
@@ -67,7 +67,7 @@ def _selected_skill_directories_from_company_config(company_config: dict) -> lis
     return out
 
 
-def _selected_skill_directories_for_project_create(payload: ProjectCreate) -> list[str]:
+def _selected_skill_directories_for_engagement_create(payload: EngagementCreate) -> list[str]:
     return _selected_skill_directories_from_company_config(payload.company_config.model_dump())
 
 
@@ -80,9 +80,9 @@ def _next_version(db: Session, company_key: str, application_id: str) -> int:
     return int(current or 0) + 1
 
 
-@router.post("", response_model=ProjectRead)
-def create_project(
-    payload: ProjectCreate,
+@router.post("", response_model=EngagementRead)
+def create_engagement(
+    payload: EngagementCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> Project:
@@ -109,84 +109,84 @@ def create_project(
             detail=f"Application already exists: {company_name} · {application_id} · v{version}",
         )
 
-    project = Project(
+    engagement = Project(
         name=payload.name,
         company_key=company_key,
         application_id=application_id,
         version=version,
         company_config=payload.company_config.model_dump(),
     )
-    db.add(project)
+    db.add(engagement)
     db.flush()
-    db.add(ProjectAccess(project_id=project.id, user_id=user.id, access_role="owner"))
+    db.add(ProjectAccess(project_id=engagement.id, user_id=user.id, access_role="owner"))
     db.commit()
-    append_project_resources_fs(project.id, payload.initial_resources)
-    copy_platform_uploads_to_project(project.id, _selected_platform_file_ids_for_project_create(payload))
-    copy_skill_directories_to_project(project.id, _selected_skill_directories_for_project_create(payload))
-    db.refresh(project)
-    return project
+    append_project_resources_fs(engagement.id, payload.initial_resources)
+    copy_platform_uploads_to_project(engagement.id, _selected_platform_file_ids_for_engagement_create(payload))
+    copy_skill_directories_to_project(engagement.id, _selected_skill_directories_for_engagement_create(payload))
+    db.refresh(engagement)
+    return engagement
 
 
-@router.get("", response_model=list[ProjectRead])
-def list_projects(
+@router.get("", response_model=list[EngagementRead])
+def list_engagements(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
 ) -> list[Project]:
     query = db.query(Project)
-    project_ids = accessible_project_ids(db, user)
-    if project_ids is not None:
-        query = query.filter(Project.id.in_(project_ids))
+    engagement_ids = accessible_project_ids(db, user)
+    if engagement_ids is not None:
+        query = query.filter(Project.id.in_(engagement_ids))
     return query.order_by(Project.created_at.desc()).all()
 
 
-@router.get("/{project_id}", response_model=ProjectRead)
-def get_project(
-    project_id: str,
+@router.get("/{engagement_id}", response_model=EngagementRead)
+def get_engagement(
+    engagement_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
 ) -> Project:
-    return ensure_project_access(db, user, project_id)
+    return ensure_project_access(db, user, engagement_id)
 
 
-@router.patch("/{project_id}", response_model=ProjectRead)
-def update_project(
-    project_id: str,
-    payload: ProjectUpdate,
+@router.patch("/{engagement_id}", response_model=EngagementRead)
+def update_engagement(
+    engagement_id: str,
+    payload: EngagementUpdate,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> Project:
-    project = ensure_project_write_access(db, user, project_id)
+    engagement = ensure_project_write_access(db, user, engagement_id)
     if payload.name is not None:
-        project.name = payload.name
+        engagement.name = payload.name
     if payload.company_config is not None:
         company_config = payload.company_config.model_dump()
-        project.company_config = company_config
-        project.company_key = company_key_from_name(payload.company_config.target_company.name)
+        engagement.company_config = company_config
+        engagement.company_key = company_key_from_name(payload.company_config.target_company.name)
         copy_platform_uploads_to_project(
-            project.id,
+            engagement.id,
             _selected_platform_file_ids_from_company_config(company_config),
         )
         copy_skill_directories_to_project(
-            project.id,
+            engagement.id,
             _selected_skill_directories_from_company_config(company_config),
         )
     if payload.application_id is not None:
         try:
-            project.application_id = normalize_application_id(payload.application_id)
+            engagement.application_id = normalize_application_id(payload.application_id)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     db.commit()
-    db.refresh(project)
-    return project
+    db.refresh(engagement)
+    return engagement
 
 
-@router.post("/{project_id}/versions", response_model=ProjectRead)
-def clone_project_version(
-    project_id: str,
+@router.post("/{engagement_id}/versions", response_model=EngagementRead)
+def clone_engagement_version(
+    engagement_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> Project:
-    source = ensure_project_write_access(db, user, project_id)
+    source = ensure_project_write_access(db, user, engagement_id)
     version = _next_version(db, source.company_key, source.application_id)
     company_name = (source.company_config or {}).get("target_company", {}).get("name", source.name)
     clone = Project(
@@ -213,14 +213,14 @@ def clone_project_version(
     return clone
 
 
-@router.delete("/{project_id}", status_code=204)
-def delete_project(
-    project_id: str,
+@router.delete("/{engagement_id}", status_code=204)
+def delete_engagement(
+    engagement_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> None:
-    project = ensure_project_write_access(db, user, project_id)
-    pid = project.id
-    db.delete(project)
+    engagement = ensure_project_write_access(db, user, engagement_id)
+    eid = engagement.id
+    db.delete(engagement)
     db.commit()
-    delete_project_resources_tree(pid)
+    delete_project_resources_tree(eid)

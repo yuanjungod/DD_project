@@ -4,9 +4,9 @@ import { Navigate, Route, BrowserRouter as Router, Routes, useLocation } from "r
 import { getMe } from "./api/client";
 import { AppLayout } from "./components/AppLayout";
 import { LoginPage } from "./pages/LoginPage";
-import { NewProjectPage } from "./pages/NewProjectPage";
-import { ProjectDetailPage } from "./pages/ProjectDetailPage";
-import { ProjectsPage } from "./pages/ProjectsPage";
+import { NewEngagementPage } from "./pages/NewEngagementPage";
+import { EngagementDetailPage } from "./pages/EngagementDetailPage";
+import { EngagementsPage } from "./pages/EngagementsPage";
 import { ResourceConfigsPage } from "./pages/ResourceConfigsPage";
 import { RunHistoryPage } from "./pages/RunHistoryPage";
 import { SkillsPage } from "./pages/SkillsPage";
@@ -63,19 +63,18 @@ export function App() {
                 <Routes>
                   <Route path="/" element={<Navigate to="/workflows" replace />} />
                   <Route path="/workflows" element={<WorkflowsHubPage />} />
-                  <Route path="/scenarios" element={<Navigate to="/workflows" replace />} />
                   <Route path="/workflow-templates" element={<Navigate to="/workflows" replace />} />
                   <Route path="/agent-templates" element={<Navigate to={{ pathname: "/workflows", search: "?tab=agents" }} replace />} />
                   <Route path="/skills" element={<SkillsPage />} />
                   <Route path="/tools" element={<Navigate to="/resource-configs?tab=tools" replace />} />
                   <Route path="/resource-configs" element={<ResourceConfigsPage />} />
-                  <Route path="/projects/new" element={<NewProjectPage />} />
-                  <Route path="/projects" element={<ProjectsPage />} />
-                  <Route path="/projects/:projectId" element={<Navigate to="outputs" replace />} />
-                  <Route path="/projects/:projectId/outputs" element={<ProjectDetailPage section="outputs" />} />
-                  <Route path="/projects/:projectId/runs" element={<ProjectDetailPage section="runs" />} />
-                  <Route path="/projects/:projectId/config" element={<Navigate to="../outputs" replace relative="path" />} />
-                  <Route path="/projects/:projectId/resources" element={<Navigate to="../outputs" replace relative="path" />} />
+                  <Route path="/engagements/new" element={<NewEngagementPage />} />
+                  <Route path="/engagements" element={<EngagementsPage />} />
+                  <Route path="/engagements/:engagementId" element={<Navigate to="outputs" replace />} />
+                  <Route path="/engagements/:engagementId/outputs" element={<EngagementDetailPage section="outputs" />} />
+                  <Route path="/engagements/:engagementId/runs" element={<EngagementDetailPage section="runs" />} />
+                  <Route path="/engagements/:engagementId/config" element={<Navigate to="../outputs" replace relative="path" />} />
+                  <Route path="/engagements/:engagementId/resources" element={<Navigate to="../outputs" replace relative="path" />} />
                   <Route path="/runs" element={<RunHistoryPage />} />
                 </Routes>
               </AppLayout>

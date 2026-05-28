@@ -6,7 +6,7 @@ import {
   createWorkflowTemplate,
   deleteWorkflowTemplate,
   listAgentTemplates,
-  listScenarios,
+  listPublishedWorkflowTemplates,
   listWorkflowTemplates,
   publishWorkflowTemplate,
   updateWorkflowTemplate,
@@ -14,7 +14,7 @@ import {
 import { AgentTemplatesPanel } from "../components/AgentTemplatesPanel";
 import { SectionCard } from "../components/SectionCard";
 import { resolveGraphAgentOrder } from "../domain/workflowGraph";
-import type { AgentTemplate, Scenario, WorkflowGraph, WorkflowTemplate } from "../types/domain";
+import type { AgentTemplate, PublishedWorkflowTemplate, WorkflowGraph, WorkflowTemplate } from "../types/domain";
 
 function splitList(value: string): string[] {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
@@ -65,7 +65,7 @@ function nodeSpecsFromGraph(graph: WorkflowGraph): string {
     .join("\n");
 }
 
-type HubTab = "scenarios" | "builder" | "agents";
+type HubTab = "templates" | "builder" | "agents";
 
 /** Must match backend `workflow_template_files._PROTECTED_WORKFLOW_TEMPLATE_IDS`. */
 const PROTECTED_WORKFLOW_TEMPLATE_IDS = new Set([
@@ -79,7 +79,7 @@ export function WorkflowsHubPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
   const activeTab: HubTab =
-    tabParam === "builder" ? "builder" : tabParam === "agents" ? "agents" : "scenarios";
+    tabParam === "builder" ? "builder" : tabParam === "agents" ? "agents" : "templates";
 
   const [error, setError] = useState("");
 
@@ -87,7 +87,7 @@ export function WorkflowsHubPage() {
     (next: HubTab) => {
       setError("");
       const nextParams = new URLSearchParams(searchParams);
-      if (next === "scenarios") {
+      if (next === "templates") {
         nextParams.delete("tab");
       } else {
         nextParams.set("tab", next);
@@ -97,7 +97,7 @@ export function WorkflowsHubPage() {
     [searchParams, setSearchParams],
   );
 
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [publishedWorkflowTemplates, setPublishedWorkflowTemplates] = useState<PublishedWorkflowTemplate[]>([]);
   const [workflows, setWorkflows] = useState<WorkflowTemplate[]>([]);
   const [agents, setAgents] = useState<AgentTemplate[]>([]);
   const [builderLoaded, setBuilderLoaded] = useState(false);
@@ -112,9 +112,9 @@ export function WorkflowsHubPage() {
 
   const agentPlaceholder = useMemo(() => agents.map((agent) => agent.id).join(", "), [agents]);
 
-  const loadScenarios = useCallback(async () => {
-    const items = await listScenarios();
-    setScenarios(items);
+  const loadPublishedWorkflowTemplates = useCallback(async () => {
+    const items = await listPublishedWorkflowTemplates();
+    setPublishedWorkflowTemplates(items);
   }, []);
 
   const loadBuilder = useCallback(async () => {
@@ -125,8 +125,8 @@ export function WorkflowsHubPage() {
   }, []);
 
   useEffect(() => {
-    loadScenarios().catch((err: unknown) => setError(String(err)));
-  }, [loadScenarios]);
+    loadPublishedWorkflowTemplates().catch((err: unknown) => setError(String(err)));
+  }, [loadPublishedWorkflowTemplates]);
 
   useEffect(() => {
     if (activeTab !== "builder" || builderLoaded) {
@@ -136,7 +136,7 @@ export function WorkflowsHubPage() {
   }, [activeTab, builderLoaded, loadBuilder]);
 
   async function refreshAfterMutation() {
-    await loadScenarios();
+    await loadPublishedWorkflowTemplates();
     if (builderLoaded || activeTab === "builder") {
       await loadBuilder();
     }
@@ -212,7 +212,7 @@ export function WorkflowsHubPage() {
     }
     const publishedHint =
       workflow.status === "published"
-        ? "该场景已发布，删除后「使用场景」中将不再出现。确定删除吗？"
+        ? "该模板已发布，删除后「模板应用」中将不再出现。确定删除吗？"
         : "确定删除该草稿模板吗？";
     if (!window.confirm(`${publishedHint}\n\n「${workflow.name}」 (${workflow.id})`)) {
       return;
@@ -227,26 +227,26 @@ export function WorkflowsHubPage() {
   }
 
   const heroDescription =
-    activeTab === "scenarios"
-      ? "选择已发布场景，一键创建绑定公司的尽调应用。"
+    activeTab === "templates"
+      ? "选择已发布 Workflow Template，一键创建绑定公司的 Engagement。"
       : activeTab === "builder"
-        ? "新建或编辑草稿、编排 Agent、发布后与「使用场景」页同步；内置场景可修改但不可删除。"
+        ? "新建或编辑草稿、编排 Agent、发布后与「模板应用」页同步；内置模板可修改但不可删除。"
         : "维护提示词、Skill 包、工具与资源配置，供流程模板引用。";
 
   return (
     <div className="page-stack">
       <header className="page-hero">
         <p className="eyebrow">Workflows</p>
-        <h1>Agent和场景</h1>
+        <h1>Agent 和 Workflow Templates</h1>
         <p>{heroDescription}</p>
         <nav className="hub-tab-bar" aria-label="工作流分区">
           <button
             type="button"
             className="hub-tab"
-            aria-current={activeTab === "scenarios" ? "page" : undefined}
-            onClick={() => setActiveTab("scenarios")}
+            aria-current={activeTab === "templates" ? "page" : undefined}
+            onClick={() => setActiveTab("templates")}
           >
-            使用场景
+            模板应用
           </button>
           <button
             type="button"
@@ -254,7 +254,7 @@ export function WorkflowsHubPage() {
             aria-current={activeTab === "builder" ? "page" : undefined}
             onClick={() => setActiveTab("builder")}
           >
-            场景管理
+            模板管理
           </button>
           <button
             type="button"
@@ -268,22 +268,22 @@ export function WorkflowsHubPage() {
       </header>
       {error ? <div className="error">{error}</div> : null}
 
-      {activeTab === "scenarios" ? (
-        <SectionCard title="已发布场景" description="可直接绑定目标公司并创建应用。">
-          <div className="scenario-grid">
-            {scenarios.map((scenario) => (
-              <SectionCard key={scenario.id} title={scenario.name} description={scenario.description}>
+      {activeTab === "templates" ? (
+        <SectionCard title="已发布 Workflow Templates" description="可直接绑定目标公司并创建 Engagement。">
+          <div className="workflow-template-grid">
+            {publishedWorkflowTemplates.map((workflowTemplate) => (
+              <SectionCard key={workflowTemplate.id} title={workflowTemplate.name} description={workflowTemplate.description}>
                 <div className="tag-row">
-                  <span>{scenario.scenario}</span>
-                  <span>{scenario.agents.length} agents</span>
+                  <span>{workflowTemplate.workflow_template}</span>
+                  <span>{workflowTemplate.agents.length} agents</span>
                 </div>
                 <ol className="agent-chain">
-                  {scenario.agents.map((agent) => (
-                    <li key={`${scenario.id}-${agent}`}>{agent}</li>
+                  {workflowTemplate.agents.map((agent) => (
+                    <li key={`${workflowTemplate.id}-${agent}`}>{agent}</li>
                   ))}
                 </ol>
-                <Link className="button-link" to={`/projects/new?workflow=${scenario.id}`}>
-                  应用到公司
+                <Link className="button-link" to={`/engagements/new?workflow=${workflowTemplate.id}`}>
+                  应用到 Engagement
                 </Link>
               </SectionCard>
             ))}

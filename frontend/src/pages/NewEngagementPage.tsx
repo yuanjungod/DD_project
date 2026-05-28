@@ -1,21 +1,13 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
-import { createProject, getProject, listWorkflowTemplates, updateProject } from "../api/client";
-import { ProjectAgentOverridesPanel } from "../components/ProjectAgentOverridesPanel";
-import { ProjectResourceCatalogPanel } from "../components/ProjectResourceCatalogPanel";
+import { createEngagement, getEngagement, listWorkflowTemplates, updateEngagement } from "../api/client";
+import { EngagementAgentOverridesPanel } from "../components/EngagementAgentOverridesPanel";
+import { EngagementResourceCatalogPanel } from "../components/EngagementResourceCatalogPanel";
 import { SectionCard } from "../components/SectionCard";
-import { defaultApplicationId, projectIdentityLabel } from "../domain/projectIdentity";
-
+import { defaultApplicationId, engagementIdentityLabel } from "../domain/engagementIdentity";
 import { normalizeCompanyConfig, workflowTemplateIdFromConfig } from "../domain/companyConfig";
-import type { CompanyConfig, Project, WorkflowTemplate } from "../types/domain";
-
-function splitList(value: string): string[] {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
+import type { CompanyConfig, Engagement, WorkflowTemplate } from "../types/domain";
 
 function defaultConfig(workflowId: string): CompanyConfig {
   return {
@@ -52,17 +44,17 @@ function parseWizardStep(value: string | null): WizardStep | null {
 
 function CreateAppWizardNav({
   currentStep,
-  projectCreated,
+  engagementCreated,
   onStep,
 }: {
   currentStep: WizardStep;
-  projectCreated: boolean;
+  engagementCreated: boolean;
   onStep: (step: WizardStep) => void;
 }) {
   return (
-    <nav className="create-app-wizard-nav" aria-label="创建应用步骤">
+    <nav className="create-app-wizard-nav" aria-label="创建 Engagement 步骤">
       {WIZARD_STEPS.map((item) => {
-        const locked = !projectCreated && item.step !== "identity";
+        const locked = !engagementCreated && item.step !== "identity";
         return (
           <button
             key={item.step}
@@ -81,27 +73,27 @@ function CreateAppWizardNav({
   );
 }
 
-export function NewProjectPage() {
+export function NewEngagementPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialWorkflow = searchParams.get("workflow") ?? "standard_due_diligence";
-  const resumeProjectId = searchParams.get("project")?.trim() ?? "";
+  const resumeEngagementId = searchParams.get("engagement")?.trim() ?? "";
 
   const [form, setForm] = useState<CompanyConfig>(() => defaultConfig(initialWorkflow));
   const [applicationId, setApplicationId] = useState("");
   const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([]);
-  const [createdProject, setCreatedProject] = useState<Project | null>(null);
+  const [createdEngagement, setCreatedEngagement] = useState<Engagement | null>(null);
   const [wizardStep, setWizardStep] = useState<WizardStep>(() => parseWizardStep(searchParams.get("step")) ?? "identity");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [booting, setBooting] = useState(Boolean(resumeProjectId));
+  const [booting, setBooting] = useState(Boolean(resumeEngagementId));
 
   const selectedWorkflow = useMemo(
     () => workflowTemplates.find((workflow) => workflow.id === workflowTemplateIdFromConfig(form)) ?? workflowTemplates[0],
     [form, workflowTemplates],
   );
 
-  const workflowTemplateId = createdProject
-    ? workflowTemplateIdFromConfig(createdProject.company_config)
+  const workflowTemplateId = createdEngagement
+    ? workflowTemplateIdFromConfig(createdEngagement.company_config)
     : workflowTemplateIdFromConfig(form);
 
   useEffect(() => {
@@ -109,7 +101,7 @@ export function NewProjectPage() {
       .then((items) => {
         const published = items.filter((item) => item.status === "published");
         setWorkflowTemplates(published);
-        if (createdProject || resumeProjectId) return;
+        if (createdEngagement || resumeEngagementId) return;
         const selected = published.find((item) => item.id === initialWorkflow) ?? published[0];
         if (selected) {
           setForm((current) => ({
@@ -121,57 +113,57 @@ export function NewProjectPage() {
         }
       })
       .catch((err: unknown) => setError(String(err)));
-  }, [initialWorkflow, createdProject, resumeProjectId]);
+  }, [initialWorkflow, createdEngagement, resumeEngagementId]);
 
   useEffect(() => {
-    if (!resumeProjectId) {
+    if (!resumeEngagementId) {
       setBooting(false);
       return;
     }
     setBooting(true);
     setError("");
-    getProject(resumeProjectId)
-      .then((project) => {
-        setCreatedProject(project);
-        setForm(normalizeCompanyConfig(project.company_config));
-        setApplicationId(project.application_id);
+    getEngagement(resumeEngagementId)
+      .then((engagement) => {
+        setCreatedEngagement(engagement);
+        setForm(normalizeCompanyConfig(engagement.company_config));
+        setApplicationId(engagement.application_id);
         const step = parseWizardStep(searchParams.get("step")) ?? "identity";
         setWizardStep(step);
       })
       .catch((err: unknown) => setError(String(err)))
       .finally(() => setBooting(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once on project id
-  }, [resumeProjectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once on engagement id
+  }, [resumeEngagementId]);
 
   useEffect(() => {
-    if (!applicationId && form.target_company.name.trim() && !createdProject) {
+    if (!applicationId && form.target_company.name.trim() && !createdEngagement) {
       setApplicationId(defaultApplicationId(form.target_company.name));
     }
-  }, [form.target_company.name, applicationId, createdProject]);
+  }, [form.target_company.name, applicationId, createdEngagement]);
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
-    if (createdProject) {
-      next.set("project", createdProject.id);
+    if (createdEngagement) {
+      next.set("engagement", createdEngagement.id);
       next.set("step", wizardStep);
     } else {
-      next.delete("project");
+      next.delete("engagement");
       if (wizardStep === "identity") next.delete("step");
       else next.set("step", wizardStep);
     }
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync URL with wizard state
-  }, [createdProject?.id, wizardStep]);
+  }, [createdEngagement?.id, wizardStep]);
 
-  function hydrateIdentityFromProject(project: Project) {
-    setForm(normalizeCompanyConfig(project.company_config));
-    setApplicationId(project.application_id);
+  function hydrateIdentityFromEngagement(engagement: Engagement) {
+    setForm(normalizeCompanyConfig(engagement.company_config));
+    setApplicationId(engagement.application_id);
   }
 
   function goToStep(step: WizardStep) {
-    if (!createdProject && step !== "identity") return;
-    if (step === "identity" && createdProject) {
-      hydrateIdentityFromProject(createdProject);
+    if (!createdEngagement && step !== "identity") return;
+    if (step === "identity" && createdEngagement) {
+      hydrateIdentityFromEngagement(createdEngagement);
     }
     setWizardStep(step);
     setError("");
@@ -183,22 +175,22 @@ export function NewProjectPage() {
     setError("");
     const displayName = `${form.target_company.name} - ${selectedWorkflow?.name ?? "尽调应用"}`;
     try {
-      if (createdProject) {
-        const project = await updateProject(createdProject.id, {
+      if (createdEngagement) {
+        const engagement = await updateEngagement(createdEngagement.id, {
           name: displayName,
           company_config: form,
           application_id: applicationId.trim(),
         });
-        setCreatedProject(project);
-        hydrateIdentityFromProject(project);
+        setCreatedEngagement(engagement);
+        hydrateIdentityFromEngagement(engagement);
       } else {
-        const project = await createProject({
+        const engagement = await createEngagement({
           name: displayName,
           company_config: form,
           application_id: applicationId.trim(),
         });
-        setCreatedProject(project);
-        hydrateIdentityFromProject(project);
+        setCreatedEngagement(engagement);
+        hydrateIdentityFromEngagement(engagement);
       }
     } catch (err) {
       setError(String(err));
@@ -213,8 +205,8 @@ export function NewProjectPage() {
     return (
       <div className="page-stack">
         <header className="page-hero">
-          <p className="eyebrow">创建应用</p>
-          <h1>加载应用配置…</h1>
+          <p className="eyebrow">创建 Engagement</p>
+          <h1>加载 Engagement 配置…</h1>
         </header>
       </div>
     );
@@ -223,13 +215,13 @@ export function NewProjectPage() {
   return (
     <div className="page-stack">
       <header className="page-hero">
-        <p className="eyebrow">{createdProject ? "创建应用 · 可随时修改" : "创建应用"}</p>
-        <h1>{createdProject ? projectIdentityLabel(createdProject) : "场景的具体应用"}</h1>
+        <p className="eyebrow">{createdEngagement ? "创建 Engagement · 可随时修改" : "创建 Engagement"}</p>
+        <h1>{createdEngagement ? engagementIdentityLabel(createdEngagement) : "工作流模板的具体 Engagement"}</h1>
         <p>
-          {createdProject ? (
+          {createdEngagement ? (
             <>
-              应用标识符 <code>{createdProject.application_id}</code> · 技术 ID <code>{createdProject.id}</code>
-              。通过上方步骤栏切换各配置页，修改后保存即可；Run 请至「场景应用」启动。
+              应用标识符 <code>{createdEngagement.application_id}</code> · 技术 ID <code>{createdEngagement.id}</code>
+              。通过上方步骤栏切换各配置页，修改后保存即可；Run 请至「Engagements」启动。
             </>
           ) : (
             "填写公司与应用标识并创建后，可在公司资源与 Agent 配置之间来回调整，无需按固定顺序完成。"
@@ -237,7 +229,7 @@ export function NewProjectPage() {
         </p>
       </header>
 
-      <CreateAppWizardNav currentStep={wizardStep} projectCreated={Boolean(createdProject)} onStep={goToStep} />
+      <CreateAppWizardNav currentStep={wizardStep} engagementCreated={Boolean(createdEngagement)} onStep={goToStep} />
 
       {error ? <div className="error">{error}</div> : null}
 
@@ -245,16 +237,16 @@ export function NewProjectPage() {
         <SectionCard
           title={`${stepMeta.short} · ${stepMeta.label}`}
           description={
-            createdProject
-              ? `更新场景与应用标识（${selectedWorkflow?.name ?? "未选择"}）；保存后不影响已登记的资源与 Agent 配置。`
-              : `选择尽调场景并填写应用标识（${selectedWorkflow?.name ?? "未选择"}）。`
+            createdEngagement
+              ? `更新工作流模板与应用标识（${selectedWorkflow?.name ?? "未选择"}）；保存后不影响已登记的资源与 Agent 配置。`
+              : `选择工作流模板并填写应用标识（${selectedWorkflow?.name ?? "未选择"}）。`
           }
         >
           <form className="form split-form" onSubmit={(e) => void handleSaveIdentity(e)}>
             <div className="form-section">
               <h3 className="form-section__title">基础配置</h3>
               <label>
-                尽调场景
+                工作流模板
                 <select
                   value={workflowTemplateIdFromConfig(form)}
                   onChange={(event) => {
@@ -298,24 +290,24 @@ export function NewProjectPage() {
 
             <div className="inline-form" style={{ flexWrap: "wrap" }}>
               <button type="submit" disabled={loading}>
-                {loading ? "保存中…" : createdProject ? "保存应用" : "创建应用"}
+                {loading ? "保存中…" : createdEngagement ? "保存 Engagement" : "创建 Engagement"}
               </button>
             </div>
           </form>
         </SectionCard>
       ) : null}
 
-      {wizardStep === "resources" && createdProject ? (
-        <ProjectResourceCatalogPanel projectId={createdProject.id} />
+      {wizardStep === "resources" && createdEngagement ? (
+        <EngagementResourceCatalogPanel engagementId={createdEngagement.id} />
       ) : null}
 
-      {wizardStep === "agents" && createdProject ? (
-        <ProjectAgentOverridesPanel projectId={createdProject.id} workflowTemplateId={workflowTemplateId} />
+      {wizardStep === "agents" && createdEngagement ? (
+        <EngagementAgentOverridesPanel engagementId={createdEngagement.id} workflowTemplateId={workflowTemplateId} />
       ) : null}
 
-      {wizardStep !== "identity" && !createdProject ? (
-        <SectionCard title="请先创建应用">
-          <p className="muted">请通过上方 Step 1 填写并创建应用后，再配置公司资源与 Agent。</p>
+      {wizardStep !== "identity" && !createdEngagement ? (
+        <SectionCard title="请先创建 Engagement">
+          <p className="muted">请通过上方 Step 1 填写并创建 Engagement 后，再配置公司资源与 Agent。</p>
         </SectionCard>
       ) : null}
     </div>

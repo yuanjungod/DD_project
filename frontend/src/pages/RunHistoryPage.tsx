@@ -21,22 +21,22 @@ export function RunHistoryPage() {
       <header className="page-hero">
         <p className="eyebrow">Audit Trail</p>
         <h1>跑的历史记录</h1>
-        <p>集中查看所有可访问项目的 Agent run、状态与步骤数量。</p>
+        <p>集中查看所有可访问 Engagement 的 Agent run、状态与步骤数量。</p>
       </header>
       {error ? <div className="error">{error}</div> : null}
       <SectionCard title="Run 历史">
         <div className="history-table">
           <span>Run</span>
-          <span>项目</span>
+          <span>Engagement</span>
           <span>状态</span>
           <span>Agent</span>
           <span>时间</span>
           {runs.map((run) => (
             <Fragment key={run.id}>
-              <Link to={`/projects/${run.project_id}`}>
+              <Link to={`/engagements/${run.engagement_id}`}>
                 {run.id}
               </Link>
-              <span>{run.project_id}</span>
+              <span>{run.engagement_id}</span>
               <span className={`status ${run.status}`}>
                 {run.status}
               </span>

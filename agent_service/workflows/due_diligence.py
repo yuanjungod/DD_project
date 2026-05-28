@@ -43,7 +43,7 @@ class DueDiligenceWorkflow:
 
     def run(
         self,
-        project_id: str,
+        engagement_id: str,
         company_config: CompanyConfig,
         workflow_snapshot: dict | None = None,
         run_id_override: str | None = None,
@@ -93,7 +93,7 @@ class DueDiligenceWorkflow:
         start_payload = {
             "run_id": run_id,
             "user_id": safe_user_id,
-            "project_id": project_id,
+            "engagement_id": engagement_id,
             "diligence_session_id": diligence_session_id,
             "attempt_index": attempt_index,
             "company_config": company_config.model_dump(mode="json"),
@@ -104,7 +104,7 @@ class DueDiligenceWorkflow:
         resumed = open_session_recorder_for_resume(
             scenario_id,
             safe_user_id,
-            project_id,
+            engagement_id,
             run_id,
             session_id=safe_session_id,
         )
@@ -120,7 +120,7 @@ class DueDiligenceWorkflow:
             recorder = build_session_recorder(
                 scenario_id,
                 safe_user_id,
-                project_id,
+                engagement_id,
                 run_id,
                 session_id=safe_session_id,
             )
@@ -135,13 +135,13 @@ class DueDiligenceWorkflow:
             step = AgentStep(id=f"{run_id}_step_{step_idx + 1:03d}", agent=agent_name, status="running")
             steps.append(step)
             recorder.append_event({"type": "step_started", "step_id": step.id, "agent": agent_name})
-            notify_run_progress(project_id, run_id, step)
+            notify_run_progress(engagement_id, run_id, step)
             inject_ctx = continuation_context if step_idx == 0 and resume_from_step_index == 0 else None
             planned_output_dir = str(
                 agent_step_output_dir(
                     scenario_id=scenario_id,
                     user_id=safe_user_id,
-                    project_id=project_id,
+                    project_id=engagement_id,
                     session_id=safe_session_id,
                     run_id=run_id,
                     step_id=step.id,
@@ -171,7 +171,7 @@ class DueDiligenceWorkflow:
                 )
                 rr = RunResult(
                     run_id=run_id,
-                    project_id=project_id,
+                    engagement_id=engagement_id,
                     status="failed",
                     steps=steps,
                 )
@@ -189,7 +189,7 @@ class DueDiligenceWorkflow:
             result.output_readme_path = output_readme_path
             step.result = result
             results.append(result)
-            notify_run_progress(project_id, run_id, step)
+            notify_run_progress(engagement_id, run_id, step)
             recorder.append_event(
                 {
                     "type": "step_completed",
@@ -202,7 +202,7 @@ class DueDiligenceWorkflow:
             if pause_after_each_step and step_idx < len(ordered_agents) - 1:
                 rr = RunResult(
                     run_id=run_id,
-                    project_id=project_id,
+                    engagement_id=engagement_id,
                     status="paused",
                     steps=steps,
                 )
@@ -211,7 +211,7 @@ class DueDiligenceWorkflow:
 
         rr = RunResult(
             run_id=run_id,
-            project_id=project_id,
+            engagement_id=engagement_id,
             status="completed",
             steps=steps,
         )

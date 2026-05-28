@@ -5,9 +5,9 @@ import {
   continueStepGated,
   getAgentStepOutputFolder,
   getRun,
+  listEngagementRuns,
+  listEngagements,
   listDiligenceSessions,
-  listProjectRuns,
-  listProjects,
   listStepReviewChatTurns,
   listWorkflowTemplates,
   postStepReviewChat,
@@ -16,19 +16,18 @@ import {
 import { SectionCard } from "../components/SectionCard";
 import { workflowName } from "../data/workflows";
 import { workflowTemplateIdFromConfig } from "../domain/companyConfig";
-import { projectIdentityLabel } from "../domain/projectIdentity";
+import { engagementIdentityLabel } from "../domain/engagementIdentity";
 import type {
   AgentRun,
   AgentStep,
   AgentStepOutputFolder,
   DiligenceSessionModel,
-  Project,
+  Engagement,
   StepReviewChatTurn,
   WorkflowTemplate,
 } from "../types/domain";
 import { formatApiDateTimeLocal } from "../utils/apiTime";
 
-/** Backend may set raw_result.error (dispatch/HTTP errors); agent workflow failures often only have step.summary. */
 function deriveRunFailureDetail(run: AgentRun | null | undefined): string {
   if (!run || run.status !== "failed") return "";
   const raw = run.raw_result;
@@ -56,9 +55,7 @@ type OutputFileEntry = {
 };
 
 function outputFileEntries(folder: AgentStepOutputFolder): OutputFileEntry[] {
-  if (!folder.available) {
-    return [];
-  }
+  if (!folder.available) return [];
   const entries: OutputFileEntry[] = [];
   if (folder.readme) {
     entries.push({
@@ -84,12 +81,8 @@ function AgentOutputFolderPanel({
   selectedFileId?: string;
   onSelectFile: (fileId: string) => void;
 }) {
-  if (loading && !folder) {
-    return <p className="muted">正在读取输出文件夹…</p>;
-  }
-  if (!folder) {
-    return <p className="muted">输出目录：{fallbackPath}</p>;
-  }
+  if (loading && !folder) return <p className="muted">正在读取输出文件夹…</p>;
+  if (!folder) return <p className="muted">输出目录：{fallbackPath}</p>;
   if (!folder.available) {
     return (
       <div className="agent-output-folder">
@@ -135,22 +128,22 @@ function AgentOutputFolderPanel({
   );
 }
 
-export type ProjectDetailSection = "outputs" | "runs";
+export type EngagementDetailSection = "outputs" | "runs";
 
-function appSectionPath(projectId: string, section: ProjectDetailSection): string {
-  return `/projects/${encodeURIComponent(projectId)}/${section}`;
+function appSectionPath(engagementId: string, section: EngagementDetailSection): string {
+  return `/engagements/${encodeURIComponent(engagementId)}/${section}`;
 }
 
-const SECTION_NAV: Array<{ section: ProjectDetailSection; label: string }> = [
+const SECTION_NAV: Array<{ section: EngagementDetailSection; label: string }> = [
   { section: "outputs", label: "运行" },
   { section: "runs", label: "历史" },
 ];
 
-function ProjectAppNav({ projectId }: { projectId: string }) {
+function EngagementAppNav({ engagementId }: { engagementId: string }) {
   return (
-    <nav className="app-section-nav" aria-label="场景应用分区">
+    <nav className="app-section-nav" aria-label="Engagement 分区">
       {SECTION_NAV.map((item) => (
-        <NavLink key={item.section} to={appSectionPath(projectId, item.section)} preventScrollReset>
+        <NavLink key={item.section} to={appSectionPath(engagementId, item.section)} preventScrollReset>
           {item.label}
         </NavLink>
       ))}
@@ -171,9 +164,9 @@ function runStatusLabel(status?: string | null): string {
   return RUN_STATUS_LABELS[status] ?? status;
 }
 
-export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDetailSection }) {
-  const { projectId = "" } = useParams();
-  const [project, setProject] = useState<Project | null>(null);
+export function EngagementDetailPage({ section = "outputs" }: { section?: EngagementDetailSection }) {
+  const { engagementId = "" } = useParams();
+  const [engagement, setEngagement] = useState<Engagement | null>(null);
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([]);
   const [sessions, setSessions] = useState<DiligenceSessionModel[]>([]);
@@ -192,13 +185,13 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
   const [pollingRunId, setPollingRunId] = useState<string | null>(null);
 
   async function refresh() {
-    const [projects, runItems, sessionItems, workflowItems] = await Promise.all([
-      listProjects(),
-      listProjectRuns(projectId),
-      listDiligenceSessions(projectId),
+    const [engagements, runItems, sessionItems, workflowItems] = await Promise.all([
+      listEngagements(),
+      listEngagementRuns(engagementId),
+      listDiligenceSessions(engagementId),
       listWorkflowTemplates(),
     ]);
-    setProject(projects.find((item) => item.id === projectId) ?? null);
+    setEngagement(engagements.find((item) => item.id === engagementId) ?? null);
     setRuns(runItems);
     setWorkflowTemplates(workflowItems);
     setSessions(sessionItems);
@@ -221,12 +214,12 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
     setLoadingOutputStepIds({});
     setSelectedOutputFileByStep({});
     setReviewChatDraft("");
-  }, [projectId]);
+  }, [engagementId]);
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!engagementId) return;
     refresh().catch((err: unknown) => setError(String(err)));
-  }, [projectId]);
+  }, [engagementId]);
 
   useEffect(() => {
     setSelectedSessionId((prev) => {
@@ -238,12 +231,11 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
   useEffect(() => {
     if (!pollingRunId) return;
     const id = pollingRunId;
-
     async function tick() {
       try {
         const latest = await getRun(id);
         setActiveRun(latest);
-        const runItems = await listProjectRuns(projectId);
+        const runItems = await listEngagementRuns(engagementId);
         setRuns(runItems);
         if (latest.status === "completed" || latest.status === "failed" || latest.status === "paused") {
           setPollingRunId(null);
@@ -256,12 +248,10 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
         setError(String(err));
       }
     }
-
     void tick();
     const interval = window.setInterval(() => void tick(), 2000);
     return () => window.clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh intentionally stable per navigation (projectId)
-  }, [pollingRunId, projectId]);
+  }, [pollingRunId, engagementId]);
 
   useEffect(() => {
     const runId = activeRun?.id;
@@ -276,9 +266,7 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
     let cancelled = false;
     listStepReviewChatTurns(runId, stepId)
       .then((turns) => {
-        if (!cancelled) {
-          setReviewChatByStep((prev) => ({ ...prev, [stepId]: turns }));
-        }
+        if (!cancelled) setReviewChatByStep((prev) => ({ ...prev, [stepId]: turns }));
       })
       .catch(() => {});
     return () => {
@@ -291,18 +279,12 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
     if (!runId) return;
     for (const step of activeRun.steps ?? []) {
       const outputDir = stepOutputDir(step);
-      if (!outputDir || loadingOutputStepIds[step.id]) {
-        continue;
-      }
+      if (!outputDir || loadingOutputStepIds[step.id]) continue;
       const existing = outputFoldersByStep[step.id];
-      if (existing && (existing.folder_path === outputDir || existing.reason)) {
-        continue;
-      }
+      if (existing && (existing.folder_path === outputDir || existing.reason)) continue;
       setLoadingOutputStepIds((prev) => ({ ...prev, [step.id]: true }));
       getAgentStepOutputFolder(runId, step.id)
-        .then((folder) => {
-          setOutputFoldersByStep((prev) => ({ ...prev, [step.id]: folder }));
-        })
+        .then((folder) => setOutputFoldersByStep((prev) => ({ ...prev, [step.id]: folder })))
         .catch((err: unknown) => {
           setOutputFoldersByStep((prev) => ({
             ...prev,
@@ -323,17 +305,14 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
         mode === "continue" && selectedSessionId.trim()
           ? { session_mode: "continue" as const, diligence_session_id: selectedSessionId.trim() }
           : { session_mode: "new" as const };
-      const started = await startRun(projectId, {
+      const started = await startRun(engagementId, {
         ...base,
         ...(stepGatedMode ? { interaction_mode: "step_gated" as const } : {}),
       });
       setActiveRun(started);
       await refresh();
-      if (started.status === "running" || started.status === "pending") {
-        setPollingRunId(started.id);
-      } else {
-        setRunStarting(false);
-      }
+      if (started.status === "running" || started.status === "pending") setPollingRunId(started.id);
+      else setRunStarting(false);
     } catch (err) {
       setError(String(err));
       setRunStarting(false);
@@ -346,7 +325,7 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
     setError("");
     try {
       const out = await postStepReviewChat(activeRun.id, pausedReviewStep.id, reviewChatDraft.trim());
-      setReviewChatByStep((prev) => ({ ...prev, [pausedReviewStep!.id]: out.turns }));
+      setReviewChatByStep((prev) => ({ ...prev, [pausedReviewStep.id]: out.turns }));
       setReviewChatDraft("");
     } catch (err: unknown) {
       setError(String(err));
@@ -362,8 +341,7 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
     try {
       await continueStepGated(activeRun.id);
       await refresh();
-      const id = activeRun.id;
-      setPollingRunId(id);
+      setPollingRunId(activeRun.id);
     } catch (err: unknown) {
       setError(String(err));
     } finally {
@@ -372,55 +350,44 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
   }
 
   const runErr = deriveRunFailureDetail(activeRun);
-
-  const runInFlight =
-    Boolean(pollingRunId) || activeRun?.status === "running" || runStarting || continueLoading;
+  const runInFlight = Boolean(pollingRunId) || activeRun?.status === "running" || runStarting || continueLoading;
   const awaitingStepReview = activeRun?.status === "paused";
   const orderedSteps = [...(activeRun?.steps ?? [])].sort((a, b) => a.id.localeCompare(b.id));
-  const pausedReviewStep = awaitingStepReview
-    ? [...orderedSteps].filter((s) => s.status === "completed").slice(-1)[0]
-    : undefined;
-  const projectWorkflowName = project
-    ? workflowName(
-        workflowTemplateIdFromConfig(project.company_config),
-        workflowTemplates,
-      )
+  const pausedReviewStep = awaitingStepReview ? [...orderedSteps].filter((s) => s.status === "completed").slice(-1)[0] : undefined;
+  const engagementWorkflowName = engagement
+    ? workflowName(workflowTemplateIdFromConfig(engagement.company_config), workflowTemplates)
     : "";
 
   return (
     <div className="page-stack">
       <header className="page-hero">
-        <p className="eyebrow">场景应用</p>
-        <h1>{project ? projectIdentityLabel(project) : "尽调应用"}</h1>
+        <p className="eyebrow">Engagement</p>
+        <h1>{engagement ? engagementIdentityLabel(engagement) : "Engagement"}</h1>
         <p>
-          {project ? (
+          {engagement ? (
             <>
-              {projectWorkflowName} · 应用 ID <code>{project.application_id}</code> · 技术 ID <code>{project.id}</code>
+              {engagementWorkflowName} · 应用 ID <code>{engagement.application_id}</code> · 技术 ID <code>{engagement.id}</code>
             </>
           ) : (
             "加载中"
           )}
         </p>
       </header>
-      <ProjectAppNav projectId={projectId} />
+      <EngagementAppNav engagementId={engagementId} />
       {error ? <div className="error">{error}</div> : null}
       {section === "runs" ? (
-        <SectionCard title="本应用历史 Run" description="按 session 与 attempt 查看本应用历史执行记录；模型输出文件请到「运行」页查看。">
+        <SectionCard title="当前 Engagement 历史 Run" description="按 session 与 attempt 查看当前 Engagement 历史执行记录；模型输出文件请到「运行」页查看。">
           <ul className="list">
             {runs.map((run) => (
               <li key={run.id}>
                 <span>{runStatusLabel(run.status)}</span>
                 <strong>{run.id}</strong>
-                <p className="muted">
-                  session {run.session_id ?? "—"} · attempt {run.attempt_index ?? 1}
-                </p>
+                <p className="muted">session {run.session_id ?? "—"} · attempt {run.attempt_index ?? 1}</p>
                 <p>{formatApiDateTimeLocal(run.started_at)}</p>
               </li>
             ))}
           </ul>
-          {runs.length === 0 && !runStarting ? (
-            <p className="muted">尚无 Run。在「运行」页启动后即可在此看到记录。</p>
-          ) : null}
+          {runs.length === 0 && !runStarting ? <p className="muted">尚无 Run。在「运行」页启动后即可在此看到记录。</p> : null}
         </SectionCard>
       ) : null}
       {section === "outputs" ? (
@@ -437,9 +404,7 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
                   onChange={(event) => setSelectedSessionId(event.target.value)}
                   disabled={runStarting || sessions.length === 0}
                 >
-                  {sessions.length === 0 ? (
-                    <option value="">暂无 session（请先新起）</option>
-                  ) : null}
+                  {sessions.length === 0 ? <option value="">暂无 session（请先新起）</option> : null}
                   {sessions.map((session) => (
                     <option key={session.id} value={session.id}>
                       {session.id} · {session.runs.length} 次
@@ -451,11 +416,7 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
                 <button type="button" onClick={() => void handleStartRun("new")} disabled={runStarting}>
                   {runStarting ? "启动中…" : "新 Session 跑一趟"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void handleStartRun("continue")}
-                  disabled={runStarting || !selectedSessionId}
-                >
+                <button type="button" onClick={() => void handleStartRun("continue")} disabled={runStarting || !selectedSessionId}>
                   本 Session 再跑一趟
                 </button>
               </div>
@@ -469,9 +430,7 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
               />
               <span className="hero-run-controls__stepgate-copy">
                 <span className="hero-run-controls__stepgate-title">每步完成后暂停</span>
-                <span className="hero-run-controls__stepgate-desc muted">
-                  便于与 Agent 对话、核对结果后再继续下一步
-                </span>
+                <span className="hero-run-controls__stepgate-desc muted">便于与 Agent 对话、核对结果后再继续下一步</span>
               </span>
             </label>
           </div>
@@ -503,12 +462,7 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
                         loading={Boolean(loadingOutputStepIds[step.id])}
                         fallbackPath={stepOutputDir(step)}
                         selectedFileId={selectedOutputFileByStep[step.id]}
-                        onSelectFile={(fileId) =>
-                          setSelectedOutputFileByStep((prev) => ({
-                            ...prev,
-                            [step.id]: fileId,
-                          }))
-                        }
+                        onSelectFile={(fileId) => setSelectedOutputFileByStep((prev) => ({ ...prev, [step.id]: fileId }))}
                       />
                     ) : step.status === "completed" ? (
                       <p className="muted">输出文件夹正在生成或等待下一次轮询刷新。</p>
@@ -534,18 +488,10 @@ export function ProjectDetailPage({ section = "outputs" }: { section?: ProjectDe
                             onChange={(e) => setReviewChatDraft(e.target.value)}
                             disabled={reviewChatSending}
                           />
-                          <button
-                            type="button"
-                            onClick={() => void handleSendReviewChat()}
-                            disabled={reviewChatSending || !reviewChatDraft.trim()}
-                          >
+                          <button type="button" onClick={() => void handleSendReviewChat()} disabled={reviewChatSending || !reviewChatDraft.trim()}>
                             {reviewChatSending ? "发送中…" : "发送至本步 Agent"}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleContinueStepGated()}
-                            disabled={continueLoading}
-                          >
+                          <button type="button" onClick={() => void handleContinueStepGated()} disabled={continueLoading}>
                             {continueLoading ? "继续执行中…" : "校验完成，继续下一步"}
                           </button>
                         </div>

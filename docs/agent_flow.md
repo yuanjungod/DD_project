@@ -26,7 +26,7 @@ Every agent must follow these rules:
 
 ## Workflow
 
-Workflow templates are file-backed as **scenario folders** under `catalog/scenarios/` (built-in) and `.dd_project/data/scenarios/` (user-created). Each folder contains `scenario.yaml` plus an `agents/` subdirectory. A company project selects one published template through `company_config.workflow_template_id`.
+Workflow templates are file-backed as **workflow template folders** under `catalog/scenarios/` (built-in) and `.dd_project/data/scenarios/` (user-created). Each folder contains `scenario.yaml` plus an `agents/` subdirectory. A company engagement selects one published template through `company_config.workflow_template_id`.
 
 Current templates:
 
@@ -37,7 +37,7 @@ Current templates:
 
 At run time, the backend sends an immutable **workflow snapshot** to the agent service. The snapshot includes the workflow graph, agent templates, Anthropic-style skill packages, executable tools, resource configs, and AgentScope ReAct parameters used by that run.
 
-The agent service writes a **session JSON** for each `POST /runs` (on by default): `.dd_project/projects/<project_id>/users/<user_id>/sessions/<session_id>/runs/<scenario_id>/<run_id>.json`. Step outputs live under the same session branch.
+The agent service writes a **session JSON** for each `POST /runs` (on by default): `.dd_project/projects/<engagement_id>/users/<user_id>/sessions/<session_id>/runs/<workflow_template_id>/<run_id>.json`. Step outputs live under the same session branch.
 
 Each agent template can bind:
 
@@ -46,7 +46,7 @@ Each agent template can bind:
 - `resource_ids`: data resources exposed in the AgentScope ReAct system prompt.
 - `react_config`: AgentScope ReAct settings such as `max_iters` and `parallel_tool_calls`.
 
-Skill packages are also synchronized to a fixed project directory at `agent_service/skills/<directory_name>/`. The database remains the configuration catalog, while the project directory keeps the current `SKILL.md` and editable package files visible on disk.
+Skill packages are also synchronized to a fixed engagement-local directory at `agent_service/skills/<directory_name>/`. The database remains the configuration catalog, while the local directory keeps the current `SKILL.md` and editable package files visible on disk.
 
 The Agent service builds an AgentScope ReAct runtime for every agent from this snapshot. The runtime creates an AgentScope `Toolkit`, registers the selected tool functions, materializes selected `SKILL.md` packages and package files as AgentScope agent skills, injects bound resources into the ReAct system prompt, and calls the configured real model through an Anthropic Messages-compatible provider.
 
@@ -74,7 +74,7 @@ When the workflow graph comes from the snapshot rather than YAML defaults alone,
 
 ```mermaid
 flowchart TD
-  ProjectConfig[Project_Config] --> WorkflowTemplate[Workflow_Template]
+  EngagementConfig[Engagement_Config] --> WorkflowTemplate[Workflow_Template]
   WorkflowTemplate --> Coordinator[CoordinatorAgent]
   Coordinator --> CompanyProfile[CompanyProfileAgent]
   Coordinator --> WebResearch[WebResearchAgent]

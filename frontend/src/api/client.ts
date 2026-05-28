@@ -5,13 +5,13 @@ import type {
   AuthSession,
   CompanyConfig,
   DiligenceSessionModel,
-  Project,
-  ProjectAgentOverride,
+  Engagement,
+  EngagementAgentOverride,
   Report,
   Resource,
   ResourceConfig,
   LibraryFile,
-  Scenario,
+  PublishedWorkflowTemplate,
   SkillDebugResult,
   SkillPackage,
   StepReviewChatApiResponse,
@@ -90,74 +90,76 @@ export function getMe(): Promise<User> {
   return request<User>("/auth/me");
 }
 
-export function listScenarios(): Promise<Scenario[]> {
-  return request<Scenario[]>("/scenarios");
+export function listPublishedWorkflowTemplates(): Promise<PublishedWorkflowTemplate[]> {
+  return request<PublishedWorkflowTemplate[]>("/workflow-templates/published");
 }
 
-export function listProjects(): Promise<Project[]> {
-  return request<Project[]>("/projects");
+export function listEngagements(): Promise<Engagement[]> {
+  return request<Engagement[]>("/engagements");
 }
 
-export function createProject(payload: {
+export function createEngagement(payload: {
   name: string;
   company_config: CompanyConfig;
   application_id: string;
   version?: number;
   initial_resources?: Array<{ type: string; value: string; metadata_json?: Record<string, unknown> }>;
-}): Promise<Project> {
-  return request<Project>("/projects", {
+}): Promise<Engagement> {
+  return request<Engagement>("/engagements", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export function getProject(projectId: string): Promise<Project> {
-  return request<Project>(`/projects/${encodeURIComponent(projectId)}`);
+export function getEngagement(engagementId: string): Promise<Engagement> {
+  return request<Engagement>(`/engagements/${encodeURIComponent(engagementId)}`);
 }
 
-export function updateProject(
-  projectId: string,
+export function updateEngagement(
+  engagementId: string,
   payload: Partial<{ name: string; company_config: CompanyConfig; application_id: string }>,
-): Promise<Project> {
-  return request<Project>(`/projects/${encodeURIComponent(projectId)}`, {
+): Promise<Engagement> {
+  return request<Engagement>(`/engagements/${encodeURIComponent(engagementId)}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
 }
 
-export function cloneProjectVersion(projectId: string): Promise<Project> {
-  return request<Project>(`/projects/${encodeURIComponent(projectId)}/versions`, { method: "POST" });
+export function cloneEngagementVersion(engagementId: string): Promise<Engagement> {
+  return request<Engagement>(`/engagements/${encodeURIComponent(engagementId)}/versions`, { method: "POST" });
 }
 
-export function listProjectResourceConfigs(projectId: string): Promise<ResourceConfig[]> {
-  return request<ResourceConfig[]>(`/projects/${encodeURIComponent(projectId)}/resource-configs`);
+export function listEngagementResourceConfigs(engagementId: string): Promise<ResourceConfig[]> {
+  return request<ResourceConfig[]>(`/engagements/${encodeURIComponent(engagementId)}/resource-configs`);
 }
 
-export function createProjectResourceConfig(
-  projectId: string,
+export function createEngagementResourceConfig(
+  engagementId: string,
   payload: Partial<ResourceConfig> & { name: string; type: string },
 ): Promise<ResourceConfig> {
-  return request<ResourceConfig>(`/projects/${encodeURIComponent(projectId)}/resource-configs`, {
+  return request<ResourceConfig>(`/engagements/${encodeURIComponent(engagementId)}/resource-configs`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export function updateProjectResourceConfig(
-  projectId: string,
+export function updateEngagementResourceConfig(
+  engagementId: string,
   resourceId: string,
   payload: Partial<ResourceConfig>,
 ): Promise<ResourceConfig> {
-  return request<ResourceConfig>(`/projects/${encodeURIComponent(projectId)}/resource-configs/${encodeURIComponent(resourceId)}`, {
+  return request<ResourceConfig>(
+    `/engagements/${encodeURIComponent(engagementId)}/resource-configs/${encodeURIComponent(resourceId)}`,
+    {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
 }
 
-export async function deleteProjectResourceConfig(projectId: string, resourceId: string): Promise<void> {
+export async function deleteEngagementResourceConfig(engagementId: string, resourceId: string): Promise<void> {
   const token = localStorage.getItem("dd_access_token");
   const response = await fetch(
-    `${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/resource-configs/${encodeURIComponent(resourceId)}`,
+    `${API_BASE_URL}/engagements/${encodeURIComponent(engagementId)}/resource-configs/${encodeURIComponent(resourceId)}`,
     {
       method: "DELETE",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -169,11 +171,11 @@ export async function deleteProjectResourceConfig(projectId: string, resourceId:
   }
 }
 
-export async function deleteProject(projectId: string): Promise<void> {
+export async function deleteEngagement(engagementId: string): Promise<void> {
   const token = localStorage.getItem("dd_access_token");
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}/projects/${encodeURIComponent(projectId)}`, {
+    response = await fetch(`${API_BASE_URL}/engagements/${encodeURIComponent(engagementId)}`, {
       method: "DELETE",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
@@ -192,21 +194,21 @@ export async function deleteProject(projectId: string): Promise<void> {
   }
 }
 
-export function listResources(projectId: string): Promise<Resource[]> {
-  return request<Resource[]>(`/projects/${projectId}/resources`);
+export function listResources(engagementId: string): Promise<Resource[]> {
+  return request<Resource[]>(`/engagements/${engagementId}/resources`);
 }
 
-export function listProjectAgentOverrides(projectId: string): Promise<ProjectAgentOverride[]> {
-  return request<ProjectAgentOverride[]>(`/projects/${encodeURIComponent(projectId)}/agent-overrides`);
+export function listEngagementAgentOverrides(engagementId: string): Promise<EngagementAgentOverride[]> {
+  return request<EngagementAgentOverride[]>(`/engagements/${encodeURIComponent(engagementId)}/agent-overrides`);
 }
 
-export function upsertProjectAgentOverride(
-  projectId: string,
+export function upsertEngagementAgentOverride(
+  engagementId: string,
   agentId: string,
-  payload: ProjectAgentOverride,
-): Promise<ProjectAgentOverride> {
-  return request<ProjectAgentOverride>(
-    `/projects/${encodeURIComponent(projectId)}/agent-overrides/${encodeURIComponent(agentId)}`,
+  payload: EngagementAgentOverride,
+): Promise<EngagementAgentOverride> {
+  return request<EngagementAgentOverride>(
+    `/engagements/${encodeURIComponent(engagementId)}/agent-overrides/${encodeURIComponent(agentId)}`,
     {
       method: "PUT",
       body: JSON.stringify(payload),
@@ -214,10 +216,10 @@ export function upsertProjectAgentOverride(
   );
 }
 
-export async function deleteProjectAgentOverride(projectId: string, agentId: string): Promise<void> {
+export async function deleteEngagementAgentOverride(engagementId: string, agentId: string): Promise<void> {
   const token = localStorage.getItem("dd_access_token");
   const response = await fetch(
-    `${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/agent-overrides/${encodeURIComponent(agentId)}`,
+    `${API_BASE_URL}/engagements/${encodeURIComponent(engagementId)}/agent-overrides/${encodeURIComponent(agentId)}`,
     {
       method: "DELETE",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -230,10 +232,10 @@ export async function deleteProjectAgentOverride(projectId: string, agentId: str
 }
 
 export function createResource(
-  projectId: string,
+  engagementId: string,
   payload: { type: string; value: string; metadata_json?: Record<string, unknown> },
 ): Promise<Resource> {
-  return request<Resource>(`/projects/${encodeURIComponent(projectId)}/resources`, {
+  return request<Resource>(`/engagements/${encodeURIComponent(engagementId)}/resources`, {
     method: "POST",
     body: JSON.stringify({
       type: payload.type,
@@ -243,10 +245,10 @@ export function createResource(
   });
 }
 
-export async function deleteResource(projectId: string, resourceId: string): Promise<void> {
+export async function deleteResource(engagementId: string, resourceId: string): Promise<void> {
   const token = localStorage.getItem("dd_access_token");
   const response = await fetch(
-    `${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/resources/${encodeURIComponent(resourceId)}`,
+    `${API_BASE_URL}/engagements/${encodeURIComponent(engagementId)}/resources/${encodeURIComponent(resourceId)}`,
     {
       method: "DELETE",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -258,13 +260,13 @@ export async function deleteResource(projectId: string, resourceId: string): Pro
   }
 }
 
-export async function uploadProjectFile(projectId: string, file: File): Promise<Resource> {
+export async function uploadEngagementFile(engagementId: string, file: File): Promise<Resource> {
   const token = localStorage.getItem("dd_access_token");
   const formData = new FormData();
   formData.append("file", file);
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/uploads`, {
+    response = await fetch(`${API_BASE_URL}/engagements/${encodeURIComponent(engagementId)}/uploads`, {
       method: "POST",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
@@ -328,19 +330,19 @@ export async function deleteLibraryUpload(fileId: string): Promise<void> {
   }
 }
 
-export function listDiligenceSessions(projectId: string): Promise<DiligenceSessionModel[]> {
-  return request<DiligenceSessionModel[]>(`/projects/${encodeURIComponent(projectId)}/diligence-sessions`);
+export function listDiligenceSessions(engagementId: string): Promise<DiligenceSessionModel[]> {
+  return request<DiligenceSessionModel[]>(`/engagements/${encodeURIComponent(engagementId)}/diligence-sessions`);
 }
 
 export function startRun(
-  projectId: string,
+  engagementId: string,
   body: {
     session_mode?: "new" | "continue";
     diligence_session_id?: string | null;
     interaction_mode?: "batch" | "step_gated";
   } = {},
 ): Promise<AgentRun> {
-  return request<AgentRun>(`/projects/${encodeURIComponent(projectId)}/runs`, {
+  return request<AgentRun>(`/engagements/${encodeURIComponent(engagementId)}/runs`, {
     method: "POST",
     body: JSON.stringify(body ?? {}),
   });
@@ -379,16 +381,16 @@ export function getRun(runId: string): Promise<AgentRun> {
   return request<AgentRun>(`/runs/${runId}`);
 }
 
-export function listReports(projectId: string): Promise<Report[]> {
-  return request<Report[]>(`/projects/${projectId}/reports`);
+export function listReports(engagementId: string): Promise<Report[]> {
+  return request<Report[]>(`/engagements/${engagementId}/reports`);
 }
 
 export function listRuns(): Promise<AgentRun[]> {
   return request<AgentRun[]>("/runs");
 }
 
-export function listProjectRuns(projectId: string): Promise<AgentRun[]> {
-  return request<AgentRun[]>(`/projects/${projectId}/runs`);
+export function listEngagementRuns(engagementId: string): Promise<AgentRun[]> {
+  return request<AgentRun[]>(`/engagements/${engagementId}/runs`);
 }
 
 export function listSkills(): Promise<SkillPackage[]> {

@@ -7,7 +7,7 @@ from agent_service.api.schemas import RunRequest, RunResult, StepReviewChatReque
 from agent_service.session_history import (
     list_all_session_scenario_ids,
     list_session_files,
-    list_session_project_ids,
+    list_session_project_ids as list_session_engagement_ids,
     list_session_user_ids,
     read_session_document,
 )
@@ -49,7 +49,7 @@ def config() -> dict[str, object]:
 def run_due_diligence(request: RunRequest) -> RunResult:
     try:
         return workflow.run(
-            project_id=request.project_id,
+            engagement_id=request.engagement_id,
             company_config=request.company_config,
             workflow_snapshot=request.workflow_snapshot,
             run_id_override=request.run_id,
@@ -73,10 +73,11 @@ def assist_step_review_chat(request: StepReviewChatRequest) -> StepReviewChatRes
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.get("/sessions/{scenario_id}/{user_id}/{project_id}/{run_id}")
-def get_session_json(scenario_id: str, user_id: str, project_id: str, run_id: str) -> dict[str, object]:
+@app.get("/sessions/{scenario_id}/{user_id}/{engagement_id}/{run_id}")
+@app.get("/sessions/{scenario_id}/{user_id}/{project_id}/{run_id}", include_in_schema=False)
+def get_session_json(scenario_id: str, user_id: str, engagement_id: str, run_id: str) -> dict[str, object]:
     try:
-        payload = read_session_document(scenario_id, user_id, project_id, run_id)
+        payload = read_session_document(scenario_id, user_id, engagement_id, run_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if payload is None:
@@ -84,22 +85,23 @@ def get_session_json(scenario_id: str, user_id: str, project_id: str, run_id: st
     return payload
 
 
-@app.get("/sessions/{scenario_id}/{user_id}/{project_id}")
-def list_session_entries(scenario_id: str, user_id: str, project_id: str) -> dict[str, object]:
+@app.get("/sessions/{scenario_id}/{user_id}/{engagement_id}")
+@app.get("/sessions/{scenario_id}/{user_id}/{project_id}", include_in_schema=False)
+def list_session_entries(scenario_id: str, user_id: str, engagement_id: str) -> dict[str, object]:
     try:
-        ids = list_session_files(scenario_id, user_id, project_id)
+        ids = list_session_files(scenario_id, user_id, engagement_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"scenario_id": scenario_id, "user_id": user_id, "project_id": project_id, "run_ids": ids}
+    return {"scenario_id": scenario_id, "user_id": user_id, "engagement_id": engagement_id, "run_ids": ids}
 
 
 @app.get("/sessions/{scenario_id}/{user_id}")
-def list_session_projects(scenario_id: str, user_id: str) -> dict[str, object]:
+def list_session_engagements(scenario_id: str, user_id: str) -> dict[str, object]:
     try:
-        ids = list_session_project_ids(scenario_id, user_id)
+        ids = list_session_engagement_ids(scenario_id, user_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"scenario_id": scenario_id, "user_id": user_id, "project_ids": ids}
+    return {"scenario_id": scenario_id, "user_id": user_id, "engagement_ids": ids}
 
 
 @app.get("/sessions/{scenario_id}")

@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def notify_run_progress(
-    project_id: str,
+    engagement_id: str,
     run_id: str,
     step: AgentStep,
 ) -> None:
@@ -23,7 +23,7 @@ def notify_run_progress(
 
     url = f"{base.rstrip('/')}/internal/agent-runs/{run_id}/progress"
     payload: dict[str, Any] = {
-        "project_id": project_id,
+        "engagement_id": engagement_id,
         "step": step.model_dump(mode="json"),
     }
 

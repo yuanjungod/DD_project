@@ -14,29 +14,29 @@ from app.services.project_resource_catalog import (
     update_project_resource_config,
 )
 
-router = APIRouter(prefix="/projects/{project_id}/resource-configs", tags=["project-resource-configs"])
+router = APIRouter(prefix="/engagements/{engagement_id}/resource-configs", tags=["engagement-resource-configs"])
 
 
 @router.get("", response_model=list[ResourceConfigRead])
 def list_project_resource_configs(
-    project_id: str,
+    engagement_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
 ) -> list[ResourceConfigRead]:
-    ensure_project_access(db, user, project_id)
-    return list_project_resource_config_reads(project_id, only_enabled=user.role != "admin")
+    ensure_project_access(db, user, engagement_id)
+    return list_project_resource_config_reads(engagement_id, only_enabled=user.role != "admin")
 
 
 @router.post("", response_model=ResourceConfigRead)
 def create_project_resource_config_route(
-    project_id: str,
+    engagement_id: str,
     payload: ResourceConfigCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> ResourceConfigRead:
-    ensure_project_write_access(db, user, project_id)
+    ensure_project_write_access(db, user, engagement_id)
     try:
-        return create_project_resource_config(project_id, payload)
+        return create_project_resource_config(engagement_id, payload)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except FileExistsError as exc:
@@ -45,28 +45,28 @@ def create_project_resource_config_route(
 
 @router.patch("/{resource_id}", response_model=ResourceConfigRead)
 def update_project_resource_config_route(
-    project_id: str,
+    engagement_id: str,
     resource_id: str,
     payload: ResourceConfigUpdate,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> ResourceConfigRead:
-    ensure_project_write_access(db, user, project_id)
+    ensure_project_write_access(db, user, engagement_id)
     try:
-        return update_project_resource_config(project_id, resource_id, payload)
+        return update_project_resource_config(engagement_id, resource_id, payload)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Resource config not found") from exc
 
 
 @router.delete("/{resource_id}", status_code=204)
 def delete_project_resource_config_route(
-    project_id: str,
+    engagement_id: str,
     resource_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> None:
-    ensure_project_write_access(db, user, project_id)
+    ensure_project_write_access(db, user, engagement_id)
     try:
-        delete_project_resource_config(project_id, resource_id)
+        delete_project_resource_config(engagement_id, resource_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Resource config not found") from exc

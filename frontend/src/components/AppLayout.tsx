@@ -8,15 +8,15 @@ type AppLayoutProps = PropsWithChildren<{
   onLogout: () => void;
 }>;
 
-/** true for /projects and /projects/:id, but not /projects/new (prefix match would otherwise double-highlight). */
-function isProjectsSectionActive(pathname: string): boolean {
-  if (pathname === "/projects") {
+/** true for /engagements and /engagements/:id, but not /engagements/new. */
+function isEngagementsSectionActive(pathname: string): boolean {
+  if (pathname === "/engagements") {
     return true;
   }
-  if (!pathname.startsWith("/projects/")) {
+  if (!pathname.startsWith("/engagements/")) {
     return false;
   }
-  return !pathname.startsWith("/projects/new");
+  return !pathname.startsWith("/engagements/new");
 }
 
 export function AppLayout({ user, onLogout, children }: AppLayoutProps) {
@@ -41,14 +41,14 @@ export function AppLayout({ user, onLogout, children }: AppLayoutProps) {
         <nav>
           <NavLink to="/skills">Skills 管理</NavLink>
           <NavLink to="/resource-configs">平台资源</NavLink>
-          <NavLink to="/workflows">Agent和场景</NavLink>
-          <NavLink to="/projects/new">创建应用</NavLink>
+          <NavLink to="/workflows">Agent和工作流模板</NavLink>
+          <NavLink to="/engagements/new">创建 Engagement</NavLink>
           <NavLink
-            to="/projects"
-            aria-current={isProjectsSectionActive(location.pathname) ? "page" : undefined}
-            className={() => (isProjectsSectionActive(location.pathname) ? "active" : undefined)}
+            to="/engagements"
+            aria-current={isEngagementsSectionActive(location.pathname) ? "page" : undefined}
+            className={() => (isEngagementsSectionActive(location.pathname) ? "active" : undefined)}
           >
-            场景应用
+            Engagements
           </NavLink>
           <NavLink to="/runs">历史记录</NavLink>
         </nav>

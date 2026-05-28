@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { deleteProjectAgentOverride, upsertProjectAgentOverride } from "../api/client";
+import { deleteEngagementAgentOverride, upsertEngagementAgentOverride } from "../api/client";
 import {
   IdMultiPickerSection,
   ResourceTypeMultiPickerSection,
   type PickerItem,
 } from "./IdPickerSection";
-import type { AgentTemplate, ProjectAgentOverride } from "../types/domain";
+import type { AgentTemplate, EngagementAgentOverride } from "../types/domain";
 
 type OverrideConfigTab = "resources" | "skills" | "tools" | "prompt";
 
@@ -17,7 +17,7 @@ const OVERRIDE_CONFIG_TABS: { id: OverrideConfigTab; label: string }[] = [
   { id: "prompt", label: "提示词" },
 ];
 
-function overrideTabCount(draft: ProjectAgentOverride, tab: OverrideConfigTab): number {
+function overrideTabCount(draft: EngagementAgentOverride, tab: OverrideConfigTab): number {
   if (tab === "resources") {
     return draft.resource_ids_add.length + draft.resource_ids_remove.length;
   }
@@ -30,7 +30,7 @@ function overrideTabCount(draft: ProjectAgentOverride, tab: OverrideConfigTab): 
   return (draft.prompt_append.trim() ? 1 : 0) + (draft.prompt_override.trim() ? 1 : 0);
 }
 
-export function emptyOverride(agentId: string): ProjectAgentOverride {
+export function emptyOverride(agentId: string): EngagementAgentOverride {
   return {
     agent_id: agentId,
     prompt_append: "",
@@ -48,7 +48,7 @@ export function emptyOverride(agentId: string): ProjectAgentOverride {
 }
 
 export function AgentOverrideEditor({
-  projectId,
+  engagementId,
   agentId,
   override,
   template,
@@ -56,29 +56,32 @@ export function AgentOverrideEditor({
   skillItems,
   toolItems,
   globalResourceItems,
-  projectResourceItems,
+  engagementResourceItems,
   fileItems,
 }: {
-  projectId: string;
+  engagementId: string;
   agentId: string;
-  override?: ProjectAgentOverride;
+  override?: EngagementAgentOverride;
   template?: AgentTemplate;
   onRefresh: () => Promise<void>;
   skillItems: PickerItem[];
   toolItems: PickerItem[];
   globalResourceItems: PickerItem[];
-  projectResourceItems: PickerItem[];
+  engagementResourceItems: PickerItem[];
   fileItems: PickerItem[];
 }) {
   const effective = override ?? emptyOverride(agentId);
-  const [draft, setDraft] = useState<ProjectAgentOverride>(effective);
+  const [draft, setDraft] = useState<EngagementAgentOverride>(effective);
   const [activeTab, setActiveTab] = useState<OverrideConfigTab>("resources");
   const [saving, setSaving] = useState(false);
   const [localError, setLocalError] = useState("");
-  const [resourceSource, setResourceSource] = useState<"global" | "project">("project");
+  const [resourceSource, setResourceSource] = useState<"global" | "engagement">("engagement");
 
-  const currentResourceItems = resourceSource === "project" ? projectResourceItems : globalResourceItems;
-  const allResourceItems = useMemo(() => [...globalResourceItems, ...projectResourceItems], [globalResourceItems, projectResourceItems]);
+  const currentResourceItems = resourceSource === "engagement" ? engagementResourceItems : globalResourceItems;
+  const allResourceItems = useMemo(
+    () => [...globalResourceItems, ...engagementResourceItems],
+    [globalResourceItems, engagementResourceItems],
+  );
 
   const tabCounts = useMemo(
     () =>
@@ -183,7 +186,7 @@ export function AgentOverrideEditor({
   useEffect(() => {
     setDraft(effective);
     setActiveTab("resources");
-    setResourceSource("project");
+    setResourceSource("engagement");
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset editor when server override changes
   }, [agentId, JSON.stringify(override ?? {})]);
 
@@ -191,7 +194,7 @@ export function AgentOverrideEditor({
     setSaving(true);
     setLocalError("");
     try {
-      await upsertProjectAgentOverride(projectId, agentId, { ...draft, agent_id: agentId });
+      await upsertEngagementAgentOverride(engagementId, agentId, { ...draft, agent_id: agentId });
       await onRefresh();
     } catch (err: unknown) {
       setLocalError(String(err));
@@ -205,7 +208,7 @@ export function AgentOverrideEditor({
     setSaving(true);
     setLocalError("");
     try {
-      await deleteProjectAgentOverride(projectId, agentId);
+      await deleteEngagementAgentOverride(engagementId, agentId);
       await onRefresh();
     } catch (err: unknown) {
       setLocalError(String(err));
@@ -222,7 +225,7 @@ export function AgentOverrideEditor({
           <div>
             <strong>{agentId}</strong>
             <p className="muted">
-              {override ? "已配置应用级覆盖；启动新 run 时会合成到快照。" : "继承场景模板配置，尚未配置应用级覆盖。"}
+              {override ? "已配置 Engagement 级覆盖；启动新 run 时会合成到快照。" : "继承工作流模板配置，尚未配置 Engagement 级覆盖。"}
             </p>
           </div>
         </div>
@@ -264,7 +267,7 @@ export function AgentOverrideEditor({
                 value={draft.prompt_append}
                 onChange={(event) => setDraft({ ...draft, prompt_append: event.target.value })}
                 disabled={saving}
-                placeholder="在场景模板 prompt 之后追加本应用专属说明…"
+                placeholder="在工作流模板 prompt 之后追加当前 Engagement 专属说明…"
               />
             </label>
             <label>
@@ -306,8 +309,8 @@ export function AgentOverrideEditor({
             <nav className="resource-kind-tabs" aria-label="资源来源">
               <button
                 type="button"
-                className={`resource-kind-tab ${resourceSource === "project" ? "is-active" : ""}`}
-                onClick={() => setResourceSource("project")}
+                className={`resource-kind-tab ${resourceSource === "engagement" ? "is-active" : ""}`}
+                onClick={() => setResourceSource("engagement")}
                 disabled={saving}
               >
                 应用资源
@@ -322,7 +325,7 @@ export function AgentOverrideEditor({
               </button>
             </nav>
             <ResourceTypeMultiPickerSection
-              title={resourceSource === "project" ? "应用资源管理" : "全局资源管理"}
+              title={resourceSource === "engagement" ? "应用资源管理" : "全局资源管理"}
               description="勾选表示在 Run 中使用该资源；取消勾选表示不使用。"
               typeHint="已选资源会在当前 Agent 的运行快照中生效。"
               items={currentResourceItems}
@@ -337,7 +340,7 @@ export function AgentOverrideEditor({
       </div>
       <div className="inline-form" style={{ flexWrap: "wrap" }}>
         <button type="button" onClick={() => void save()} disabled={saving}>
-          {saving ? "保存中…" : "保存应用级配置"}
+          {saving ? "保存中…" : "保存 Engagement 级配置"}
         </button>
         <button type="button" className="secondary-button" onClick={() => void remove()} disabled={saving || !override}>
           删除覆盖，恢复继承模板

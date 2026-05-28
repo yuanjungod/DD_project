@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 RunStatus = Literal["pending", "running", "completed", "failed", "paused"]
@@ -64,7 +64,7 @@ class AgentStep(BaseModel):
 
 
 class RunRequest(BaseModel):
-    project_id: str
+    engagement_id: str = Field(validation_alias=AliasChoices("engagement_id", "project_id"))
     user_id: str = Field(description="User id for session filesystem isolation.")
     company_config: CompanyConfig
     workflow_snapshot: dict[str, Any] | None = None
@@ -95,13 +95,13 @@ class RunRequest(BaseModel):
 
 class RunResult(BaseModel):
     run_id: str
-    project_id: str
+    engagement_id: str
     status: RunStatus
     steps: list[AgentStep] = Field(default_factory=list)
 
 
 class StepReviewChatRequest(BaseModel):
-    project_id: str
+    engagement_id: str = Field(validation_alias=AliasChoices("engagement_id", "project_id"))
     company_config: CompanyConfig
     workflow_snapshot: dict[str, Any] | None = None
     agent_name: str

@@ -3,23 +3,23 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from app.core.auth import get_current_user
 from app.models.entities import User
-from app.schemas import ScenarioRead
+from app.schemas import WorkflowTemplateSummaryRead
 from app.services.workflow_graph import resolve_graph_agent_order
 from app.services.workflow_template_files import list_workflow_reads_for_api, scenario_agent_display_names
 
 
-router = APIRouter(prefix="/scenarios", tags=["scenarios"])
+router = APIRouter(prefix="/workflow-templates/published", tags=["workflow_templates"])
 
 
-@router.get("", response_model=list[ScenarioRead])
-async def list_scenarios(_: User = Depends(get_current_user)) -> list[ScenarioRead]:
+@router.get("", response_model=list[WorkflowTemplateSummaryRead])
+async def list_published_workflow_templates(_: User = Depends(get_current_user)) -> list[WorkflowTemplateSummaryRead]:
     workflows = list_workflow_reads_for_api(include_drafts=False)
     return [
-        ScenarioRead(
+        WorkflowTemplateSummaryRead(
             id=w.id,
             name=w.name,
             description=w.description,
-            scenario=w.scenario,
+            workflow_template=w.scenario,
             agents=_agents_from_graph(w.graph),
         )
         for w in workflows

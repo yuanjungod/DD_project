@@ -6,7 +6,7 @@ import hmac
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/internal/agent-runs", tags=["internal"], include_in_
 
 
 class RunProgressPayload(BaseModel):
-    project_id: str
+    engagement_id: str = Field(validation_alias=AliasChoices("engagement_id", "project_id"))
     step: dict[str, Any]
 
 
@@ -46,7 +46,7 @@ def receive_run_progress(
         upsert_incremental_run_progress(
             db,
             run_id=run_id,
-            project_id=body.project_id,
+            project_id=body.engagement_id,
             step_payload=body.step,
         )
     except ValueError as exc:

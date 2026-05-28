@@ -2,11 +2,11 @@
 
 This project is a due diligence workspace with three runtime services:
 
-- `frontend`: React workbench for configuring projects, monitoring agent runs, and reviewing reports.
-- `backend`: FastAPI API for projects, resources, runs, reports, OAuth-style JWT authentication, and an internal webhook for incremental run progress from the agent process.
+- `frontend`: React workbench for configuring engagements, monitoring agent runs, and reviewing reports.
+- `backend`: FastAPI API for engagements, resources, runs, reports, OAuth-style JWT authentication, and an internal webhook for incremental run progress from the agent process.
 - `agent_service`: AgentScope-based orchestration service that runs configurable workflows; tool implementations can be deterministic mocks or pluggable integrations.
 
-Generic workflow configuration stays decoupled from company-specific **project configuration** persisted with each `Project`.
+Generic workflow configuration stays decoupled from company-specific **engagement configuration** persisted with each `Engagement`.
 
 ## Runtime Flow
 
@@ -26,11 +26,11 @@ The browser usually talks to the backend through the Vite dev **`/api` proxy** (
 
 ## Run lifecycle (high level)
 
-1. The user starts a run from the backend **POST `/projects/{project_id}/runs`**. The backend inserts an `AgentRun` row with status **`running`** and returns immediately.
+1. The user starts a run from the backend **POST `/engagements/{engagement_id}/runs`**. The backend inserts an `AgentRun` row with status **`running`** and returns immediately.
 2. A background task (thread pool) calls **agent_service POST `/runs`**, passing the immutable **workflow snapshot**, company config, and a **client-allocated `run_id`** so the agent result lines up with the pending row.
 3. While the workflow executes, **agent_service** may **POST** step snapshots to **Backend `POST /internal/agent-runs/{run_id}/progress`** (shared secret header). This is optional from a product perspective but enabled by default when `PLATFORM_CALLBACK_BASE_URL` points at the backend so the UI can poll and show incremental steps.
 4. When the agent HTTP call completes, the backend **finalizes** the run: status, `raw_result`, steps, and report are written. Finalization clears prior derived rows for that run id and re-attaches the authoritative payload from the agent response to avoid duplicate keys after incremental upserts.
-5. The frontend **polls `GET /runs/{id}`** (and refreshes project-scoped lists) until the run reaches **`completed`** or **`failed`**.
+5. The frontend **polls `GET /runs/{id}`** (and refreshes engagement-scoped lists) until the run reaches **`completed`** or **`failed`**.
 
 ## Core Concepts
 
@@ -46,7 +46,7 @@ It defines:
 - Which output contract each agent must satisfy.
 - How the workflow moves from planning to research, analysis, verification, and reporting.
 
-### Company Project Configuration
+### Company Engagement Configuration
 
 Company-specific configuration is created through the backend and injected into an agent run.
 
@@ -66,13 +66,13 @@ Agent outputs are persisted as per-step handoff folders. Material claims should 
 
 The backend owns durable entities:
 
-- `Project`
+- `Engagement`
 - `Resource`
 - `AgentRun`
 - `AgentStep`
 - `Report`
 
-Configuration catalogs are file-first where practical. **Global agent templates** live under **`catalog/agents/{agent_id}.yaml`**. **Scenario folders** live under **`catalog/scenarios/{scenario_id}/`** (built-in) or **`.dd_project/data/scenarios/{scenario_id}/`** (user-created). Each scenario folder contains **`scenario.yaml`** plus an **`agents/`** subdirectory. Run/session/output runtime data is centralized under **`.dd_project/projects/{project_id}/users/{user_id}/sessions/{session_id}/runs/{scenario_id}/`**. **`GET/POST/PATCH /workflow-templates`** read and write scenario folders, while **`GET/POST/PATCH /agent-templates`** read and write the global agent library.
+Configuration catalogs are file-first where practical. **Global agent templates** live under **`catalog/agents/{agent_id}.yaml`**. **Workflow template folders** live under **`catalog/scenarios/{workflow_template_id}/`** (built-in) or **`.dd_project/data/scenarios/{workflow_template_id}/`** (user-created). Each workflow template folder contains **`scenario.yaml`** plus an **`agents/`** subdirectory. Run/session/output runtime data is centralized under **`.dd_project/projects/{engagement_id}/users/{user_id}/sessions/{session_id}/runs/{workflow_template_id}/`**. **`GET/POST/PATCH /workflow-templates`** read and write workflow template folders, while **`GET/POST/PATCH /agent-templates`** read and write the global agent library.
 
 For local development the backend defaults to SQLite at **`DD_DATA_ROOT/platform/dd_platform.db`** (`DD_DATA_ROOT` defaults to repo-root **`.dd_project/data`**). Set **`DATABASE_URL`** to use PostgreSQL or another explicit database.
 
@@ -96,7 +96,7 @@ ReAct agents use AgentScope built-in file and code execution tools; optional pla
 
 The frontend provides a workbench for:
 
-- Creating and editing company due diligence projects.
+- Creating and editing company due diligence engagements.
 - Configuring resources and workflow template.
 - Starting and monitoring runs (polling plus incremental UI when callbacks are configured).
 - Reviewing agent steps and per-step output folders with correct **local timestamps** (**API emits UTC timestamps with `Z`** for runs).

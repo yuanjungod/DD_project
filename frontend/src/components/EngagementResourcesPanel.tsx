@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useMemo, useState } from "react";
 
-import { createResource, deleteResource, uploadProjectFile } from "../api/client";
+import { createResource, deleteResource, uploadEngagementFile } from "../api/client";
 import { IdMultiPickerSection, IdSelectField, type PickerItem } from "./IdPickerSection";
 import {
   PROJECT_RESOURCE_TYPE_LABELS,
@@ -35,7 +35,7 @@ function fieldFromIds(ids: string[]): string {
 
 type PersistedProps = {
   variant?: "persisted";
-  projectId: string;
+  engagementId: string;
   resources: Resource[];
   onRefresh: () => Promise<void> | void;
   pickerOptions?: ProjectResourcePickerOptions;
@@ -49,9 +49,9 @@ type DraftProps = {
   pickerOptions?: ProjectResourcePickerOptions;
 };
 
-export type ProjectResourcesPanelProps = PersistedProps | DraftProps;
+export type EngagementResourcesPanelProps = PersistedProps | DraftProps;
 
-export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
+export function EngagementResourcesPanel(props: EngagementResourcesPanelProps) {
   const isDraft = props.variant === "draft";
   const [rtype, setRtype] = useState<ProjectResourceType>("trusted_source");
   const [fields, setFields] = useState<Record<string, string>>(() => emptyFieldsForResourceType("trusted_source"));
@@ -98,7 +98,7 @@ export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
 
     setBusy(true);
     try {
-      await createResource(props.projectId, parsed);
+      await createResource(props.engagementId, parsed);
       setFields(emptyFieldsForResourceType(rtype));
       await props.onRefresh();
     } catch (err: unknown) {
@@ -113,7 +113,7 @@ export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
     setLocalError("");
     setBusy(true);
     try {
-      await deleteResource(props.projectId, id);
+      await deleteResource(props.engagementId, id);
       await props.onRefresh();
     } catch (err: unknown) {
       setLocalError(String(err));
@@ -129,11 +129,11 @@ export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
 
   async function handleUploadSelected() {
     if (props.variant === "draft" || !uploadPick) return;
-    const projectId = props.projectId;
+    const engagementId = props.engagementId;
     setLocalError("");
     setBusy(true);
     try {
-      await uploadProjectFile(projectId, uploadPick);
+      await uploadEngagementFile(engagementId, uploadPick);
       setUploadPick(null);
       await props.onRefresh();
     } catch (err: unknown) {
@@ -144,12 +144,12 @@ export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
   }
 
   return (
-    <div className="project-resources-panel">
+    <div className="engagement-resources-panel">
       {localError ? <div className="error" style={{ marginBottom: "0.75rem" }}>{localError}</div> : null}
       {!isDraft ? (
         <div style={{ marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid var(--border-subtle, #e5e7eb)" }}>
           <p className="muted" style={{ fontSize: "13px", marginBottom: "10px" }}>
-            <strong>应用专属文件库</strong>：PDF / Office 等保存在本应用目录；另有<strong>平台共享文件库</strong>（可用资源配置 →
+            <strong>Engagement 专属文件库</strong>：PDF / Office 等保存在当前 Engagement 目录；另有<strong>平台共享文件库</strong>（可用资源配置 →
             文件库），其中文件会在<strong>任意应用</strong>
             的 Run 中自动并入 <code>resources.uploaded_files</code>（需工作流绑定「上传文件库」）。
           </p>
@@ -170,7 +170,7 @@ export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
           </div>
         </div>
       ) : null}
-      <form className="form project-resources-form" onSubmit={(e) => void handleSubmit(e)}>
+      <form className="form engagement-resources-form" onSubmit={(e) => void handleSubmit(e)}>
         <label>
           资源类型
           <select value={rtype} onChange={(e) => changeType(e.target.value as ProjectResourceType)} disabled={formDisabled}>
@@ -189,7 +189,7 @@ export function ProjectResourcesPanel(props: ProjectResourcesPanelProps) {
           {rtype === "external_clue" && "会议纪、路演、熟人渠道等不可用 URL 表达的线索。"}
           {rtype === "metric" &&
             "定义尽调时要盯的 KPI：代码 + 中文名 + 单位 + 口径说明 + 数据来源；可设比较方向与阈值。"}
-          {rtype === "agent_resource_scope" && "按本应用的 Agent ID 限定可见文件。留空文件列表时仅作为备注，不会收窄运行时可访问的上传文件。"}
+          {rtype === "agent_resource_scope" && "按当前 Engagement 的 Agent ID 限定可见文件。留空文件列表时仅作为备注，不会收窄运行时可访问的上传文件。"}
         </p>
 
         {rtype === "trusted_source" ? (
