@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from agent_service.api.schemas import AgentResult
-from agent_service.session_history import session_json_path
+from agent_service.scenario_layout import session_json_path
 
 _SAFE_SEGMENT = re.compile(r"[^a-zA-Z0-9_-]+")
 
@@ -52,10 +53,53 @@ def build_previous_agent_handoff_context(previous_results: list[AgentResult]) ->
     return payload
 
 
-def agent_step_output_dir(*, project_id: str, run_id: str, step_id: str, agent_name: str) -> Path:
-    session_path = session_json_path(project_id, run_id)
+def agent_step_output_dir(
+    *,
+    scenario_id: str,
+    user_id: str,
+    project_id: str,
+    run_id: str,
+    step_id: str,
+    agent_name: str,
+) -> Path:
+    session_path = session_json_path(scenario_id, user_id, project_id, run_id)
     folder_name = f"{_safe_segment(step_id)}_{_safe_segment(agent_name)}"
-    return session_path.parent / f"{_safe_segment(run_id)}_outputs" / folder_name
+    return session_path.parent / "outputs" / f"{_safe_segment(run_id)}_outputs" / folder_name
+
+
+def ensure_step_output_handoff(
+    output_dir: str,
+    *,
+    agent: str,
+    step_id: str,
+    status: str,
+    summary: str = "",
+) -> tuple[str, str]:
+    """Create the step output folder and README if the agent did not write them."""
+    folder = Path(output_dir).expanduser()
+    folder.mkdir(parents=True, exist_ok=True)
+    readme_path = folder / "README.md"
+    if not readme_path.is_file():
+        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        body = summary.strip() or "（Agent 未写入步骤总结；以下为平台自动生成的占位 README。）"
+        readme_path.write_text(
+            "\n".join(
+                [
+                    f"# {agent} — {step_id}",
+                    "",
+                    f"- **status**: `{status}`",
+                    f"- **completed_at**: {now}",
+                    f"- **output_dir**: `{folder}`",
+                    "",
+                    "## 步骤总结",
+                    "",
+                    body,
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+    return str(folder.resolve()), str(readme_path.resolve())
 
 
 def _safe_segment(value: str) -> str:

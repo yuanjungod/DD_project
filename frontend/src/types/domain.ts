@@ -216,6 +216,7 @@ export type AgentTemplate = {
   name: string;
   role: string;
   prompt: string;
+  sub_agent_ids?: string[];
   skill_package_ids: string[];
   tool_ids: string[];
   skill_ids: string[];
@@ -229,7 +230,13 @@ export type AgentTemplate = {
 };
 
 export type WorkflowGraph = {
-  nodes: Array<{ id: string; agent_template_id: string; stage?: string }>;
+  nodes: Array<{
+    id: string;
+    agent_template_id: string;
+    /** Optional sub-agents executed after node master agent. */
+    sub_agent_template_ids?: string[];
+    stage?: string;
+  }>;
   edges: Array<{ from: string; to: string }>;
   entry_node: string;
   report_node: string;

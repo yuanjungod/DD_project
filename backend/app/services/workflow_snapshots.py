@@ -55,6 +55,7 @@ def build_workflow_snapshot(company_config: dict, *, project_id: str | None = No
                 "name": agent["name"],
                 "role": agent["role"],
                 "prompt": agent["prompt"],
+                "sub_agent_ids": agent.get("sub_agent_ids") or [],
                 "skill_package_ids": agent.get("skill_package_ids") or [],
                 "tool_ids": agent.get("tool_ids") or agent.get("skill_ids") or [],
                 "skill_ids": agent.get("tool_ids") or agent.get("skill_ids") or [],

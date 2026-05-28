@@ -82,6 +82,7 @@ class AgentRun(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    started_by_user_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id"), nullable=True)
     session_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("diligence_sessions.id"), nullable=True
     )

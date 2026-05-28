@@ -283,32 +283,16 @@ class ResourceConfigRead(ResourceConfigBase):
 
 
 def _default_react_config() -> dict[str, Any]:
-    return {
-        "max_iters": 6,
-        "parallel_tool_calls": False,
-        "model": {
-            "baseUrl": "http://127.0.0.1:8081/v1",
-            "apiKey": "yuanjun",
-            "api": "anthropic-messages",
-            "models": [
-                {
-                    "id": "kimi-code",
-                    "name": "kimi-code(Custom Provider)",
-                    "reasoning": True,
-                    "input": ["text", "image"],
-                    "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
-                    "contextWindow": 128000,
-                    "maxTokens": 4096,
-                }
-            ],
-        },
-    }
+    from app.services.agent_record_utils import default_react_config
+
+    return default_react_config()
 
 
 class AgentTemplateBase(BaseModel):
     name: str
     role: str
     prompt: str
+    sub_agent_ids: list[str] = Field(default_factory=list)
     skill_package_ids: list[str] = Field(default_factory=list)
     tool_ids: list[str] = Field(default_factory=list)
     skill_ids: list[str] = Field(default_factory=list)
@@ -329,6 +313,7 @@ class AgentTemplateUpdate(BaseModel):
     name: str | None = None
     role: str | None = None
     prompt: str | None = None
+    sub_agent_ids: list[str] | None = None
     skill_package_ids: list[str] | None = None
     tool_ids: list[str] | None = None
     skill_ids: list[str] | None = None

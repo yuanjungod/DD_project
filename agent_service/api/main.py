@@ -4,7 +4,13 @@ from fastapi import FastAPI, HTTPException
 
 from agent_service.agents.agentscope_adapter import initialize_agentscope
 from agent_service.api.schemas import RunRequest, RunResult, StepReviewChatRequest, StepReviewChatResponse
-from agent_service.session_history import list_session_files, list_session_project_ids, read_session_document
+from agent_service.session_history import (
+    list_all_session_scenario_ids,
+    list_session_files,
+    list_session_project_ids,
+    list_session_user_ids,
+    read_session_document,
+)
 from agent_service.workflows.config_loader import (
     load_agent_template_catalog,
     load_scenario_template_catalog,
@@ -47,6 +53,7 @@ def run_due_diligence(request: RunRequest) -> RunResult:
             company_config=request.company_config,
             workflow_snapshot=request.workflow_snapshot,
             run_id_override=request.run_id,
+            user_id=request.user_id,
             diligence_session_id=request.diligence_session_id,
             attempt_index=request.attempt_index,
             continuation_context=request.continuation_context,
@@ -55,7 +62,6 @@ def run_due_diligence(request: RunRequest) -> RunResult:
             completed_steps=request.completed_steps,
         )
     except ValueError as exc:
-        # Invalid snapshot / resume contract / session ids — was surfacing as opaque 500.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -67,10 +73,10 @@ def assist_step_review_chat(request: StepReviewChatRequest) -> StepReviewChatRes
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.get("/sessions/{project_id}/{run_id}")
-def get_session_json(project_id: str, run_id: str) -> dict[str, object]:
+@app.get("/sessions/{scenario_id}/{user_id}/{project_id}/{run_id}")
+def get_session_json(scenario_id: str, user_id: str, project_id: str, run_id: str) -> dict[str, object]:
     try:
-        payload = read_session_document(project_id, run_id)
+        payload = read_session_document(scenario_id, user_id, project_id, run_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if payload is None:
@@ -78,15 +84,33 @@ def get_session_json(project_id: str, run_id: str) -> dict[str, object]:
     return payload
 
 
-@app.get("/sessions/{project_id}")
-def list_session_entries(project_id: str) -> dict[str, object]:
+@app.get("/sessions/{scenario_id}/{user_id}/{project_id}")
+def list_session_entries(scenario_id: str, user_id: str, project_id: str) -> dict[str, object]:
     try:
-        ids = list_session_files(project_id)
+        ids = list_session_files(scenario_id, user_id, project_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"project_id": project_id, "run_ids": ids}
+    return {"scenario_id": scenario_id, "user_id": user_id, "project_id": project_id, "run_ids": ids}
+
+
+@app.get("/sessions/{scenario_id}/{user_id}")
+def list_session_projects(scenario_id: str, user_id: str) -> dict[str, object]:
+    try:
+        ids = list_session_project_ids(scenario_id, user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"scenario_id": scenario_id, "user_id": user_id, "project_ids": ids}
+
+
+@app.get("/sessions/{scenario_id}")
+def list_session_users(scenario_id: str) -> dict[str, object]:
+    try:
+        ids = list_session_user_ids(scenario_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"scenario_id": scenario_id, "user_ids": ids}
 
 
 @app.get("/sessions")
-def list_session_projects() -> dict[str, object]:
-    return {"project_ids": list_session_project_ids()}
+def list_session_scenarios() -> dict[str, object]:
+    return {"scenario_ids": list_all_session_scenario_ids()}

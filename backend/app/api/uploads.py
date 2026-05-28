@@ -1,4 +1,4 @@
-"""Multipart uploads for project file library (stored under data/dd_store + manifest file_reference)."""
+"""Multipart uploads for project file library (stored under .dd_project/data + manifest file_reference)."""
 
 from __future__ import annotations
 

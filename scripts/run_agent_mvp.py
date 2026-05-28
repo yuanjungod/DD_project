@@ -36,14 +36,30 @@ def main() -> None:
     )
 
 
+def _scenario_root(scenario_id: str) -> Path | None:
+    for base in (ROOT / "catalog" / "scenarios", ROOT / "data" / "dd_store" / "scenarios"):
+        candidate = base / scenario_id
+        if (candidate / "scenario.yaml").is_file():
+            return candidate
+    return None
+
+
 def _load_workflow_snapshot(company_config: CompanyConfig) -> dict:
     workflow_id = company_config.workflow_template_id or company_config.workflow_id
-    scenario_path = ROOT / "agent_service" / "configs" / "scenario_templates" / f"{workflow_id}.yaml"
-    scenario_doc = _load_yaml(scenario_path)
+    scenario_root = _scenario_root(workflow_id)
+    if scenario_root is None:
+        raise FileNotFoundError(f"Scenario not found: {workflow_id}")
+    scenario_doc = _load_yaml(scenario_root / "scenario.yaml")
     workflow = scenario_doc["workflow"]
+    agents_dir = scenario_root / "agents"
     agent_catalog = {
         row["id"]: row
-        for row in _load_yaml(ROOT / "agent_service" / "configs" / "agent_templates.yaml").get("agents", [])
+        for row in (
+            _load_yaml(agent_path)
+            for agent_path in sorted(agents_dir.glob("*.yaml"))
+            if not agent_path.name.startswith("_")
+        )
+        if isinstance(row, dict) and row.get("id")
     }
     agent_ids = [node.get("agent_template_id", "") for node in workflow["graph"].get("nodes", [])]
     agents = [agent_catalog[agent_id] for agent_id in agent_ids if agent_id in agent_catalog]

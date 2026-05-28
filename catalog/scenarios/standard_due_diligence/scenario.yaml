@@ -1,4 +1,4 @@
-# Scenario template — workflow graph only. Agent definitions live in agent_service/configs/agent_templates.yaml.
+# Scenario folder — workflow graph and metadata. Agent definitions for this scenario live in ./agents/.
 
 version: 1
 workflow:

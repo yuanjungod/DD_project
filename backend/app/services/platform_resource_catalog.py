@@ -1,4 +1,4 @@
-"""Platform connector registry: built-in YAML under repo catalog/ + overlays in data/dd_store/platform/."""
+"""Platform connector registry: built-in YAML under repo catalog/ + overlays in .dd_project/data/platform/."""
 
 from __future__ import annotations
 

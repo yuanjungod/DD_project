@@ -1,0 +1,46 @@
+# Agent template — global library entry. Scenario folders may copy this into their agents/ directory.
+
+id: CoordinatorAgent
+name: CoordinatorAgent
+role: due_diligence_coordinator
+prompt: 'You are the due diligence coordinator.
+
+
+  Build a focused execution plan for the target company. Use the company configuration, resources, and prior agent outputs. Assign work to downstream agents and keep the plan source-backed.
+
+
+  Rules:
+
+  - Do not make factual conclusions without cited sources.
+
+  - Preserve gaps and unknowns.
+
+  - Return structured JSON.
+
+  '
+skill_package_ids: []
+tool_ids: []
+skill_ids: []
+resource_ids: []
+react_config:
+  max_iters: 6
+  parallel_tool_calls: false
+  model:
+    baseUrl: http://127.0.0.1:8080/v1
+    apiKey: yuanjun
+    api: openai-completions
+    models:
+    - id: deepseek-v4-flash
+      name: deepseek-v4-flash
+      reasoning: false
+      input:
+      - text
+      cost:
+        input: 0
+        output: 0
+        cacheRead: 0
+        cacheWrite: 0
+      contextWindow: 128000
+      maxTokens: 4096
+enabled: true
+platform_upload_file_ids: []

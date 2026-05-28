@@ -15,7 +15,7 @@ from agent_service.api.schemas import (
 )
 from agent_service.callback_client import notify_run_progress
 from agent_service.session_history import build_session_recorder, open_session_recorder_for_resume
-from agent_service.workflows.agent_outputs import agent_step_output_dir
+from agent_service.workflows.agent_outputs import agent_step_output_dir, ensure_step_output_handoff
 from agent_service.workflows.config_loader import AgentDefinition, WorkflowDefinition
 from agent_service.workflows.graph_order import resolve_graph_agent_order
 
@@ -48,6 +48,7 @@ class DueDiligenceWorkflow:
         workflow_snapshot: dict | None = None,
         run_id_override: str | None = None,
         *,
+        user_id: str,
         diligence_session_id: str | None = None,
         attempt_index: int | None = None,
         continuation_context: dict[str, Any] | None = None,
@@ -65,6 +66,7 @@ class DueDiligenceWorkflow:
         if not workflow_snapshot:
             raise ValueError("workflow_snapshot is required")
         workflow = self._workflow_from_snapshot(workflow_snapshot)
+        scenario_id = workflow.id
         agent_definitions = self._agent_definitions_from_snapshot(workflow_snapshot)
         steps: list[AgentStep] = list(done_steps)
         results: list[AgentResult] = []
@@ -82,9 +84,14 @@ class DueDiligenceWorkflow:
                     f"to agent_templates[].id). missing={missing!r}; defined_ids={defined!r}"
                 )
 
+        if not user_id.strip():
+            raise ValueError("user_id is required")
+        safe_user_id = user_id.strip()
+
         recorder: object
         start_payload = {
             "run_id": run_id,
+            "user_id": safe_user_id,
             "project_id": project_id,
             "diligence_session_id": diligence_session_id,
             "attempt_index": attempt_index,
@@ -93,7 +100,7 @@ class DueDiligenceWorkflow:
             "agents_ordered": ordered_agents,
             "pause_after_each_step": pause_after_each_step,
         }
-        resumed = open_session_recorder_for_resume(project_id, run_id)
+        resumed = open_session_recorder_for_resume(scenario_id, safe_user_id, project_id, run_id)
         if resume_from_step_index > 0 and resumed is not None:
             recorder = resumed
             recorder.append_event(
@@ -103,7 +110,7 @@ class DueDiligenceWorkflow:
                 },
             )
         else:
-            recorder = build_session_recorder(project_id, run_id)
+            recorder = build_session_recorder(scenario_id, safe_user_id, project_id, run_id)
             recorder.start(start_payload)
 
         for step_idx in range(resume_from_step_index, len(ordered_agents)):
@@ -119,12 +126,15 @@ class DueDiligenceWorkflow:
             inject_ctx = continuation_context if step_idx == 0 and resume_from_step_index == 0 else None
             planned_output_dir = str(
                 agent_step_output_dir(
+                    scenario_id=scenario_id,
+                    user_id=safe_user_id,
                     project_id=project_id,
                     run_id=run_id,
                     step_id=step.id,
                     agent_name=agent_name,
                 )
             )
+            Path(planned_output_dir).mkdir(parents=True, exist_ok=True)
             try:
                 result = runner.run(
                     company_config,
@@ -154,8 +164,14 @@ class DueDiligenceWorkflow:
                 recorder.finalize_failure(msg, partial_result=rr.model_dump(mode="json"))
                 return rr
             step.status = result.status
-            output_readme_path = str(Path(planned_output_dir) / "README.md")
-            result.output_dir = planned_output_dir
+            finalized_dir, output_readme_path = ensure_step_output_handoff(
+                planned_output_dir,
+                agent=agent_name,
+                step_id=step.id,
+                status=result.status,
+                summary=step.summary or "",
+            )
+            result.output_dir = finalized_dir
             result.output_readme_path = output_readme_path
             step.result = result
             results.append(result)
@@ -165,7 +181,7 @@ class DueDiligenceWorkflow:
                     "type": "step_completed",
                     "step_id": step.id,
                     "agent": agent_name,
-                    "output_dir": planned_output_dir,
+                    "output_dir": finalized_dir,
                     "output_readme_path": output_readme_path,
                 },
             )
@@ -294,6 +310,7 @@ class DueDiligenceWorkflow:
                 name=agent["id"],
                 role=agent.get("role", ""),
                 prompt="",
+                sub_agent_ids=agent.get("sub_agent_ids", []),
                 prompt_text=prompt_text,
                 tools=agent.get("tool_ids") or agent.get("skill_ids", []),
                 skill_package_ids=agent.get("skill_package_ids", []),

@@ -72,9 +72,9 @@ The backend owns durable entities:
 - `AgentStep`
 - `Report`
 
-Configuration catalogs are file-first where practical. **Scenario/workflow templates** live on disk under **`agent_service/configs/scenario_templates/{workflow_id}.yaml`** and contain only workflow metadata plus a graph of `agent_template_id` references. **Agent templates** live separately in **`agent_service/configs/agent_templates.yaml`**. **`GET/POST/PATCH /workflow-templates`** read and write scenario files, while **`GET/POST/PATCH /agent-templates`** read and write the agent catalog. **Skill packages** and **tool configs** are file-backed only: **`agent_service/skills/`** and **`agent_service/configs/tools.yaml`** (the backend API reads and writes those paths directly; there is no SQLite mirror). **ResourceConfig** is loaded from **`catalog/resource_configs/`** plus platform overlays under **`DD_DATA_ROOT/platform/resource_configs/`**. Development seed users are loaded from **`catalog/default_users.yaml`** only when the user table is empty.
+Configuration catalogs are file-first where practical. **Global agent templates** live under **`catalog/agents/{agent_id}.yaml`**. **Scenario folders** live under **`catalog/scenarios/{scenario_id}/`** (built-in) or **`.dd_project/data/scenarios/{scenario_id}/`** (user-created). Each scenario folder contains **`scenario.yaml`** plus an **`agents/`** subdirectory. Run/session/output runtime data is centralized under **`.dd_project/runs/{scenario_id}/{user_id}/{project_id}/`**. **`GET/POST/PATCH /workflow-templates`** read and write scenario folders, while **`GET/POST/PATCH /agent-templates`** read and write the global agent library.
 
-For local development the backend defaults to SQLite at **`DD_DATA_ROOT/platform/dd_platform.db`** (`DD_DATA_ROOT` defaults to repo-root **`data/dd_store`**). Set **`DATABASE_URL`** to use PostgreSQL or another explicit database.
+For local development the backend defaults to SQLite at **`DD_DATA_ROOT/platform/dd_platform.db`** (`DD_DATA_ROOT` defaults to repo-root **`.dd_project/data`**). Set **`DATABASE_URL`** to use PostgreSQL or another explicit database.
 
 ### Agent Service
 

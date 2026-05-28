@@ -32,15 +32,15 @@ const defaultReActConfig = JSON.stringify(
     max_iters: 6,
     parallel_tool_calls: false,
     model: {
-      baseUrl: "http://127.0.0.1:8081/v1",
+      baseUrl: "http://127.0.0.1:8080/v1",
       apiKey: "yuanjun",
-      api: "anthropic-messages",
+      api: "openai-completions",
       models: [
         {
-          id: "kimi-code",
-          name: "kimi-code(Custom Provider)",
-          reasoning: true,
-          input: ["text", "image"],
+          id: "deepseek-v4-flash",
+          name: "deepseek-v4-flash",
+          reasoning: false,
+          input: ["text"],
           cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
           contextWindow: 128000,
           maxTokens: 4096,
@@ -236,7 +236,9 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
   });
   const [skillSel, setSkillSel] = useState<Set<string>>(new Set());
   const [toolSel, setToolSel] = useState<Set<string>>(new Set());
+  const [subAgentSel, setSubAgentSel] = useState<Set<string>>(new Set());
   const [resourceSel, setResourceSel] = useState<Set<string>>(new Set());
+  const [subAgentFilter, setSubAgentFilter] = useState("");
   const [skillFilter, setSkillFilter] = useState("");
   const [toolFilter, setToolFilter] = useState("");
   const [resourceFilter, setResourceFilter] = useState("");
@@ -257,6 +259,15 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
 
   const toggleTool = useCallback((id: string) => {
     setToolSel((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSubAgent = useCallback((id: string) => {
+    setSubAgentSel((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -304,9 +315,11 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
       prompt: "",
       react_config: defaultReActConfig,
     });
+    setSubAgentSel(new Set());
     setSkillSel(new Set());
     setToolSel(new Set());
     setResourceSel(new Set());
+    setSubAgentFilter("");
     setSkillFilter("");
     setToolFilter("");
     setResourceFilter("");
@@ -323,11 +336,13 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
       prompt: agent.prompt,
       react_config: JSON.stringify(agent.react_config ?? {}, null, 2),
     });
+    setSubAgentSel(new Set(agent.sub_agent_ids ?? []));
     setSkillSel(new Set(agent.skill_package_ids ?? []));
     const toolIds = agent.tool_ids ?? agent.skill_ids ?? [];
     setToolSel(new Set(toolIds));
     setResourceSel(new Set(agent.resource_ids ?? []));
     setPlatformFileSel(new Set(agent.platform_upload_file_ids ?? []));
+    setSubAgentFilter("");
     setSkillFilter("");
     setToolFilter("");
     setResourceFilter("");
@@ -395,6 +410,17 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
         hint: t.implementation ? String(t.implementation).slice(0, 48) : "",
       })),
     [tools],
+  );
+
+  const subAgentRows: BindingRow[] = useMemo(
+    () =>
+      agents.map((a) => ({
+        id: a.id,
+        name: a.name || a.id,
+        enabled: editingAgentId ? a.id !== editingAgentId : true,
+        hint: a.role ? `角色 · ${a.role}` : "",
+      })),
+    [agents, editingAgentId],
   );
 
   const resourcesFilteredByKind = useMemo(() => {
@@ -468,6 +494,7 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
         name: form.name,
         role: form.role,
         prompt: form.prompt,
+        sub_agent_ids: Array.from(subAgentSel),
         skill_package_ids: Array.from(skillSel),
         tool_ids: toolIds,
         skill_ids: toolIds,
@@ -535,11 +562,25 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
                   角色定位 <span className="required-dot">*</span>
                   <input value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })} placeholder="例如：财务分析专员" required />
                 </label>
+                <label className="agent-template-editor__span-2">
+                  Sub Agents（可选）
+                  <div className="muted">在下方「能力与绑定」中勾选</div>
+                </label>
               </div>
             </div>
 
             <div className="agent-template-editor__bindings">
               <h4 className="agent-template-editor__section-label">能力与绑定（多选）</h4>
+              <SelectableBindingBlock
+                title="Sub Agents"
+                description="选择该 Agent 的子 Agent（可多选）；编辑时会自动禁止选择自己。"
+                filter={subAgentFilter}
+                onFilterChange={setSubAgentFilter}
+                items={subAgentRows}
+                selected={subAgentSel}
+                onToggle={toggleSubAgent}
+                emptyText="暂无可选 Agent 或未匹配筛选条件。"
+              />
               <SelectableBindingBlock
                 title="Skills 包"
                 description="Anthropic Skill 目录打包入库的技能；可多选或不选。"
@@ -644,6 +685,7 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
                     <code className="agent-catalog-id">{agent.id}</code>
                   </div>
                   <PillRow label="Skills" ids={agent.skill_package_ids ?? []} variant="skill" />
+                  <PillRow label="Sub Agents" ids={agent.sub_agent_ids ?? []} variant="tool" />
                   <PillRow label="工具" ids={toolIds} variant="tool" />
                   <ResourceBindingsSummary ids={agent.resource_ids ?? []} catalog={resources} />
                   {agent.platform_upload_file_ids?.length ? (

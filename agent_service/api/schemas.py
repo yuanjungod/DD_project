@@ -65,6 +65,7 @@ class AgentStep(BaseModel):
 
 class RunRequest(BaseModel):
     project_id: str
+    user_id: str = Field(description="User id for session filesystem isolation.")
     company_config: CompanyConfig
     workflow_snapshot: dict[str, Any] | None = None
     run_id: str | None = Field(

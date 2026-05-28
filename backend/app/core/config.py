@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_DEFAULT_DATA_ROOT = "data/dd_store"
+_DEFAULT_DATA_ROOT = ".dd_project/data"
 _ENV_FILE = _REPO_ROOT / ".env"
 
 

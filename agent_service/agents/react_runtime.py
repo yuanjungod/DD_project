@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import Any, Callable, Type
 
 from agentscope.agent import ReActAgent
-from agentscope.formatter import AnthropicChatFormatter
+from agentscope.formatter import AnthropicChatFormatter, DeepSeekChatFormatter, OpenAIChatFormatter
 from agentscope.message import Msg
-from agentscope.model import AnthropicChatModel
+from agentscope.model import AnthropicChatModel, OpenAIChatModel
 from agentscope.tool import (
     ToolResponse,
     Toolkit,
@@ -34,12 +34,12 @@ ToolExecutor = Callable[[str, dict[str, Any]], dict[str, Any]]
 
 
 DEFAULT_MODEL_CONFIG = {
-    "base_url": os.getenv("DD_MODEL_BASE_URL", "http://127.0.0.1:8081/v1"),
+    "base_url": os.getenv("DD_MODEL_BASE_URL", "http://127.0.0.1:8080/v1"),
     "api_key": os.getenv("DD_MODEL_API_KEY", "yuanjun"),
-    "api": os.getenv("DD_MODEL_API", "anthropic-messages"),
-    "model_id": os.getenv("DD_MODEL_ID", "kimi-code"),
-    "model_name": os.getenv("DD_MODEL_NAME", "kimi-code(Custom Provider)"),
-    "reasoning": True,
+    "api": os.getenv("DD_MODEL_API", "openai-completions"),
+    "model_id": os.getenv("DD_MODEL_ID", "deepseek-v4-flash"),
+    "model_name": os.getenv("DD_MODEL_NAME", "deepseek-v4-flash"),
+    "reasoning": False,
     "context_window": int(os.getenv("DD_MODEL_CONTEXT_WINDOW", "128000")),
     "max_tokens": int(os.getenv("DD_MODEL_MAX_TOKENS", "4096")),
     "timeout_seconds": float(os.getenv("DD_MODEL_TIMEOUT_SECONDS", "120")),
@@ -154,18 +154,7 @@ class AgentScopeReActRuntime:
             )
 
     def _build_agent(self) -> ReActAgent:
-        model = AnthropicChatModel(
-            model_name=self.model_config["model_id"],
-            api_key=self.model_config["api_key"],
-            max_tokens=self.model_config["max_tokens"],
-            stream=False,
-            client_kwargs={
-                "base_url": _anthropic_sdk_base_url(self.model_config["base_url"]),
-                "timeout": self.model_config["timeout_seconds"],
-                "max_retries": 0,
-            },
-        )
-        formatter = AnthropicChatFormatter(max_tokens=self.model_config["context_window"])
+        model, formatter = _create_model_and_formatter(self.model_config)
         return ReActAgent(
             name=self.definition.name,
             sys_prompt=self.sys_prompt,
@@ -516,16 +505,62 @@ def _write_skill_file(skill_dir: Path, file_name: str, content: str) -> None:
     target.write_text(str(content), encoding="utf-8")
 
 
+def _create_model_and_formatter(model_config: dict[str, Any]):
+    api = str(model_config.get("api") or "openai-completions").lower()
+    if api in {"openai-completions", "openai", "openai_chat", "openai-chat", "deepseek-completions", "deepseek"}:
+        model = OpenAIChatModel(
+            model_name=model_config["model_id"],
+            api_key=model_config["api_key"],
+            stream=False,
+            client_kwargs={
+                "base_url": _openai_sdk_base_url(model_config["base_url"]),
+                "timeout": model_config["timeout_seconds"],
+                "max_retries": 0,
+            },
+            generate_kwargs={"max_tokens": model_config["max_tokens"]},
+        )
+        formatter_cls = (
+            DeepSeekChatFormatter
+            if _uses_deepseek_reasoning_formatter(model_config, api)
+            else OpenAIChatFormatter
+        )
+        formatter = formatter_cls(max_tokens=model_config["context_window"])
+        return model, formatter
+
+    model = AnthropicChatModel(
+        model_name=model_config["model_id"],
+        api_key=model_config["api_key"],
+        max_tokens=model_config["max_tokens"],
+        stream=False,
+        client_kwargs={
+            "base_url": _anthropic_sdk_base_url(model_config["base_url"]),
+            "timeout": model_config["timeout_seconds"],
+            "max_retries": 0,
+        },
+    )
+    formatter = AnthropicChatFormatter(max_tokens=model_config["context_window"])
+    return model, formatter
+
+
 def _normalize_model_config(raw_config: dict[str, Any]) -> dict[str, Any]:
     model_config = dict(DEFAULT_MODEL_CONFIG)
     if not raw_config:
         return model_config
 
+    api_mode = raw_config.get("api_mode") or raw_config.get("apiMode")
+    top_level_model = raw_config.get("model")
+    if isinstance(top_level_model, str) and top_level_model.strip():
+        model_config["model_id"] = top_level_model.strip()
+        model_config["model_name"] = top_level_model.strip()
+
     model_config.update(
         {
-            "base_url": raw_config.get("base_url", raw_config.get("baseUrl", model_config["base_url"])),
+            "base_url": raw_config.get(
+                "base_url",
+                raw_config.get("baseUrl", raw_config.get("apibase", model_config["base_url"])),
+            ),
             "api_key": raw_config.get("api_key", raw_config.get("apiKey", model_config["api_key"])),
-            "api": raw_config.get("api", model_config["api"]),
+            "api": api_mode or raw_config.get("api", model_config["api"]),
             "model_id": raw_config.get("model_id", raw_config.get("id", model_config["model_id"])),
             "model_name": raw_config.get("model_name", raw_config.get("name", model_config["model_name"])),
             "reasoning": raw_config.get("reasoning", model_config["reasoning"]),
@@ -550,6 +585,17 @@ def _normalize_model_config(raw_config: dict[str, Any]) -> dict[str, Any]:
             }
         )
     return model_config
+
+
+def _uses_deepseek_reasoning_formatter(model_config: dict[str, Any], api: str) -> bool:
+    if api in {"deepseek-completions", "deepseek"}:
+        return True
+    model_id = str(model_config.get("model_id") or "").lower()
+    return "deepseek" in model_id
+
+
+def _openai_sdk_base_url(base_url: str) -> str:
+    return base_url.rstrip("/")
 
 
 def _anthropic_sdk_base_url(base_url: str) -> str:

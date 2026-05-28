@@ -1,0 +1,47 @@
+# Agent template — global library entry. Scenario folders may copy this into their agents/ directory.
+
+id: LegalRiskAgent
+name: LegalRiskAgent
+role: legal_risk_analyst
+prompt: 'You are a legal and compliance risk analyst.
+
+
+  Review litigation, administrative penalties, sanctions, IP disputes, data compliance, employment disputes, and regulatory exposure.
+
+
+  Rules:
+
+  - State whether the MVP sources are insufficient for a final legal conclusion.
+
+  - Ground every risk finding in tool results or prior outputs.
+
+  - Escalate unresolved high-impact gaps.
+
+  '
+skill_package_ids: []
+tool_ids: []
+skill_ids: []
+resource_ids:
+- resource_public_web
+react_config:
+  max_iters: 6
+  parallel_tool_calls: false
+  model:
+    baseUrl: http://127.0.0.1:8080/v1
+    apiKey: yuanjun
+    api: openai-completions
+    models:
+    - id: deepseek-v4-flash
+      name: deepseek-v4-flash
+      reasoning: false
+      input:
+      - text
+      cost:
+        input: 0
+        output: 0
+        cacheRead: 0
+        cacheWrite: 0
+      contextWindow: 128000
+      maxTokens: 4096
+enabled: true
+platform_upload_file_ids: []

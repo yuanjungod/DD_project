@@ -19,6 +19,7 @@ class AgentServiceClient:
         company_config: dict,
         workflow_snapshot: dict | None = None,
         *,
+        user_id: str,
         client_run_id: str | None = None,
         diligence_session_id: str | None = None,
         attempt_index: int | None = None,
@@ -29,6 +30,7 @@ class AgentServiceClient:
     ) -> dict:
         payload: dict = {
             "project_id": project_id,
+            "user_id": user_id,
             "company_config": company_config,
             "workflow_snapshot": workflow_snapshot,
             "pause_after_each_step": pause_after_each_step,

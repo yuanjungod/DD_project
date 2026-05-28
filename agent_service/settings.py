@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_DEFAULT_DATA_ROOT = "data/dd_store"
+_DEFAULT_DATA_ROOT = ".dd_project/data"
 _ENV_FILE = _REPO_ROOT / ".env"
 
 
@@ -37,12 +37,12 @@ class AgentSettings(BaseSettings):
     session_history_enabled: bool = Field(
         default=True,
         validation_alias="DD_SESSION_HISTORY_ENABLED",
-        description="Persist each POST /runs execution as data/dd_store/agent_service/sessions/<project>/<run>.json",
+        description="Persist each POST /runs execution under .dd_project/runs/<scenario>/<user>/<project>/<run>.json",
     )
     session_history_dir: str = Field(
         default="",
         validation_alias="DD_SESSION_HISTORY_DIR",
-        description="Optional path for session JSON files. Relative paths resolve from the repository root.",
+        description="Deprecated legacy override for session JSON root.",
     )
     data_root: str = Field(
         default=_DEFAULT_DATA_ROOT,
@@ -60,10 +60,11 @@ class AgentSettings(BaseSettings):
 
     @property
     def resolved_session_history_dir(self) -> Path:
+        """Deprecated legacy root; runtime uses repository .dd_project/runs/ by default."""
         configured = self.session_history_dir.strip()
         if configured:
             return _resolve_repo_path(configured)
-        return self.resolved_data_root / "agent_service" / "sessions"
+        return self.repo_root / ".dd_project" / "runs"
 
 
 @lru_cache

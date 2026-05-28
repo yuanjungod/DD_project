@@ -20,11 +20,30 @@ function splitList(value: string): string[] {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
 }
 
-function graphFromAgents(agentIds: string[]): WorkflowGraph {
-  const nodes = agentIds.map((agentId, index) => ({
+function graphFromNodeSpecs(raw: string): WorkflowGraph {
+  const lines = raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const parsed =
+    lines.length === 1 && !lines[0].includes(">")
+      ? splitList(lines[0]).map((master) => ({ master, subs: [] as string[] }))
+      : lines.map((line) => {
+          const [masterPart, subPart] = line.split(">", 2).map((s) => s.trim());
+          return {
+            master: masterPart,
+            subs: subPart ? splitList(subPart) : [],
+          };
+        });
+
+  const nodes = parsed
+    .filter((row) => row.master)
+    .map((row, index) => ({
     id: `node_${index + 1}`,
-    agent_template_id: agentId,
-    stage: index === 0 ? "coordination" : index === agentIds.length - 1 ? "reporting" : "execution",
+    agent_template_id: row.master,
+    sub_agent_template_ids: row.subs,
+    stage: index === 0 ? "coordination" : index === parsed.length - 1 ? "reporting" : "execution",
   }));
   return {
     nodes,
@@ -32,6 +51,18 @@ function graphFromAgents(agentIds: string[]): WorkflowGraph {
     entry_node: nodes[0]?.id ?? "",
     report_node: nodes[nodes.length - 1]?.id ?? "",
   };
+}
+
+function nodeSpecsFromGraph(graph: WorkflowGraph): string {
+  return (graph?.nodes ?? [])
+    .map((node) => {
+      const master = (node.agent_template_id ?? "").trim();
+      const subs = (node.sub_agent_template_ids ?? []).map((s) => (s ?? "").trim()).filter(Boolean);
+      if (!master) return "";
+      return subs.length ? `${master} > ${subs.join(", ")}` : master;
+    })
+    .filter(Boolean)
+    .join("\n");
 }
 
 type HubTab = "scenarios" | "builder" | "agents";
@@ -75,7 +106,7 @@ export function WorkflowsHubPage() {
     name: "",
     description: "",
     scenario: "custom",
-    agent_ids: "",
+    node_specs: "",
   });
   const [editingWorkflowId, setEditingWorkflowId] = useState<string | null>(null);
 
@@ -113,7 +144,7 @@ export function WorkflowsHubPage() {
 
   function resetWorkflowForm() {
     setEditingWorkflowId(null);
-    setForm({ id: "", name: "", description: "", scenario: "custom", agent_ids: "" });
+    setForm({ id: "", name: "", description: "", scenario: "custom", node_specs: "" });
   }
 
   function beginEditWorkflow(workflow: WorkflowTemplate) {
@@ -123,7 +154,7 @@ export function WorkflowsHubPage() {
       name: workflow.name,
       description: workflow.description,
       scenario: workflow.scenario,
-      agent_ids: resolveGraphAgentOrder(workflow.graph).join(", "),
+      node_specs: nodeSpecsFromGraph(workflow.graph),
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -131,13 +162,12 @@ export function WorkflowsHubPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    const agentIds = splitList(form.agent_ids);
     try {
       const payload = {
         name: form.name,
         description: form.description,
         scenario: form.scenario,
-        graph: graphFromAgents(agentIds),
+        graph: graphFromNodeSpecs(form.node_specs),
       };
       if (editingWorkflowId) {
         await updateWorkflowTemplate(editingWorkflowId, payload);
@@ -304,11 +334,12 @@ export function WorkflowsHubPage() {
                       />
                     </label>
                     <label>
-                      Agent 串流顺序
-                      <input
-                        placeholder={agentPlaceholder}
-                        value={form.agent_ids}
-                        onChange={(event) => setForm({ ...form, agent_ids: event.target.value })}
+                      节点配置（支持 master + sub）
+                      <textarea
+                        rows={6}
+                        placeholder={`每行一个节点：\nCoordinatorAgent > CompanyProfileAgent, WebResearchAgent\nReportWriterAgent\n\n也兼容旧写法（单行逗号分隔）：\n${agentPlaceholder}`}
+                        value={form.node_specs}
+                        onChange={(event) => setForm({ ...form, node_specs: event.target.value })}
                       />
                     </label>
                     <label>

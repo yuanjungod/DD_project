@@ -68,10 +68,12 @@ def create_pending_agent_run(
     *,
     session_id: str | None = None,
     attempt_index: int = 1,
+    started_by_user_id: str | None = None,
 ) -> AgentRun:
     run = AgentRun(
         id=run_id,
         project_id=project_id,
+        started_by_user_id=started_by_user_id,
         session_id=session_id,
         attempt_index=attempt_index,
         status="running",

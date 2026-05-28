@@ -41,6 +41,19 @@ DISCONNECTED_GRAPH = {
     "entry_node": "node_01",
 }
 
+MASTER_SUB_GRAPH = {
+    "nodes": [
+        {
+            "id": "node_01",
+            "agent_template_id": "Master",
+            "sub_agent_template_ids": ["SubA", "SubB"],
+        },
+        {"id": "node_02", "agent_template_id": "Tail"},
+    ],
+    "edges": [{"from": "node_01", "to": "node_02"}],
+    "entry_node": "node_01",
+}
+
 
 class WorkflowGraphTests(unittest.TestCase):
     def test_linear_graph_follows_edges(self) -> None:
@@ -56,6 +69,9 @@ class WorkflowGraphTests(unittest.TestCase):
     def test_empty_graph(self) -> None:
         self.assertEqual(resolve_graph_agent_order({}), [])
         self.assertEqual(resolve_graph_agent_order({"nodes": []}), [])
+
+    def test_master_sub_node_expands_in_order(self) -> None:
+        self.assertEqual(resolve_graph_agent_order(MASTER_SUB_GRAPH), ["Master", "SubA", "SubB", "Tail"])
 
 
 if __name__ == "__main__":

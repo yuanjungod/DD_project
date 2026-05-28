@@ -3,6 +3,25 @@ from __future__ import annotations
 from typing import Any
 
 
+def _collect_node_agent_ids(node: dict[str, Any]) -> list[str]:
+    """Collect execution agent ids from one graph node.
+
+    Supports legacy `agent_template_id` and hierarchical master/sub-agent config:
+    - `agent_template_id`: "CoordinatorAgent"
+    - `agent_template_id`: "MasterAgent", `sub_agent_template_ids`: ["SubA", "SubB"]
+    """
+
+    ids: list[str] = []
+    master_id = str(node.get("agent_template_id") or "").strip()
+    if master_id:
+        ids.append(master_id)
+    for sub_agent_id in node.get("sub_agent_template_ids") or []:
+        sub = str(sub_agent_id or "").strip()
+        if sub:
+            ids.append(sub)
+    return ids
+
+
 def resolve_graph_node_ids(graph: dict[str, Any]) -> list[str]:
     """Return workflow node ids in execution order (entry_node + edges, then unreachable nodes)."""
 
@@ -45,7 +64,5 @@ def resolve_graph_agent_order(graph: dict[str, Any]) -> list[str]:
         node = by_node_id.get(node_id)
         if not isinstance(node, dict):
             continue
-        agent_template_id = str(node.get("agent_template_id") or "").strip()
-        if agent_template_id:
-            agent_ids.append(agent_template_id)
+        agent_ids.extend(_collect_node_agent_ids(node))
     return agent_ids

@@ -64,6 +64,7 @@ def _read_text_if_exists(path: Path, *, max_chars: int = 20000) -> str:
 async def _dispatch_agent_background(
     project_id: str,
     run_id: str,
+    user_id: str,
     company_config: dict,
     workflow_snapshot: dict,
     *,
@@ -78,6 +79,7 @@ async def _dispatch_agent_background(
         _execute_agent_pipeline_blocking,
         project_id,
         run_id,
+        user_id,
         company_config,
         workflow_snapshot,
         diligence_session_id=diligence_session_id,
@@ -92,6 +94,7 @@ async def _dispatch_agent_background(
 def _execute_agent_pipeline_blocking(
     project_id: str,
     run_id: str,
+    user_id: str,
     company_config: dict,
     workflow_snapshot: dict,
     *,
@@ -111,6 +114,7 @@ def _execute_agent_pipeline_blocking(
                     project_id,
                     company_config,
                     workflow_snapshot=workflow_snapshot,
+                    user_id=user_id,
                     client_run_id=run_id,
                     diligence_session_id=diligence_session_id,
                     attempt_index=attempt_index,
@@ -215,6 +219,7 @@ async def _execute_start_agent_run(
         run_id,
         session_id=diligence_sess.id,
         attempt_index=attempt_ix,
+        started_by_user_id=user.id,
     )
 
     snapshot_dict = dict(workflow_snapshot)
@@ -235,6 +240,7 @@ async def _execute_start_agent_run(
         _dispatch_agent_background,
         project.id,
         run_id,
+        user.id,
         company_dict,
         snapshot_dict,
         diligence_session_id=diligence_sess.id,
@@ -412,10 +418,12 @@ async def continue_step_gated(
     sess_id = row.session_id
     proj_records = project_resource_records_for_merge(project.id)
     company_merged = merged_company_config_with_project_resources(dict(project.company_config), proj_records)
+    owner_user_id = row.started_by_user_id or user.id
     background_tasks.add_task(
         _dispatch_agent_background,
         row.project_id,
         run_id,
+        owner_user_id,
         company_merged,
         snapshot,
         diligence_session_id=sess_id,

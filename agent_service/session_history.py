@@ -1,40 +1,25 @@
-"""Persist each agent run as a JSON \"session\" file on disk (auditable timeline + final payload)."""
+"""Persist each agent run as a JSON session file under the scenario folder."""
 
 from __future__ import annotations
 
 import json
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
-from agent_service.settings import get_agent_settings
+from agent_service.scenario_layout import (
+    list_session_files as _list_session_files,
+    list_session_project_ids as _list_session_project_ids,
+    list_session_scenario_ids,
+    list_session_user_ids as _list_session_user_ids,
+    session_json_path,
+)
 
 _SESSION_VERSION = 1
-_ID_SAFE = re.compile(r"^[a-zA-Z0-9_-]{1,160}$")
 
 
 def _utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-
-def _sessions_root() -> Path:
-    settings = get_agent_settings()
-    base = settings.resolved_session_history_dir
-    base.mkdir(parents=True, exist_ok=True)
-    return base
-
-
-def _validate_id(seg: str, label: str) -> str:
-    if not _ID_SAFE.fullmatch(seg):
-        raise ValueError(f"Invalid {label} for session storage (only [a-zA-Z0-9_-], max 160 chars)")
-    return seg
-
-
-def session_json_path(project_id: str, run_id: str) -> Path:
-    safe_proj = _validate_id(project_id, "project_id")
-    safe_run = _validate_id(run_id, "run_id")
-    return _sessions_root() / safe_proj / f"{safe_run}.json"
 
 
 class RunSessionRecorder(Protocol):
@@ -66,18 +51,24 @@ NOOP_SESSION_RECORDER: RunSessionRecorder = _NoopRecorder()
 
 
 class JsonSessionRecorder:
-    """Writes `{project}/{run}.json` with incremental events."""
+    """Writes `scenarios/{scenario}/runs/{user}/{project}/{run}.json` with incremental events."""
 
     __slots__ = ("_document", "_path")
 
-    def __init__(self, project_id: str, run_id: str) -> None:
-        self._path = session_json_path(project_id, run_id)
+    def __init__(self, scenario_id: str, user_id: str, project_id: str, run_id: str) -> None:
+        self._path = session_json_path(scenario_id, user_id, project_id, run_id)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._document: dict[str, Any] | None = None
 
     @classmethod
-    def open_for_resume(cls, project_id: str, run_id: str) -> "JsonSessionRecorder":
-        path = session_json_path(project_id, run_id)
+    def open_for_resume(
+        cls,
+        scenario_id: str,
+        user_id: str,
+        project_id: str,
+        run_id: str,
+    ) -> "JsonSessionRecorder":
+        path = session_json_path(scenario_id, user_id, project_id, run_id)
         if not path.is_file():
             raise FileNotFoundError(str(path))
         obj = object.__new__(cls)
@@ -149,37 +140,48 @@ class JsonSessionRecorder:
         tmp.replace(self._path)
 
 
-def build_session_recorder(project_id: str, run_id: str) -> RunSessionRecorder:
+def build_session_recorder(scenario_id: str, user_id: str, project_id: str, run_id: str) -> RunSessionRecorder:
+    from agent_service.settings import get_agent_settings
+
     if not getattr(get_agent_settings(), "session_history_enabled", True):
         return NOOP_SESSION_RECORDER
-    return JsonSessionRecorder(project_id, run_id)
+    return JsonSessionRecorder(scenario_id, user_id, project_id, run_id)
 
 
-def open_session_recorder_for_resume(project_id: str, run_id: str) -> RunSessionRecorder | None:
-    """Reload an on-disk session file to append events across gated slices. Returns None if disabled or missing."""
+def open_session_recorder_for_resume(
+    scenario_id: str,
+    user_id: str,
+    project_id: str,
+    run_id: str,
+) -> RunSessionRecorder | None:
+    from agent_service.settings import get_agent_settings
+
     if not getattr(get_agent_settings(), "session_history_enabled", True):
         return None
     try:
-        return JsonSessionRecorder.open_for_resume(project_id, run_id)
+        return JsonSessionRecorder.open_for_resume(scenario_id, user_id, project_id, run_id)
     except (FileNotFoundError, ValueError, json.JSONDecodeError, OSError):
         return None
 
 
-def read_session_document(project_id: str, run_id: str) -> dict[str, Any] | None:
-    path = session_json_path(project_id, run_id)
+def read_session_document(scenario_id: str, user_id: str, project_id: str, run_id: str) -> dict[str, Any] | None:
+    path = session_json_path(scenario_id, user_id, project_id, run_id)
     if not path.is_file():
         return None
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def list_session_files(project_id: str) -> list[str]:
-    safe_proj = _validate_id(project_id, "project_id")
-    folder = _sessions_root() / safe_proj
-    if not folder.is_dir():
-        return []
-    return sorted(p.stem for p in folder.glob("*.json"))
+def list_session_files(scenario_id: str, user_id: str, project_id: str) -> list[str]:
+    return _list_session_files(scenario_id, user_id, project_id)
 
 
-def list_session_project_ids() -> list[str]:
-    root = _sessions_root()
-    return sorted(p.name for p in root.iterdir() if p.is_dir())
+def list_session_project_ids(scenario_id: str, user_id: str) -> list[str]:
+    return _list_session_project_ids(scenario_id, user_id)
+
+
+def list_session_user_ids(scenario_id: str) -> list[str]:
+    return _list_session_user_ids(scenario_id)
+
+
+def list_all_session_scenario_ids() -> list[str]:
+    return list_session_scenario_ids()

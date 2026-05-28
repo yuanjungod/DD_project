@@ -15,6 +15,37 @@ def data_root() -> Path:
     return settings.resolved_data_root
 
 
+def dd_flow_home_dir() -> Path:
+    """Unified runtime home for file-backed config/state management."""
+    d = repo_root() / ".dd_project"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def dd_flow_config_dir() -> Path:
+    d = dd_flow_home_dir() / "config"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def dd_flow_users_dir() -> Path:
+    d = dd_flow_home_dir() / "users"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def dd_flow_channels_dir() -> Path:
+    d = dd_flow_home_dir() / "channels"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def dd_flow_sqlite_dir() -> Path:
+    d = dd_flow_home_dir() / "data"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def builtin_resource_configs_dir() -> Path:
     return repo_root() / "catalog" / "resource_configs"
 
@@ -48,7 +79,8 @@ def project_resources_manifest_path(project_id: str) -> Path:
 
 
 def project_agent_overrides_manifest_path(project_id: str) -> Path:
-    p = project_tree_dir(project_id) / "agent_overrides.json"
+    # Normalized location under DD project config tree.
+    p = dd_flow_config_dir() / "projects" / project_id / "agent_overrides.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     return p
 
@@ -61,19 +93,19 @@ def project_resource_configs_dir(project_id: str) -> Path:
 
 def project_uploads_dir(project_id: str) -> Path:
     """Binary blobs for uploaded files (file_id → single file under this directory)."""
-    d = project_tree_dir(project_id) / "uploads"
+    d = dd_flow_sqlite_dir() / "projects" / project_id / "uploads"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
 def platform_uploads_dir() -> Path:
     """Shared library blobs (not tied to a single project application)."""
-    d = data_root() / "platform" / "uploads"
+    d = dd_flow_sqlite_dir() / "platform" / "uploads"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
 def platform_uploads_manifest_path() -> Path:
-    p = data_root() / "platform" / "uploads_manifest.json"
+    p = dd_flow_sqlite_dir() / "platform" / "uploads_manifest.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     return p

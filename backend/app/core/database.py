@@ -44,6 +44,8 @@ def ensure_schema_patches(engine) -> None:
             statements.append("ALTER TABLE agent_runs ADD COLUMN session_id VARCHAR")
         if "attempt_index" not in cols:
             statements.append("ALTER TABLE agent_runs ADD COLUMN attempt_index INTEGER DEFAULT 1 NOT NULL")
+        if "started_by_user_id" not in cols:
+            statements.append("ALTER TABLE agent_runs ADD COLUMN started_by_user_id VARCHAR")
         if statements:
             with engine.begin() as conn:
                 for stmt in statements:
