@@ -18,7 +18,7 @@ In API and UI, `engagement` is the runtime/business object and `workflow templat
 ```text
 backend/        FastAPI application
 agent_service/  AgentScope workflow service (+ configs/tools.yaml, skills/)
-catalog/        Global agent library (catalog/agents/) and built-in workflow template folders (catalog/scenarios/)
+catalog/        Global agent library (catalog/agents/) and built-in workflow template folders (catalog/workflow_templates/)
 frontend/       React + Vite workbench
 shared/         Shared JSON schemas and example payloads
 docs/           Architecture, agent flow, configuration schema
@@ -32,11 +32,11 @@ docs/           Architecture, agent flow, configuration schema
 catalog/
   agents/
     {agent_id}.yaml                     # Global Agent templates
-  scenarios/
-    {scenario_id}/
-      scenario.yaml                     # Workflow metadata + graph
+  workflow_templates/
+    {workflow_template_id}/
+      workflow_template.yaml            # Workflow metadata + graph
       agents/
-        {agent_id}.yaml                 # Scenario-local agent copies
+        {agent_id}.yaml                 # Workflow-template-local agent copies
   resource_configs/
     {resource_id}.yaml                  # Built-in platform resource connectors
   default_users.yaml                    # Development seed users
@@ -55,8 +55,8 @@ catalog/
         resource_configs/*.yaml         # Engagement resource config overrides
         uploads/{file_id}               # Engagement-shared uploaded binaries
       users/{user_id}/sessions/{session_id}/
-        runs/{scenario_id}/{run_id}.json
-        runs/{scenario_id}/outputs/{run_id}_outputs/{step}_{agent}/
+        runs/{workflow_template_id}/{run_id}.json
+        runs/{workflow_template_id}/outputs/{run_id}_outputs/{step}_{agent}/
   data/
     platform/                           # Platform-level DB/config/upload storage
   channels/                             # Reserved for channel mapping expansion

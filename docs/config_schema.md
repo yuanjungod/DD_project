@@ -4,7 +4,7 @@ This document describes the configuration contract shared by the frontend, backe
 
 ## Terminology
 
-- `workflow_template` (formerly `scenario`): reusable process definition; it answers "how the due diligence runs".
+- `workflow_template`: reusable process definition; it answers "how the due diligence runs".
 - `engagement` (formerly `project`): concrete business instance bound to a company/application/version/resources; it answers "what this run is for".
 - API routes now use `/engagements/*` for engagement resources and execution state.
 
@@ -34,9 +34,9 @@ Backend and agent service both read environment overrides from the repository-ro
 catalog/
   agents/
     {agent_id}.yaml                     # Reusable global agent templates
-  scenarios/
+  workflow_templates/
     {workflow_template_id}/
-      scenario.yaml                     # Workflow metadata + graph
+      workflow_template.yaml            # Workflow metadata + graph
       agents/
         {agent_id}.yaml                 # Agents referenced by this workflow template
   resource_configs/
@@ -64,13 +64,13 @@ catalog/
 **Workflow template folders:** each template has its own directory:
 
 ```text
-catalog/scenarios/{workflow_template_id}/ # built-in workflow templates (in repo)
-  scenario.yaml                           # workflow metadata + graph
+catalog/workflow_templates/{workflow_template_id}/ # built-in workflow templates (in repo)
+  workflow_template.yaml                  # workflow metadata + graph
   agents/
     {agent_id}.yaml                       # agents used by this workflow template
 
-.dd_project/_shared/workflows/{workflow_template_id}/ # user-created workflow templates
-  scenario.yaml
+.dd_project/users/{user_id}/_workflows/{workflow_template_id}/ # user-created workflow templates
+  workflow_template.yaml
   agents/
     {agent_id}.yaml
 
@@ -79,7 +79,7 @@ catalog/scenarios/{workflow_template_id}/ # built-in workflow templates (in repo
   outputs/{run_id}_outputs/{step}_{agent}/
 ```
 
-Built-in workflow templates and user-created workflow templates only store templates (`scenario.yaml` + `agents/`). Runtime run/session artifacts are centralized under **`.dd_project/users/{user}/{workflow}/{engagement}/sessions/.../runs/`**.
+Built-in workflow templates and user-created workflow templates only store templates (`workflow_template.yaml` + `agents/`). Runtime run/session artifacts are centralized under **`.dd_project/users/{user}/{workflow}/{engagement}/sessions/.../runs/`**.
 
 Skill packages are file-backed under **`agent_service/skills/<directory_name>/`**. Tool configs are mirrored through **`agent_service/configs/tools.yaml`**. Resource configs are file-backed through **`catalog/resource_configs/`** plus **`DD_DATA_ROOT/platform/resource_configs/`** overlays. Development seed users are file-backed through **`catalog/default_users.yaml`** unless **`DD_DEFAULT_USERS_CONFIG`** points elsewhere.
 
@@ -121,7 +121,7 @@ Skill packages follow the same engagement-localization principle:
 }
 ```
 
-`workflow_template_id` selects the published workflow template for runs; `workflow_id` remains a compatibility alias. The backend builds the run snapshot from the published `scenario.yaml` and the separate agent catalog on disk.
+`workflow_template_id` selects the published workflow template for runs; `workflow_id` remains a compatibility alias. The backend builds the run snapshot from the published `workflow_template.yaml` and the separate agent catalog on disk.
 
 ## Configuration Catalog
 
@@ -131,7 +131,7 @@ Reusable workflows are managed through the backend configuration catalog:
 - `ToolConfig` (file-backed): optional executable platform capabilities; persisted under `agent_service/configs/tools.yaml`.
 - `ResourceConfig`: data resource available to agents, such as public web, uploaded files, vector stores, databases, or external APIs.
 - `AgentTemplate` (file-backed): definitions are stored in **`catalog/agents/{agent_id}.yaml`**. Each record has `id`, `name`, `role`, inline `prompt`, optional `sub_agent_ids`, `skill_package_ids`, `tool_ids`, `skill_ids`, `resource_ids`, `react_config`, and `enabled`. The Admin UI uses **`GET/POST/PATCH /agent-templates`**; **`POST`** and **`PATCH`** write the global library.
-- `WorkflowTemplate` (file-backed template): one folder per workflow template under **`catalog/scenarios/{workflow_id}/`** (built-in) or **`.dd_project/_shared/workflows/{workflow_id}/`** (user-created). Each folder contains **`scenario.yaml`** (workflow graph and metadata) and an **`agents/`** subdirectory with the agents referenced by that template. **`GET/POST/PATCH /workflow-templates`** and publish/clone operate on these folders; only **`published`** templates are listed for non-admin callers and for run snapshots.
+- `WorkflowTemplate` (file-backed template): one folder per workflow template under **`catalog/workflow_templates/{workflow_id}/`** (built-in) or **`.dd_project/users/{user_id}/_workflows/{workflow_id}/`** (user-created). Each folder contains **`workflow_template.yaml`** (workflow graph and metadata) and an **`agents/`** subdirectory with the agents referenced by that template. **`GET/POST/PATCH /workflow-templates`** and publish/clone operate on these folders; only **`published`** templates are listed for non-admin callers and for run snapshots.
 
 Only **`published`** workflow templates should be selected by downstream engagements. When a run starts, the backend creates a **workflow snapshot** from the current file-backed template, agent catalog, and DB/file-backed skill/tool/resource mirrors. The snapshot sent to the agent service includes `skill_packages` (with `package_files`), executable `tools`, `resources`, and each agent's `react_config`. By default, `react_config.model` uses the local Anthropic Messages-compatible `kimi-code` provider at `http://127.0.0.1:8081/v1`.
 

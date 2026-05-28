@@ -17,9 +17,9 @@ catalog/
   default_users.yaml
   agents/
     {agent_id}.yaml
-  scenarios/
-    {scenario_id}/
-      scenario.yaml
+  workflow_templates/
+    {workflow_template_id}/
+      workflow_template.yaml
       agents/
         {agent_id}.yaml
   resource_configs/
@@ -53,15 +53,15 @@ catalog/
 - `react_config`（模型与推理参数）
 - `enabled`
 
-这些模板由 Agent 模板管理接口/UI 维护，是场景编排可引用的基础模板。
+这些模板由 Agent 模板管理接口/UI 维护，是工作流模板编排可引用的基础模板。
 
-### `scenarios/`
+### `workflow_templates/`
 
-内置 Workflow 场景模板目录。  
-每个 `{scenario_id}` 目录对应一个场景模板：
+内置 Workflow Template 模板目录。  
+每个 `{workflow_template_id}` 目录对应一个模板：
 
-- `scenario.yaml`：流程元数据与图结构（`nodes`、`edges`、`entry_node`、`report_node`）
-- `agents/`：该场景引用的 Agent 定义
+- `workflow_template.yaml`：流程元数据与图结构（`nodes`、`edges`、`entry_node`、`report_node`）
+- `agents/`：该模板引用的 Agent 定义
 
 边界说明（重要）：
 

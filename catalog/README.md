@@ -16,9 +16,9 @@ catalog/
   default_users.yaml
   agents/
     {agent_id}.yaml
-  scenarios/
-    {scenario_id}/
-      scenario.yaml
+  workflow_templates/
+    {workflow_template_id}/
+      workflow_template.yaml
       agents/
         {agent_id}.yaml
   resource_configs/
@@ -52,14 +52,14 @@ Each file is one reusable agent template (`{agent_id}.yaml`), for example:
 
 These files are managed by the Agent Templates admin APIs/UI and used as source templates.
 
-### `scenarios/`
+### `workflow_templates/`
 
 Built-in workflow templates.
 
-Each scenario directory represents one workflow template:
+Each workflow template directory represents one workflow template:
 
-- `scenario.yaml`: workflow metadata and graph (`nodes`, `edges`, `entry_node`, `report_node`)
-- `agents/`: agent definitions referenced by this scenario
+- `workflow_template.yaml`: workflow metadata and graph (`nodes`, `edges`, `entry_node`, `report_node`)
+- `agents/`: agent definitions referenced by this workflow template
 
 Important boundary:
 
