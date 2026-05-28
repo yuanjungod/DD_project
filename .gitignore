@@ -11,3 +11,6 @@ coverage/
 agent_service/sessions/
 catalog/scenarios/*/runs/
 .dd_project/
+__MACOSX/
+tianyancha-finance-analysis/
+tianyancha-finance-analysis.zip
