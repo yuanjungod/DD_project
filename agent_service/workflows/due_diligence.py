@@ -87,6 +87,7 @@ class DueDiligenceWorkflow:
         if not user_id.strip():
             raise ValueError("user_id is required")
         safe_user_id = user_id.strip()
+        safe_session_id = (diligence_session_id or run_id).strip()
 
         recorder: object
         start_payload = {
@@ -100,7 +101,13 @@ class DueDiligenceWorkflow:
             "agents_ordered": ordered_agents,
             "pause_after_each_step": pause_after_each_step,
         }
-        resumed = open_session_recorder_for_resume(scenario_id, safe_user_id, project_id, run_id)
+        resumed = open_session_recorder_for_resume(
+            scenario_id,
+            safe_user_id,
+            project_id,
+            run_id,
+            session_id=safe_session_id,
+        )
         if resume_from_step_index > 0 and resumed is not None:
             recorder = resumed
             recorder.append_event(
@@ -110,7 +117,13 @@ class DueDiligenceWorkflow:
                 },
             )
         else:
-            recorder = build_session_recorder(scenario_id, safe_user_id, project_id, run_id)
+            recorder = build_session_recorder(
+                scenario_id,
+                safe_user_id,
+                project_id,
+                run_id,
+                session_id=safe_session_id,
+            )
             recorder.start(start_payload)
 
         for step_idx in range(resume_from_step_index, len(ordered_agents)):
@@ -129,6 +142,7 @@ class DueDiligenceWorkflow:
                     scenario_id=scenario_id,
                     user_id=safe_user_id,
                     project_id=project_id,
+                    session_id=safe_session_id,
                     run_id=run_id,
                     step_id=step.id,
                     agent_name=agent_name,

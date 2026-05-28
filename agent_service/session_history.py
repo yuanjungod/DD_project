@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from agent_service.scenario_layout import (
+    find_session_json_path,
     list_session_files as _list_session_files,
     list_session_project_ids as _list_session_project_ids,
     list_session_scenario_ids,
@@ -55,8 +56,8 @@ class JsonSessionRecorder:
 
     __slots__ = ("_document", "_path")
 
-    def __init__(self, scenario_id: str, user_id: str, project_id: str, run_id: str) -> None:
-        self._path = session_json_path(scenario_id, user_id, project_id, run_id)
+    def __init__(self, scenario_id: str, user_id: str, project_id: str, run_id: str, session_id: str) -> None:
+        self._path = session_json_path(scenario_id, user_id, project_id, run_id, session_id)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._document: dict[str, Any] | None = None
 
@@ -67,8 +68,15 @@ class JsonSessionRecorder:
         user_id: str,
         project_id: str,
         run_id: str,
+        session_id: str | None = None,
     ) -> "JsonSessionRecorder":
-        path = session_json_path(scenario_id, user_id, project_id, run_id)
+        path = (
+            session_json_path(scenario_id, user_id, project_id, run_id, session_id)
+            if session_id
+            else find_session_json_path(scenario_id, user_id, project_id, run_id)
+        )
+        if path is None:
+            raise FileNotFoundError(run_id)
         if not path.is_file():
             raise FileNotFoundError(str(path))
         obj = object.__new__(cls)
@@ -140,12 +148,18 @@ class JsonSessionRecorder:
         tmp.replace(self._path)
 
 
-def build_session_recorder(scenario_id: str, user_id: str, project_id: str, run_id: str) -> RunSessionRecorder:
+def build_session_recorder(
+    scenario_id: str,
+    user_id: str,
+    project_id: str,
+    run_id: str,
+    session_id: str,
+) -> RunSessionRecorder:
     from agent_service.settings import get_agent_settings
 
     if not getattr(get_agent_settings(), "session_history_enabled", True):
         return NOOP_SESSION_RECORDER
-    return JsonSessionRecorder(scenario_id, user_id, project_id, run_id)
+    return JsonSessionRecorder(scenario_id, user_id, project_id, run_id, session_id)
 
 
 def open_session_recorder_for_resume(
@@ -153,19 +167,28 @@ def open_session_recorder_for_resume(
     user_id: str,
     project_id: str,
     run_id: str,
+    session_id: str | None = None,
 ) -> RunSessionRecorder | None:
     from agent_service.settings import get_agent_settings
 
     if not getattr(get_agent_settings(), "session_history_enabled", True):
         return None
     try:
-        return JsonSessionRecorder.open_for_resume(scenario_id, user_id, project_id, run_id)
+        return JsonSessionRecorder.open_for_resume(
+            scenario_id,
+            user_id,
+            project_id,
+            run_id,
+            session_id=session_id,
+        )
     except (FileNotFoundError, ValueError, json.JSONDecodeError, OSError):
         return None
 
 
 def read_session_document(scenario_id: str, user_id: str, project_id: str, run_id: str) -> dict[str, Any] | None:
-    path = session_json_path(scenario_id, user_id, project_id, run_id)
+    path = find_session_json_path(scenario_id, user_id, project_id, run_id)
+    if path is None:
+        return None
     if not path.is_file():
         return None
     return json.loads(path.read_text(encoding="utf-8"))

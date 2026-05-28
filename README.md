@@ -39,17 +39,21 @@ catalog/
 
 ```text
 .dd_project/
-  runs/
-    {scenario_id}/{user_id}/{project_id}/
-      {run_id}.json                     # Runtime run session
-      outputs/{run_id}_outputs/{step}_{agent}/
-  config/
-    projects/
-      {project_id}/
+  projects/
+    {project_id}/
+      meta/
         agent_overrides.json            # Project-scoped Agent override manifest
-  users/                                # Reserved for user-isolated state expansion
+      shared/
+        resources/manifest.json         # Project resource metadata
+        resource_configs/*.yaml         # Project resource config overrides
+        uploads/{file_id}               # Project-shared uploaded binaries
+      users/{user_id}/sessions/{session_id}/
+        runs/{scenario_id}/{run_id}.json
+        runs/{scenario_id}/outputs/{run_id}_outputs/{step}_{agent}/
+  data/
+    platform/                           # Platform-level DB/config/upload storage
   channels/                             # Reserved for channel mapping expansion
-  data/                                 # Reserved for project-local DB/data artifacts
+  users/                                # Reserved for user-global expansion
 ```
 
 ## Documentation
@@ -86,12 +90,13 @@ npm run dev
 Writable runtime data defaults to `.dd_project/data/` from the repository root:
 
 - SQLite: `.dd_project/data/platform/dd_platform.db` (set `DATABASE_URL` to use PostgreSQL or another explicit database).
-- Project resources: `.dd_project/data/projects/<project_id>/...` (metadata + inline config).
-- Project uploads (binary blobs): `.dd_project/data/projects/<project_id>/uploads/<file_id>`.
+- Project resources: `.dd_project/projects/<project_id>/shared/resources` + `.dd_project/projects/<project_id>/shared/resource_configs`.
+- Project uploads (binary blobs): `.dd_project/projects/<project_id>/shared/uploads/<file_id>`.
+- Project-local copied skills: `.dd_project/projects/<project_id>/shared/skills/<directory_name>`.
 - Platform uploads (binary blobs): `.dd_project/data/platform/uploads/<file_id>`.
 - Platform upload manifest: `.dd_project/data/platform/uploads_manifest.json`.
-- Agent run sessions and per-step outputs: `.dd_project/runs/<scenario_id>/<user_id>/<project_id>/...`.
-- Normalized config home: `.dd_project/` under repository root (project-level agent override manifests stored at `.dd_project/config/projects/<project_id>/agent_overrides.json`).
+- Agent run sessions and per-step outputs: `.dd_project/projects/<project_id>/users/<user_id>/sessions/<session_id>/runs/<scenario_id>/...`.
+- Project runtime config home: `.dd_project/projects/<project_id>/meta/agent_overrides.json`.
 
 Set `DD_DATA_ROOT` to move all writable file data together.
 

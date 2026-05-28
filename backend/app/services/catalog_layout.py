@@ -126,7 +126,7 @@ def scenario_agent_path(scenario_id: str, agent_id: str) -> Path:
 def scenario_runs_root(scenario_id: str, user_id: str) -> Path:
     assert_safe_scenario_id(scenario_id)
     assert_safe_scenario_id(user_id)
-    directory = repo_root() / ".dd_project" / "runs" / scenario_id / user_id
+    directory = repo_root() / ".dd_project" / "projects"
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 

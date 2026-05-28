@@ -11,7 +11,7 @@ This document describes the configuration contract shared by the frontend, backe
 | `AGENT_SERVICE_URL` | backend | Base URL for **`POST /runs`** (default `http://127.0.0.1:8011`). |
 | `AGENT_CALLBACK_SECRET` | backend + agent | Shared secret for **`X-Agent-Callback-Secret`** on **`POST /internal/agent-runs/.../progress`**. |
 | `PLATFORM_CALLBACK_BASE_URL` | agent | Backend base URL for incremental progress (default `http://127.0.0.1:8010`). Set empty or unreachable to disable callbacks (UI then only updates after finalization). |
-| `DD_SESSION_HISTORY_DIR` | agent | Optional legacy override (deprecated). Session JSON lives under `.dd_project/runs/<scenario_id>/<user_id>/<project>/<run>.json`. |
+| `DD_SESSION_HISTORY_DIR` | agent | Optional legacy override (deprecated). Session JSON lives under `.dd_project/projects/<project>/users/<user>/sessions/<session>/runs/<scenario>/<run>.json`. |
 | `DD_SEED_DEFAULT_USERS` | backend | Seed development users on startup when the users table is empty (default `true`). |
 | `DD_DEFAULT_USERS_CONFIG` | backend | Optional path to the seed user YAML. Defaults to `catalog/default_users.yaml`; relative paths are resolved from the repository root. |
 | `VITE_API_BASE_URL` | frontend | When set, all `fetch` calls use this absolute base (skips the dev proxy). |
@@ -42,11 +42,17 @@ catalog/
 
 ```text
 .dd_project/
-  config/                  # global/project config manifests
-    projects/{project_id}/agent_overrides.json
-  users/                   # user-isolated state roots (future expansion)
+  projects/
+    {project_id}/
+      meta/agent_overrides.json
+      shared/resources/manifest.json
+      shared/resource_configs/*.yaml
+      shared/uploads/{file_id}
+      users/{user_id}/sessions/{session_id}/runs/{scenario_id}/{run_id}.json
+      users/{user_id}/sessions/{session_id}/runs/{scenario_id}/outputs/{run_id}_outputs/{step}_{agent}/
+  data/platform/           # sqlite/db + platform-level overlays/uploads
   channels/                # chat/channel id mapping store (future expansion)
-  data/                    # sqlite/db artifacts when needed (future expansion)
+  users/                   # user-global state roots (future expansion)
 ```
 
 **Scenario folders:** each scenario has its own directory:
@@ -62,26 +68,32 @@ catalog/scenarios/{scenario_id}/          # built-in scenarios (in repo)
   agents/
     {agent_id}.yaml
 
-.dd_project/runs/{scenario_id}/           # runtime sessions + outputs
-  {user_id}/
-    {project_id}/
-      {run_id}.json
-      outputs/{run_id}_outputs/{step}_{agent}/
+.dd_project/projects/{project_id}/users/{user_id}/sessions/{session_id}/runs/{scenario_id}/
+  {run_id}.json
+  outputs/{run_id}_outputs/{step}_{agent}/
 ```
 
-Built-in scenarios and user-created scenarios only store templates (`scenario.yaml` + `agents/`). Runtime run/session artifacts are centralized under **`.dd_project/runs/`**.
+Built-in scenarios and user-created scenarios only store templates (`scenario.yaml` + `agents/`). Runtime run/session artifacts are centralized under **`.dd_project/projects/.../users/.../sessions/.../runs/`**.
 
 Skill packages are file-backed under **`agent_service/skills/<directory_name>/`**. Tool configs are mirrored through **`agent_service/configs/tools.yaml`**. Resource configs are file-backed through **`catalog/resource_configs/`** plus **`DD_DATA_ROOT/platform/resource_configs/`** overlays. Development seed users are file-backed through **`catalog/default_users.yaml`** unless **`DD_DEFAULT_USERS_CONFIG`** points elsewhere.
 
 Project-scoped uploaded files (PDFs, Excel, etc.) have two layers:
 
 - Resource metadata rows live in the database as `Resource(type=\"file_reference\", value=<file_id>)`.
-- Binary blobs are stored under `.dd_project/data/projects/{project_id}/uploads/{file_id}`.
+- Binary blobs are stored under `.dd_project/projects/{project_id}/shared/uploads/{file_id}`.
 
 Platform-wide library uploads share the same pattern:
 
 - Rows are exposed via `/library/uploads` and merged into `company_config.resources.uploaded_files`.
 - Binary blobs live under `.dd_project/data/platform/uploads/{file_id}` with manifest `.dd_project/data/platform/uploads_manifest.json`.
+- On project creation, only platform blobs explicitly selected in `company_config.resources.uploaded_files` (and `agent_resource_scopes.*.uploaded_file_ids`) are copied into `.dd_project/projects/{project_id}/shared/uploads/` so project-only mounts (e.g., Docker bind mount for one project) can access the same `file_id` files locally.
+- On project updates (`PATCH /projects/{project_id}` with `company_config`), the backend incrementally copies any newly selected platform blobs into the same project-local uploads directory.
+
+Skill packages follow the same project-localization principle:
+
+- Agent skill packages are still defined globally under `agent_service/skills/{directory_name}`.
+- On project creation, only skill packages referenced by the selected workflow snapshot are copied into `.dd_project/projects/{project_id}/shared/skills/{directory_name}`.
+- On project updates (`PATCH /projects/{project_id}` with `company_config`), the backend incrementally copies newly referenced skill package directories into the same project-local skills directory.
 
 ## Company Configuration
 
@@ -134,8 +146,8 @@ Execution order stays graph-driven by node order; within one node, the `agent_te
 {
   "agent": "LegalRiskAgent",
   "status": "completed",
-  "output_dir": "/path/to/.dd_project/runs/standard_due_diligence/user_x/proj_x/outputs/run_y_outputs/run_y_step_003_LegalRiskAgent",
-  "output_readme_path": "/path/to/.dd_project/runs/standard_due_diligence/user_x/proj_x/outputs/run_y_outputs/run_y_step_003_LegalRiskAgent/README.md"
+  "output_dir": "/path/to/.dd_project/projects/proj_x/users/user_x/sessions/sess_x/runs/standard_due_diligence/outputs/run_y_outputs/run_y_step_003_LegalRiskAgent",
+  "output_readme_path": "/path/to/.dd_project/projects/proj_x/users/user_x/sessions/sess_x/runs/standard_due_diligence/outputs/run_y_outputs/run_y_step_003_LegalRiskAgent/README.md"
 }
 ```
 

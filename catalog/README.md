@@ -64,7 +64,7 @@ Each scenario directory represents one workflow template:
 Important boundary:
 
 - This folder is template configuration only.
-- Runtime runs/outputs are stored in `.dd_project/runs/`, not here.
+- Runtime runs/outputs are stored under `.dd_project/projects/{project_id}/users/{user_id}/sessions/{session_id}/runs/`, not here.
 
 ### `resource_configs/`
 

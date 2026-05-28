@@ -58,11 +58,12 @@ def agent_step_output_dir(
     scenario_id: str,
     user_id: str,
     project_id: str,
+    session_id: str,
     run_id: str,
     step_id: str,
     agent_name: str,
 ) -> Path:
-    session_path = session_json_path(scenario_id, user_id, project_id, run_id)
+    session_path = session_json_path(scenario_id, user_id, project_id, run_id, session_id)
     folder_name = f"{_safe_segment(step_id)}_{_safe_segment(agent_name)}"
     return session_path.parent / "outputs" / f"{_safe_segment(run_id)}_outputs" / folder_name
 

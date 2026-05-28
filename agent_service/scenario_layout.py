@@ -1,4 +1,4 @@
-"""Run/session storage under repository .dd_project/runs/."""
+"""Run/session storage under repository .dd_project/projects/{project}/users/{user}/sessions/{session}/runs/."""
 
 from __future__ import annotations
 
@@ -33,8 +33,23 @@ def dd_project_root() -> Path:
     return base
 
 
-def runs_root() -> Path:
-    base = dd_project_root() / "runs"
+def projects_root() -> Path:
+    base = dd_project_root() / "projects"
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
+
+def _project_root(project_id: str) -> Path:
+    safe_proj = _validate_id(project_id, "project_id")
+    base = projects_root() / safe_proj
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
+
+def _session_runs_root(project_id: str, user_id: str, session_id: str) -> Path:
+    safe_user = _validate_id(user_id, "user_id")
+    safe_session = _validate_id(session_id, "session_id")
+    base = _project_root(project_id) / "users" / safe_user / "sessions" / safe_session / "runs"
     base.mkdir(parents=True, exist_ok=True)
     return base
 
@@ -63,56 +78,102 @@ def scenario_home(scenario_id: str) -> Path:
     raise FileNotFoundError(scenario_id)
 
 
-def scenario_runs_root(scenario_id: str, user_id: str) -> Path:
+def scenario_runs_root(scenario_id: str, user_id: str, project_id: str, session_id: str) -> Path:
     safe_scenario = _validate_scenario_id(scenario_id)
-    safe_user = _validate_id(user_id, "user_id")
-    directory = runs_root() / safe_scenario / safe_user
+    directory = _session_runs_root(project_id, user_id, session_id) / safe_scenario
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 
 
-def session_json_path(scenario_id: str, user_id: str, project_id: str, run_id: str) -> Path:
+def session_json_path(scenario_id: str, user_id: str, project_id: str, run_id: str, session_id: str) -> Path:
     safe_scenario = _validate_scenario_id(scenario_id)
-    safe_user = _validate_id(user_id, "user_id")
-    safe_proj = _validate_id(project_id, "project_id")
     safe_run = _validate_id(run_id, "run_id")
-    return scenario_runs_root(safe_scenario, safe_user) / safe_proj / f"{safe_run}.json"
+    return scenario_runs_root(safe_scenario, user_id, project_id, session_id) / f"{safe_run}.json"
 
 
 def list_session_files(scenario_id: str, user_id: str, project_id: str) -> list[str]:
     safe_scenario = _validate_scenario_id(scenario_id)
     safe_user = _validate_id(user_id, "user_id")
     safe_proj = _validate_id(project_id, "project_id")
-    folder = scenario_runs_root(safe_scenario, safe_user) / safe_proj
-    if not folder.is_dir():
+    root = _project_root(safe_proj) / "users" / safe_user / "sessions"
+    if not root.is_dir():
         return []
-    return sorted(path.stem for path in folder.glob("*.json"))
+    out: set[str] = set()
+    for session_dir in root.iterdir():
+        folder = session_dir / "runs" / safe_scenario
+        if not folder.is_dir():
+            continue
+        for path in folder.glob("*.json"):
+            out.add(path.stem)
+    return sorted(out)
 
 
 def list_session_project_ids(scenario_id: str, user_id: str) -> list[str]:
     safe_scenario = _validate_scenario_id(scenario_id)
     safe_user = _validate_id(user_id, "user_id")
-    root = scenario_runs_root(safe_scenario, safe_user)
-    return sorted(path.name for path in root.iterdir() if path.is_dir())
+    out: set[str] = set()
+    for project_dir in projects_root().iterdir():
+        if not project_dir.is_dir():
+            continue
+        sessions_root = project_dir / "users" / safe_user / "sessions"
+        if not sessions_root.is_dir():
+            continue
+        for session_dir in sessions_root.iterdir():
+            if (session_dir / "runs" / safe_scenario).is_dir():
+                out.add(project_dir.name)
+                break
+    return sorted(out)
 
 
 def list_session_user_ids(scenario_id: str) -> list[str]:
     safe_scenario = _validate_scenario_id(scenario_id)
-    runs_root = scenario_home(safe_scenario) / "runs"
-    if not runs_root.is_dir():
-        return []
-    return sorted(path.name for path in runs_root.iterdir() if path.is_dir())
+    out: set[str] = set()
+    for project_dir in projects_root().iterdir():
+        users_root = project_dir / "users"
+        if not users_root.is_dir():
+            continue
+        for user_dir in users_root.iterdir():
+            sessions_root = user_dir / "sessions"
+            if not sessions_root.is_dir():
+                continue
+            for session_dir in sessions_root.iterdir():
+                if (session_dir / "runs" / safe_scenario).is_dir():
+                    out.add(user_dir.name)
+                    break
+    return sorted(out)
 
 
 def list_session_scenario_ids() -> list[str]:
-    root = runs_root()
-    if not root.is_dir():
-        return []
-    ids: list[str] = []
-    for child in root.iterdir():
-        if not child.is_dir() or child.name.startswith("_"):
+    ids: set[str] = set()
+    for project_dir in projects_root().iterdir():
+        users_root = project_dir / "users"
+        if not users_root.is_dir():
             continue
-        if not _SCENARIO_ID_PATTERN.fullmatch(child.name):
-            continue
-        ids.append(child.name)
+        for user_dir in users_root.iterdir():
+            sessions_root = user_dir / "sessions"
+            if not sessions_root.is_dir():
+                continue
+            for session_dir in sessions_root.iterdir():
+                runs_root = session_dir / "runs"
+                if not runs_root.is_dir():
+                    continue
+                for scenario_dir in runs_root.iterdir():
+                    name = scenario_dir.name
+                    if scenario_dir.is_dir() and _SCENARIO_ID_PATTERN.fullmatch(name):
+                        ids.add(name)
     return sorted(ids)
+
+
+def find_session_json_path(scenario_id: str, user_id: str, project_id: str, run_id: str) -> Path | None:
+    safe_scenario = _validate_scenario_id(scenario_id)
+    safe_user = _validate_id(user_id, "user_id")
+    safe_proj = _validate_id(project_id, "project_id")
+    safe_run = _validate_id(run_id, "run_id")
+    root = _project_root(safe_proj) / "users" / safe_user / "sessions"
+    if not root.is_dir():
+        return None
+    for session_dir in root.iterdir():
+        candidate = session_dir / "runs" / safe_scenario / f"{safe_run}.json"
+        if candidate.is_file():
+            return candidate
+    return None

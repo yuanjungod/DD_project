@@ -12,14 +12,63 @@ from app.core.database import get_db
 from app.models.entities import Project, ProjectAccess, User
 from app.schemas import ProjectCreate, ProjectRead, ProjectUpdate
 from app.services.company_identity import company_key_from_name, normalize_application_id
+from app.services.platform_uploads_store import copy_platform_uploads_to_project
 from app.services.project_agent_overrides_store import project_agent_override_records
 from app.services.project_resource_catalog import copy_project_resource_configs_tree
 from app.services.project_resources_store import append_resources as append_project_resources_fs
 from app.services.project_resources_store import delete_project_resources_tree
-from app.services.fs_layout import project_agent_overrides_manifest_path, project_tree_dir
+from app.services.skill_files import copy_skill_directories_to_project
+from app.services.workflow_snapshots import build_workflow_snapshot
+from app.services.fs_layout import project_agent_overrides_manifest_path, project_uploads_dir
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+def _selected_platform_file_ids_from_company_config(company_config: dict) -> list[str]:
+    resources = company_config.get("resources", {}) if isinstance(company_config, dict) else {}
+    selected: list[str] = []
+    selected.extend(resources.get("uploaded_files") or [])
+    for scope in resources.get("agent_resource_scopes") or []:
+        if not isinstance(scope, dict):
+            continue
+        raw_ids = scope.get("uploaded_file_ids") or scope.get("file_ids") or []
+        if isinstance(raw_ids, str):
+            selected.extend(x.strip() for x in raw_ids.split(","))
+        elif isinstance(raw_ids, list):
+            selected.extend(str(x).strip() for x in raw_ids)
+    # de-duplicate while preserving order
+    out: list[str] = []
+    seen: set[str] = set()
+    for file_id in selected:
+        fid = str(file_id or "").strip()
+        if fid and fid not in seen:
+            out.append(fid)
+            seen.add(fid)
+    return out
+
+
+def _selected_platform_file_ids_for_project_create(payload: ProjectCreate) -> list[str]:
+    return _selected_platform_file_ids_from_company_config(payload.company_config.model_dump())
+
+
+def _selected_skill_directories_from_company_config(company_config: dict) -> list[str]:
+    snapshot = build_workflow_snapshot(company_config, project_id=None)
+    rows = snapshot.get("skill_packages", [])
+    out: list[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        directory_name = str(row.get("directory_name") or "").strip()
+        if directory_name and directory_name not in seen:
+            out.append(directory_name)
+            seen.add(directory_name)
+    return out
+
+
+def _selected_skill_directories_for_project_create(payload: ProjectCreate) -> list[str]:
+    return _selected_skill_directories_from_company_config(payload.company_config.model_dump())
 
 
 def _next_version(db: Session, company_key: str, application_id: str) -> int:
@@ -72,6 +121,8 @@ def create_project(
     db.add(ProjectAccess(project_id=project.id, user_id=user.id, access_role="owner"))
     db.commit()
     append_project_resources_fs(project.id, payload.initial_resources)
+    copy_platform_uploads_to_project(project.id, _selected_platform_file_ids_for_project_create(payload))
+    copy_skill_directories_to_project(project.id, _selected_skill_directories_for_project_create(payload))
     db.refresh(project)
     return project
 
@@ -108,8 +159,17 @@ def update_project(
     if payload.name is not None:
         project.name = payload.name
     if payload.company_config is not None:
-        project.company_config = payload.company_config.model_dump()
+        company_config = payload.company_config.model_dump()
+        project.company_config = company_config
         project.company_key = company_key_from_name(payload.company_config.target_company.name)
+        copy_platform_uploads_to_project(
+            project.id,
+            _selected_platform_file_ids_from_company_config(company_config),
+        )
+        copy_skill_directories_to_project(
+            project.id,
+            _selected_skill_directories_from_company_config(company_config),
+        )
     if payload.application_id is not None:
         try:
             project.application_id = normalize_application_id(payload.application_id)
@@ -143,8 +203,8 @@ def clone_project_version(
     db.refresh(clone)
 
     copy_project_resource_configs_tree(source.id, clone.id)
-    src_uploads = project_tree_dir(source.id) / "uploads"
-    dst_uploads = project_tree_dir(clone.id) / "uploads"
+    src_uploads = project_uploads_dir(source.id)
+    dst_uploads = project_uploads_dir(clone.id)
     if src_uploads.is_dir():
         shutil.copytree(src_uploads, dst_uploads, dirs_exist_ok=True)
     src_overrides = project_agent_overrides_manifest_path(source.id)

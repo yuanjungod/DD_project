@@ -72,7 +72,7 @@ The backend owns durable entities:
 - `AgentStep`
 - `Report`
 
-Configuration catalogs are file-first where practical. **Global agent templates** live under **`catalog/agents/{agent_id}.yaml`**. **Scenario folders** live under **`catalog/scenarios/{scenario_id}/`** (built-in) or **`.dd_project/data/scenarios/{scenario_id}/`** (user-created). Each scenario folder contains **`scenario.yaml`** plus an **`agents/`** subdirectory. Run/session/output runtime data is centralized under **`.dd_project/runs/{scenario_id}/{user_id}/{project_id}/`**. **`GET/POST/PATCH /workflow-templates`** read and write scenario folders, while **`GET/POST/PATCH /agent-templates`** read and write the global agent library.
+Configuration catalogs are file-first where practical. **Global agent templates** live under **`catalog/agents/{agent_id}.yaml`**. **Scenario folders** live under **`catalog/scenarios/{scenario_id}/`** (built-in) or **`.dd_project/data/scenarios/{scenario_id}/`** (user-created). Each scenario folder contains **`scenario.yaml`** plus an **`agents/`** subdirectory. Run/session/output runtime data is centralized under **`.dd_project/projects/{project_id}/users/{user_id}/sessions/{session_id}/runs/{scenario_id}/`**. **`GET/POST/PATCH /workflow-templates`** read and write scenario folders, while **`GET/POST/PATCH /agent-templates`** read and write the global agent library.
 
 For local development the backend defaults to SQLite at **`DD_DATA_ROOT/platform/dd_platform.db`** (`DD_DATA_ROOT` defaults to repo-root **`.dd_project/data`**). Set **`DATABASE_URL`** to use PostgreSQL or another explicit database.
 

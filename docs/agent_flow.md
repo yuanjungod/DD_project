@@ -37,7 +37,7 @@ Current templates:
 
 At run time, the backend sends an immutable **workflow snapshot** to the agent service. The snapshot includes the workflow graph, agent templates, Anthropic-style skill packages, executable tools, resource configs, and AgentScope ReAct parameters used by that run.
 
-The agent service writes a **session JSON** for each `POST /runs` (on by default): `.dd_project/runs/<scenario_id>/<user_id>/<project_id>/<run_id>.json`. Step outputs live under the same user/project branch.
+The agent service writes a **session JSON** for each `POST /runs` (on by default): `.dd_project/projects/<project_id>/users/<user_id>/sessions/<session_id>/runs/<scenario_id>/<run_id>.json`. Step outputs live under the same session branch.
 
 Each agent template can bind:
 

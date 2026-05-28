@@ -46,6 +46,18 @@ def dd_flow_sqlite_dir() -> Path:
     return d
 
 
+def dd_project_projects_dir() -> Path:
+    d = dd_flow_home_dir() / "projects"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def dd_project_project_home(project_id: str) -> Path:
+    d = dd_project_projects_dir() / project_id
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def builtin_resource_configs_dir() -> Path:
     return repo_root() / "catalog" / "resource_configs"
 
@@ -67,33 +79,39 @@ def platform_resource_configs_overlay_dir() -> Path:
 
 
 def project_tree_dir(project_id: str) -> Path:
-    d = data_root() / "projects" / project_id
+    d = dd_project_project_home(project_id)
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
 def project_resources_manifest_path(project_id: str) -> Path:
-    p = project_tree_dir(project_id) / "resources" / "manifest.json"
+    p = project_tree_dir(project_id) / "shared" / "resources" / "manifest.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     return p
 
 
 def project_agent_overrides_manifest_path(project_id: str) -> Path:
-    # Normalized location under DD project config tree.
-    p = dd_flow_config_dir() / "projects" / project_id / "agent_overrides.json"
+    p = project_tree_dir(project_id) / "meta" / "agent_overrides.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     return p
 
 
 def project_resource_configs_dir(project_id: str) -> Path:
-    d = project_tree_dir(project_id) / "resource_configs"
+    d = project_tree_dir(project_id) / "shared" / "resource_configs"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
 def project_uploads_dir(project_id: str) -> Path:
     """Binary blobs for uploaded files (file_id → single file under this directory)."""
-    d = dd_flow_sqlite_dir() / "projects" / project_id / "uploads"
+    d = project_tree_dir(project_id) / "shared" / "uploads"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def project_skills_dir(project_id: str) -> Path:
+    """Project-local copied skill packages used by mounted runtime."""
+    d = project_tree_dir(project_id) / "shared" / "skills"
     d.mkdir(parents=True, exist_ok=True)
     return d
 

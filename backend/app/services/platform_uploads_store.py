@@ -10,7 +10,7 @@ from typing import Any
 
 from app.models.entities import new_id
 from app.schemas.dto import LibraryFileRead
-from app.services.fs_layout import platform_uploads_dir, platform_uploads_manifest_path
+from app.services.fs_layout import platform_uploads_dir, platform_uploads_manifest_path, project_uploads_dir
 from app.services.project_uploads_store import UPLOAD_MAX_BYTES
 
 _MANIFEST_VERSION = 1
@@ -146,3 +146,24 @@ def delete_platform_upload(file_id: str) -> bool:
     mpath = platform_uploads_manifest_path()
     _atomic_write(mpath, json.dumps({"version": _MANIFEST_VERSION, "items": kept}, ensure_ascii=False, indent=2) + "\n")
     return True
+
+
+def copy_platform_uploads_to_project(project_id: str, file_ids: list[str]) -> int:
+    """Copy selected platform file-library blobs into the project's shared upload directory."""
+    copied = 0
+    target_dir = project_uploads_dir(project_id)
+    seen: set[str] = set()
+    for raw in file_ids:
+        file_id = str(raw or "").strip()
+        if not file_id or file_id in seen:
+            continue
+        seen.add(file_id)
+        src = blob_path(file_id)
+        if not src.is_file():
+            continue
+        dst = target_dir / file_id
+        if dst.exists():
+            continue
+        dst.write_bytes(src.read_bytes())
+        copied += 1
+    return copied

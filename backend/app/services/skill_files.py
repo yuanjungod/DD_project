@@ -8,6 +8,7 @@ from typing import Any
 import yaml
 
 from app.services.catalog_records import SkillPackageRecord
+from app.services.fs_layout import project_skills_dir
 
 ROOT = Path(__file__).resolve().parents[3]
 SKILLS_DIR = ROOT / "agent_service" / "skills"
@@ -87,6 +88,27 @@ def load_skill_packages_from_disk() -> list[SkillPackageRecord]:
 
 def skill_package_disk_path(directory_name: str) -> str:
     return str(_safe_skill_dir(directory_name))
+
+
+def copy_skill_directories_to_project(project_id: str, directory_names: list[str]) -> int:
+    """Copy selected skill directories into project shared storage."""
+    target_root = project_skills_dir(project_id)
+    copied = 0
+    seen: set[str] = set()
+    for raw in directory_names:
+        directory_name = str(raw or "").strip()
+        if not directory_name or directory_name in seen:
+            continue
+        seen.add(directory_name)
+        src = _safe_skill_dir(directory_name)
+        if not src.is_dir():
+            continue
+        dst = target_root / directory_name
+        if dst.exists():
+            continue
+        shutil.copytree(src, dst)
+        copied += 1
+    return copied
 
 
 def _safe_skill_dir(directory_name: str) -> Path:
