@@ -113,7 +113,8 @@ export function WorkflowsHubPage() {
   const [editingWorkflowId, setEditingWorkflowId] = useState<string | null>(null);
   const [builderSubTab, setBuilderSubTab] = useState<BuilderSubTab>("create");
 
-  const availableAgentIds = useMemo(() => agents.map((agent) => agent.id), [agents]);
+  const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents]);
+  const selectableAgents = useMemo(() => agents.filter((agent) => agent.enabled), [agents]);
   const allowMasterSubMode = Boolean(editingWorkflowId);
 
   const loadPublishedWorkflowTemplates = useCallback(async () => {
@@ -215,7 +216,7 @@ export function WorkflowsHubPage() {
         graph: graphFromNodeForms(nodeForms, allowMasterSubMode ? orchestrationMode : "linear"),
       };
       if (!payload.graph.nodes.length) {
-        throw new Error("请至少配置一个节点并选择主Agent。");
+        throw new Error("请至少配置一个步骤并选择 Agent。");
       }
       if (editingWorkflowId) {
         await updateWorkflowTemplate(editingWorkflowId, payload);
@@ -375,7 +376,7 @@ export function WorkflowsHubPage() {
                   description={
                     editingWorkflowId
                       ? `正在编辑 ${editingWorkflowId}；保存后更新模板内容，已发布场景需重新发布才会同步到「使用场景」。`
-                      : "逗号分隔 Agent 顺序；先保存，再在「已保存模板」里发布。"
+                      : "填写基本信息并选择执行顺序，保存后在「已保存模板」中发布。"
                   }
                 >
                   {editingWorkflowId ? (
@@ -383,122 +384,177 @@ export function WorkflowsHubPage() {
                       <span>
                         编辑模式 · <code>{editingWorkflowId}</code>
                       </span>
-                      <button type="button" className="ghost-button" onClick={() => resetWorkflowForm()}>
+                      <button type="button" className="secondary-button" onClick={() => resetWorkflowForm()}>
                         取消编辑
                       </button>
                     </div>
                   ) : null}
-                  <form className="form" onSubmit={handleSubmit}>
-                    <label>
-                      ID
-                      <input
-                        value={form.id}
-                        disabled={Boolean(editingWorkflowId)}
-                        onChange={(event) => setForm({ ...form, id: event.target.value })}
-                      />
-                    </label>
-                    <label>
-                      名称
-                      <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-                    </label>
-                    <label>
-                      模板分类
-                      <input
-                        value={form.workflow_template}
-                        onChange={(event) => setForm({ ...form, workflow_template: event.target.value })}
-                      />
-                    </label>
-                    <label>
-                      编排模式
-                      <select
-                        value={orchestrationMode}
-                        onChange={(event) => {
-                          const next = event.target.value as OrchestrationMode;
-                          if (!allowMasterSubMode && next === "master_sub") return;
-                          setOrchestrationMode(next);
-                        }}
-                      >
-                        <option value="linear">串行编排（单Agent节点）</option>
-                        {allowMasterSubMode ? <option value="master_sub">主从编排（主Agent + 从Agent）</option> : null}
-                      </select>
-                      {!allowMasterSubMode ? (
-                        <small className="muted">新增流程模板暂不支持主从编排。</small>
-                      ) : null}
-                    </label>
-                    <label>
-                      节点配置
-                      <div className="workflow-node-editor">
-                        {nodeForms.map((node, index) => (
-                          <div key={node.key} className="workflow-node-editor__row">
-                            <div className="workflow-node-editor__row-head">
-                              <strong>节点 {index + 1}</strong>
-                              <button type="button" className="secondary-button" onClick={() => removeNodeForm(node.key)}>
-                                删除节点
-                              </button>
-                            </div>
-                            <label>
-                              主Agent
-                              <select
-                                value={node.master}
-                                onChange={(event) => updateNodeForm(node.key, { master: event.target.value })}
-                              >
-                                <option value="">请选择</option>
-                                {availableAgentIds.map((agentId) => (
-                                  <option key={`${node.key}-${agentId}`} value={agentId}>
-                                    {agentId}
-                                  </option>
-                                ))}
-                                {node.master && !availableAgentIds.includes(node.master) ? (
-                                  <option value={node.master}>{node.master}</option>
-                                ) : null}
-                              </select>
-                            </label>
-                            {allowMasterSubMode && orchestrationMode === "master_sub" ? (
-                              <fieldset>
-                                <legend>从Agent（可多选）</legend>
-                                <div className="checkbox-group">
-                                  {availableAgentIds
-                                    .filter((agentId) => agentId !== node.master)
-                                    .map((agentId) => (
-                                      <label key={`${node.key}-sub-${agentId}`}>
-                                        <input
-                                          type="checkbox"
-                                          checked={node.subAgents.includes(agentId)}
-                                          onChange={() => toggleSubAgentForNode(node.key, agentId)}
-                                        />
-                                        {agentId}
-                                      </label>
-                                    ))}
-                                  {node.subAgents
-                                    .filter((agentId) => !availableAgentIds.includes(agentId))
-                                    .map((agentId) => (
-                                      <label key={`${node.key}-sub-missing-${agentId}`}>
-                                        <input
-                                          type="checkbox"
-                                          checked
-                                          onChange={() => toggleSubAgentForNode(node.key, agentId)}
-                                        />
-                                        {agentId}
-                                      </label>
-                                    ))}
-                                </div>
-                              </fieldset>
-                            ) : null}
-                          </div>
-                        ))}
-                        <button type="button" className="secondary-button" onClick={addNodeForm}>
-                          + 新增节点
+                  <form className="form workflow-template-form" onSubmit={handleSubmit}>
+                    <div className="form-section workflow-template-form__meta">
+                      <h3 className="form-section__title">基本信息</h3>
+                      <div className="workflow-template-form__meta-grid">
+                        <label>
+                          ID
+                          <input
+                            value={form.id}
+                            disabled={Boolean(editingWorkflowId)}
+                            onChange={(event) => setForm({ ...form, id: event.target.value })}
+                            placeholder="留空则自动生成"
+                          />
+                        </label>
+                        <label>
+                          名称
+                          <input
+                            value={form.name}
+                            onChange={(event) => setForm({ ...form, name: event.target.value })}
+                            required
+                          />
+                        </label>
+                        <label>
+                          模板分类
+                          <input
+                            value={form.workflow_template}
+                            onChange={(event) => setForm({ ...form, workflow_template: event.target.value })}
+                          />
+                        </label>
+                        <label className="workflow-template-form__span-2">
+                          描述
+                          <input
+                            value={form.description}
+                            onChange={(event) => setForm({ ...form, description: event.target.value })}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    {allowMasterSubMode ? (
+                      <label className="workflow-template-form__mode">
+                        编排模式
+                        <select
+                          value={orchestrationMode}
+                          onChange={(event) => setOrchestrationMode(event.target.value as OrchestrationMode)}
+                        >
+                          <option value="linear">串行</option>
+                          <option value="master_sub">主从（仅编辑旧模板）</option>
+                        </select>
+                      </label>
+                    ) : null}
+
+                    <div className="form-section workflow-pipeline">
+                      <div className="workflow-pipeline__header">
+                        <div>
+                          <h3 className="form-section__title">执行顺序</h3>
+                          <p className="muted">按步骤依次执行，点击卡片选择 Agent。</p>
+                        </div>
+                        <button type="button" className="secondary-button workflow-pipeline__add-step" onClick={addNodeForm}>
+                          添加步骤
                         </button>
                       </div>
-                    </label>
-                    <label>
-                      描述
-                      <input
-                        value={form.description}
-                        onChange={(event) => setForm({ ...form, description: event.target.value })}
-                      />
-                    </label>
-                    <button type="submit">{editingWorkflowId ? "保存修改" : "保存"}</button>
+
+                      {selectableAgents.length === 0 ? (
+                        <p className="workflow-pipeline__empty">暂无可用 Agent，请先在「Agent 配置」中创建并启用。</p>
+                      ) : (
+                        <ol className="workflow-pipeline__list">
+                          {nodeForms.map((node, index) => {
+                            const selected = node.master ? agentById.get(node.master) : undefined;
+                            const missingSelected = node.master && !selected;
+                            const collaboratorIds = [
+                              ...selectableAgents
+                                .filter((agent) => agent.id !== node.master)
+                                .map((agent) => agent.id),
+                              ...node.subAgents.filter(
+                                (agentId) =>
+                                  agentId !== node.master && !selectableAgents.some((agent) => agent.id === agentId),
+                              ),
+                            ];
+                            return (
+                              <li key={node.key} className="workflow-pipeline__item">
+                                {index > 0 ? <div className="workflow-pipeline__connector" aria-hidden="true" /> : null}
+                                <article className="workflow-pipeline__step">
+                                  <div className="workflow-pipeline__step-head">
+                                    <span className="workflow-pipeline__step-badge">{index + 1}</span>
+                                    <div className="workflow-pipeline__step-title">
+                                      <strong>步骤 {index + 1}</strong>
+                                      {selected ? (
+                                        <span className="workflow-pipeline__step-sub">{selected.role}</span>
+                                      ) : missingSelected ? (
+                                        <span className="workflow-pipeline__step-sub muted">{node.master}</span>
+                                      ) : (
+                                        <span className="workflow-pipeline__step-sub muted">未选择</span>
+                                      )}
+                                    </div>
+                                    {nodeForms.length > 1 ? (
+                                      <button
+                                        type="button"
+                                        className="workflow-pipeline__remove"
+                                        onClick={() => removeNodeForm(node.key)}
+                                      >
+                                        移除
+                                      </button>
+                                    ) : null}
+                                  </div>
+
+                                  <div className="workflow-pipeline__agent-grid" role="listbox" aria-label={`步骤 ${index + 1} Agent`}>
+                                    {selectableAgents.map((agent) => (
+                                      <button
+                                        key={`${node.key}-${agent.id}`}
+                                        type="button"
+                                        role="option"
+                                        aria-selected={node.master === agent.id}
+                                        className={`workflow-agent-chip ${node.master === agent.id ? "is-selected" : ""}`}
+                                        onClick={() => updateNodeForm(node.key, { master: agent.id })}
+                                      >
+                                        <span className="workflow-agent-chip__name">{agent.name || agent.id}</span>
+                                        <code>{agent.id}</code>
+                                      </button>
+                                    ))}
+                                    {missingSelected ? (
+                                      <button
+                                        type="button"
+                                        className="workflow-agent-chip is-selected is-missing"
+                                        onClick={() => updateNodeForm(node.key, { master: node.master })}
+                                      >
+                                        <span className="workflow-agent-chip__name">{node.master}</span>
+                                        <code>不在当前目录</code>
+                                      </button>
+                                    ) : null}
+                                  </div>
+
+                                  {allowMasterSubMode && orchestrationMode === "master_sub" && node.master ? (
+                                    <div className="workflow-pipeline__collab">
+                                      <p className="workflow-pipeline__collab-label">协作（可选，多选）</p>
+                                      <div className="workflow-pipeline__agent-grid workflow-pipeline__agent-grid--compact">
+                                        {collaboratorIds.map((agentId) => {
+                                          const agent = agentById.get(agentId);
+                                          const checked = node.subAgents.includes(agentId);
+                                          return (
+                                            <button
+                                              key={`${node.key}-collab-${agentId}`}
+                                              type="button"
+                                              className={`workflow-agent-chip workflow-agent-chip--collab ${checked ? "is-selected" : ""}`}
+                                              onClick={() => toggleSubAgentForNode(node.key, agentId)}
+                                            >
+                                              <span className="workflow-agent-chip__name">
+                                                {agent?.name || agentId}
+                                              </span>
+                                              <code>{agentId}</code>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                </article>
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      )}
+                    </div>
+
+                    <div className="workflow-template-form__actions">
+                      <button type="submit">{editingWorkflowId ? "保存修改" : "保存"}</button>
+                    </div>
                   </form>
                 </SectionCard>
               ) : null}
