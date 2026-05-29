@@ -5,6 +5,7 @@ import unittest
 from fastapi.testclient import TestClient
 
 from agent_service.api.main import app
+from agent_service.settings import _DEV_AGENT_API_KEY
 
 
 class AgentServiceAuthTests(unittest.TestCase):
@@ -20,7 +21,7 @@ class AgentServiceAuthTests(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
 
     def test_config_with_valid_api_key(self) -> None:
-        response = self.client.get("/config", headers={"X-Agent-Api-Key": "local-dd-agent-api-key"})
+        response = self.client.get("/config", headers={"X-Agent-Api-Key": _DEV_AGENT_API_KEY})
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertIn("agents", body)

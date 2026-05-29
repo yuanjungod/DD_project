@@ -13,9 +13,15 @@ from app.models.entities import Engagement, EngagementAccess, User
 from app.schemas import EngagementCreate, EngagementRead, EngagementUpdate
 from app.services.company_identity import company_key_from_name, normalize_application_id
 from app.services.engagement_resource_catalog import copy_engagement_resource_configs_tree
+from app.services.engagement_access import engagement_owner_user_id
 from app.services.engagement_resources_store import append_resources as append_engagement_resources_fs
-from app.services.engagement_resources_store import delete_engagement_resources_tree
-from app.services.fs_layout import engagement_agent_overrides_manifest_path, engagement_uploads_dir, register_engagement_tree
+from app.services.fs_layout import (
+    delete_engagement_filesystem_tree,
+    engagement_agent_overrides_manifest_path,
+    engagement_resources_manifest_path,
+    engagement_uploads_dir,
+    register_engagement_tree,
+)
 from app.services.platform_uploads_store import copy_platform_uploads_to_engagement
 from app.services.skill_files import copy_skill_directories_to_engagement
 from app.services.instance_config_store import (
@@ -164,9 +170,10 @@ def update_engagement(
 ) -> Engagement:
     engagement = ensure_engagement_write_access(db, user, engagement_id)
     cfg0 = engagement.company_config if isinstance(engagement.company_config, dict) else {}
+    owner_id = engagement_owner_user_id(db, engagement.id) or user.id
     register_engagement_tree(
         engagement.id,
-        user.id,
+        owner_id,
         str(cfg0.get("workflow_template_id") or "_default_workflow"),
     )
     if payload.name is not None:
@@ -177,7 +184,7 @@ def update_engagement(
             raise HTTPException(status_code=400, detail="instance_config or company_config required")
         register_engagement_tree(
             engagement.id,
-            user.id,
+            owner_id,
             str(company_config.get("workflow_template_id") or "_default_workflow"),
         )
         engagement.company_config = company_config
@@ -231,6 +238,11 @@ def clone_engagement_version(
     db.refresh(clone)
 
     copy_engagement_resource_configs_tree(source.id, clone.id)
+    src_manifest = engagement_resources_manifest_path(source.id)
+    if src_manifest.is_file():
+        dst_manifest = engagement_resources_manifest_path(clone.id)
+        dst_manifest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src_manifest, dst_manifest)
     src_uploads = engagement_uploads_dir(source.id)
     dst_uploads = engagement_uploads_dir(clone.id)
     if src_uploads.is_dir():
@@ -251,4 +263,4 @@ def delete_engagement(
     eid = engagement.id
     db.delete(engagement)
     db.commit()
-    delete_engagement_resources_tree(eid)
+    delete_engagement_filesystem_tree(eid)

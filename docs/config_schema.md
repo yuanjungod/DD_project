@@ -8,6 +8,17 @@ This document describes the configuration contract shared by the frontend, backe
 - `engagement`: concrete business instance bound to a company/application/version/resources; it answers "what this run is for".
 - API routes now use `/engagements/*` for engagement resources and execution state.
 
+### Configuration naming (read this once)
+
+| Surface | Field | Meaning |
+| --- | --- | --- |
+| Database | `engagements.company_config` | JSON blob storing the canonical **instance** config (legacy column name). |
+| REST API (preferred) | `instance_config` | Create/update payload; validated by `shared/instance_config.py`. |
+| REST API (deprecated) | `company_config` | Alias of `instance_config` on some routes. |
+| Agent service `POST /runs` | `company_config` | **Wire format** with `target_company` + `workflow_task` built by `to_agent_company_config()`. |
+
+Do not confuse repo-root **`shared/`** (Python helpers + JSON schema docs) with **`.harness_project/.../shared/`** (per-engagement uploads/skills on disk).
+
 ## Local runtime environment
 
 | Variable | Service | Role |

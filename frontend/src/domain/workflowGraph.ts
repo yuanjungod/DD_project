@@ -113,13 +113,13 @@ function collectNodeAgentIds(node: { agent_template_id?: string; sub_agent_templ
   return ids;
 }
 
-/** Matches `shared/workflow_graph.resolve_graph_node_ids`. */
+/** Matches `shared/workflow_graph.resolve_graph_node_ids` (topological order; agents optional). */
 export function resolveGraphNodeIds(graph: WorkflowGraph | null | undefined): string[] {
   if (!graph || graphNodes(graph).length === 0) {
     return [];
   }
   try {
-    return resolveGraphExecutionLevels(graph).flat();
+    return resolveGraphLayoutLevels(graph).flat();
   } catch {
     return [];
   }

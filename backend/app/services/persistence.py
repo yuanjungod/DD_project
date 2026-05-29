@@ -46,25 +46,6 @@ def _clear_run_derived_records(db: Session, run_id: str) -> None:
         db.delete(report)
 
 
-def persist_run_result(db: Session, engagement_id: str, result: dict) -> AgentRun:
-    run = AgentRun(
-        id=result["run_id"],
-        engagement_id=engagement_id,
-        session_id=None,
-        attempt_index=1,
-        status=result["status"],
-        completed_at=datetime.utcnow() if result["status"] == "completed" else None,
-        raw_result=result,
-    )
-    db.add(run)
-
-    _attach_run_children(db, engagement_id, run, result)
-
-    db.commit()
-    db.refresh(run)
-    return run
-
-
 def create_pending_agent_run(
     db: Session,
     engagement_id: str,

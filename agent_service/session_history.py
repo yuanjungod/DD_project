@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
@@ -54,7 +55,7 @@ NOOP_SESSION_RECORDER: RunSessionRecorder = _NoopRecorder()
 class JsonSessionRecorder:
     """Writes run session JSON with incremental events."""
 
-    __slots__ = ("_document", "_path")
+    __slots__ = ("_document", "_lock", "_path")
 
     def __init__(
         self,
@@ -67,6 +68,7 @@ class JsonSessionRecorder:
         self._path = session_json_path(workflow_template_id, user_id, engagement_id, run_id, session_id)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._document: dict[str, Any] | None = None
+        self._lock = threading.Lock()
 
     @classmethod
     def open_for_resume(
@@ -89,62 +91,68 @@ class JsonSessionRecorder:
         obj = object.__new__(cls)
         obj._path = path
         obj._document = json.loads(path.read_text(encoding="utf-8"))
+        obj._lock = threading.Lock()
         return obj
 
     def start(self, payload: dict[str, Any]) -> None:
-        now = _utc_iso()
-        self._document = {
-            "session_format_version": _SESSION_VERSION,
-            "started_at": now,
-            "updated_at": now,
-            "status": "running",
-            "events": [{"type": "run_started", "ts": now}],
-            **payload,
-        }
-        self._flush()
+        with self._lock:
+            now = _utc_iso()
+            self._document = {
+                "session_format_version": _SESSION_VERSION,
+                "started_at": now,
+                "updated_at": now,
+                "status": "running",
+                "events": [{"type": "run_started", "ts": now}],
+                **payload,
+            }
+            self._flush()
 
     def append_event(self, event: dict[str, Any]) -> None:
-        if self._document is None:
-            return
-        entry = dict(event)
-        entry.setdefault("ts", _utc_iso())
-        self._document.setdefault("events", []).append(entry)
-        self._document["updated_at"] = entry["ts"]
-        self._flush()
+        with self._lock:
+            if self._document is None:
+                return
+            entry = dict(event)
+            entry.setdefault("ts", _utc_iso())
+            self._document.setdefault("events", []).append(entry)
+            self._document["updated_at"] = entry["ts"]
+            self._flush()
 
     def mark_paused(self, partial_result: dict[str, Any]) -> None:
-        if self._document is None:
-            return
-        now = _utc_iso()
-        self._document["status"] = "paused"
-        self._document["updated_at"] = now
-        self._document["partial_result"] = partial_result
-        self._document.setdefault("events", []).append({"type": "run_paused", "ts": now})
-        self._flush()
+        with self._lock:
+            if self._document is None:
+                return
+            now = _utc_iso()
+            self._document["status"] = "paused"
+            self._document["updated_at"] = now
+            self._document["partial_result"] = partial_result
+            self._document.setdefault("events", []).append({"type": "run_paused", "ts": now})
+            self._flush()
 
     def finalize_success(self, result_payload: dict[str, Any]) -> None:
-        if self._document is None:
-            return
-        now = _utc_iso()
-        self._document["status"] = "completed"
-        self._document["updated_at"] = now
-        self._document["result"] = result_payload
-        self._document.setdefault("events", []).append({"type": "run_completed", "ts": now})
-        self._flush()
+        with self._lock:
+            if self._document is None:
+                return
+            now = _utc_iso()
+            self._document["status"] = "completed"
+            self._document["updated_at"] = now
+            self._document["result"] = result_payload
+            self._document.setdefault("events", []).append({"type": "run_completed", "ts": now})
+            self._flush()
 
     def finalize_failure(self, message: str, partial_result: dict[str, Any] | None = None) -> None:
-        if self._document is None:
-            return
-        now = _utc_iso()
-        self._document["status"] = "failed"
-        self._document["updated_at"] = now
-        self._document["error_message"] = message
-        if partial_result is not None:
-            self._document["partial_result"] = partial_result
-        self._document.setdefault("events", []).append(
-            {"type": "run_failed", "ts": now, "message": message[:4000]},
-        )
-        self._flush()
+        with self._lock:
+            if self._document is None:
+                return
+            now = _utc_iso()
+            self._document["status"] = "failed"
+            self._document["updated_at"] = now
+            self._document["error_message"] = message
+            if partial_result is not None:
+                self._document["partial_result"] = partial_result
+            self._document.setdefault("events", []).append(
+                {"type": "run_failed", "ts": now, "message": message[:4000]},
+            )
+            self._flush()
 
     def _flush(self) -> None:
         if self._document is None:

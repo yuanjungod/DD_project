@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import threading
 from typing import Any
 from uuid import uuid4
 
@@ -183,6 +184,8 @@ class WorkflowEngine:
                 node_results[node_id].append(step.result)
 
         step_seq = resume_from_step_index
+        total_planned_steps = len(flat_plan)
+        state_lock = threading.Lock()
 
         def predecessor_results(node_id: str) -> list[AgentResult]:
             ordered_preds = [node for node in topo_node_ids if node in predecessor_map.get(node_id, [])]
@@ -204,15 +207,17 @@ class WorkflowEngine:
                 if definition is None:
                     raise ValueError(f"Workflow snapshot missing agent definition: {agent_name}")
                 runner = ConfiguredAgentRunner(definition, execution_context=execution_context)
-                nonlocal step_seq
-                step_seq += 1
-                step = AgentStep(id=f"{run_id}_step_{step_seq:03d}", agent=agent_name, status="running")
+                with state_lock:
+                    nonlocal step_seq
+                    step_seq += 1
+                    current_seq = step_seq
+                    step = AgentStep(id=f"{run_id}_step_{current_seq:03d}", agent=agent_name, status="running")
                 node_steps.append(step)
                 recorder.append_event({"type": "step_started", "step_id": step.id, "agent": agent_name})
                 notify_run_progress(engagement_id, run_id, step)
                 inject_ctx = (
                     continuation_context
-                    if step_seq == 1 and resume_from_step_index == 0
+                    if current_seq == 1 and resume_from_step_index == 0
                     else None
                 )
                 planned_output_dir = str(
@@ -247,16 +252,8 @@ class WorkflowEngine:
                             "error": msg,
                         },
                     )
-                    return (
-                        node_steps,
-                        node_agent_results,
-                        RunResult(
-                            run_id=run_id,
-                            engagement_id=engagement_id,
-                            status="failed",
-                            steps=steps + node_steps,
-                        ),
-                    )
+                    notify_run_progress(engagement_id, run_id, step)
+                    return node_steps, node_agent_results, None
                 step.status = result.status
                 finalized_dir, output_readme_path = ensure_step_output_handoff(
                     planned_output_dir,
@@ -279,9 +276,11 @@ class WorkflowEngine:
                         "output_readme_path": output_readme_path,
                     },
                 )
+                if pause_after_each_step and current_seq < total_planned_steps:
+                    return node_steps, node_agent_results, None
             return node_steps, node_agent_results, None
 
-        for level_idx, level_node_ids in enumerate(execution_levels):
+        for level_node_ids in execution_levels:
             pending_nodes = [
                 node_id
                 for node_id in level_node_ids
@@ -295,33 +294,49 @@ class WorkflowEngine:
                 continue
 
             level_outputs: dict[str, tuple[list[AgentStep], list[AgentResult], RunResult | None]] = {}
-            max_workers = max(1, len(pending_nodes))
+            max_workers = 1 if pause_after_each_step else max(1, len(pending_nodes))
             with ThreadPoolExecutor(max_workers=max_workers) as pool:
                 futures = {pool.submit(run_node, node_id): node_id for node_id in pending_nodes}
                 for future in futures:
                     node_id = futures[future]
                     level_outputs[node_id] = future.result()
 
+            pause_after_level = False
             for node_id in level_node_ids:
                 if node_id not in level_outputs:
                     continue
-                node_steps, node_agent_results, failure = level_outputs[node_id]
-                steps.extend(node_steps)
-                results.extend(node_agent_results)
-                node_results[node_id].extend(node_agent_results)
-                if failure is not None:
-                    recorder.finalize_failure(
-                        failure.steps[-1].summary or "step failed",
-                        partial_result=failure.model_dump(mode="json"),
-                    )
-                    return failure
+                node_steps, node_agent_results, _terminal = level_outputs[node_id]
+                with state_lock:
+                    steps.extend(node_steps)
+                    results.extend(node_agent_results)
+                    node_results[node_id].extend(node_agent_results)
+                    for st in node_steps:
+                        if st.status == "failed":
+                            msg = st.summary or "step failed"
+                            recorder.finalize_failure(
+                                msg,
+                                partial_result=RunResult(
+                                    run_id=run_id,
+                                    engagement_id=engagement_id,
+                                    status="failed",
+                                    steps=list(steps),
+                                ).model_dump(mode="json"),
+                            )
+                            return RunResult(
+                                run_id=run_id,
+                                engagement_id=engagement_id,
+                                status="failed",
+                                steps=list(steps),
+                            )
+                    if pause_after_each_step and node_steps and step_seq < total_planned_steps:
+                        pause_after_level = True
 
-            if pause_after_each_step and level_idx < len(execution_levels) - 1:
+            if pause_after_level:
                 rr = RunResult(
                     run_id=run_id,
                     engagement_id=engagement_id,
                     status="paused",
-                    steps=steps,
+                    steps=list(steps),
                 )
                 recorder.mark_paused(rr.model_dump(mode="json"))
                 return rr

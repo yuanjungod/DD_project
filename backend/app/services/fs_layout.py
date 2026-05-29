@@ -109,6 +109,32 @@ def register_engagement_tree(engagement_id: str, user_id: str, workflow_template
     _save_engagement_index(idx)
 
 
+def unregister_engagement_tree(engagement_id: str) -> None:
+    eid = str(engagement_id or "").strip()
+    if not eid:
+        return
+    idx = _load_engagement_index()
+    if eid in idx:
+        del idx[eid]
+        _save_engagement_index(idx)
+
+
+def delete_engagement_filesystem_tree(engagement_id: str) -> None:
+    """Remove engagement runtime directory and drop engagement_index entry."""
+    import shutil
+
+    eid = str(engagement_id or "").strip()
+    if not eid:
+        return
+    try:
+        tree = engagement_tree_dir(eid)
+        if tree.is_dir():
+            shutil.rmtree(tree, ignore_errors=True)
+    except FileNotFoundError:
+        pass
+    unregister_engagement_tree(eid)
+
+
 def _lookup_engagement_tree(engagement_id: str) -> tuple[str, str]:
     idx = _load_engagement_index()
     row = idx.get(engagement_id)

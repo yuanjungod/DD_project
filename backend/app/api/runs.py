@@ -35,21 +35,14 @@ from app.services.agent_step_output_files import (
 )
 from app.services.agent_client import AgentServiceClient, AgentServiceError
 from app.services.agent_run_resume import completed_slice_for_agent_service, previous_results_before_step
-from app.services.company_config_merge import merged_company_config_with_engagement_resources
-from shared.instance_config import to_agent_company_config
 from app.services.persistence import append_agent_step_chat_message, create_pending_agent_run
-from app.services.run_status import resolve_effective_run_status
-from app.services.engagement_resources_store import engagement_resource_records_for_merge
+from app.services.run_agent_context import build_agent_dispatch_context
 from app.services.run_dispatch import dispatch_agent_background
+from app.services.run_status import resolve_effective_run_status
 from app.services.session_context import build_continuation_context, latest_attempt_in_session, next_attempt_index
-from app.services.workflow_snapshots import build_workflow_snapshot
 
 
 router = APIRouter(tags=["runs"])
-
-
-def _agent_company_config_dict(stored: dict) -> dict:
-    return to_agent_company_config(stored if isinstance(stored, dict) else {})
 
 
 def _agent_run_read(run: AgentRun) -> AgentRunRead:
@@ -78,6 +71,19 @@ def _reconcile_stale_run_status(db: Session, run: AgentRun) -> AgentRunRead:
             run.completed_at = datetime.utcnow()
         db.add(run)
     return _agent_run_read(run)
+
+
+def _reconcile_run_reads(db: Session, runs: list[AgentRun]) -> list[AgentRunRead]:
+    changed = False
+    reads: list[AgentRunRead] = []
+    for run in runs:
+        before = run.status
+        reads.append(_reconcile_stale_run_status(db, run))
+        if run.status != before:
+            changed = True
+    if changed:
+        db.commit()
+    return reads
 
 
 async def parse_start_run_body(request: Request) -> StartAgentRunBody:
@@ -162,7 +168,7 @@ async def _execute_start_agent_run(
 ) -> AgentRun:
     """Create session + pending run row and enqueue agent dispatch."""
     engagement = ensure_engagement_write_access(db, user, engagement_id)
-    workflow_snapshot = build_workflow_snapshot(engagement.company_config, engagement_id=engagement.id)
+    dispatch_ctx = build_agent_dispatch_context(engagement)
     run_id = f"run_{uuid4().hex[:12]}"
 
     continuation_context: dict | None = None
@@ -208,12 +214,6 @@ async def _execute_start_agent_run(
         started_by_user_id=user.id,
     )
 
-    snapshot_dict = dict(workflow_snapshot)
-    eng_records = engagement_resource_records_for_merge(engagement.id)
-    company_dict = merged_company_config_with_engagement_resources(
-        _agent_company_config_dict(engagement.company_config), eng_records
-    )
-
     loaded = (
         db.query(AgentRun)
         .options(joinedload(AgentRun.steps), joinedload(AgentRun.report))
@@ -229,8 +229,8 @@ async def _execute_start_agent_run(
         engagement.id,
         run_id,
         user.id,
-        company_dict,
-        snapshot_dict,
+        dispatch_ctx.company_config,
+        dispatch_ctx.workflow_snapshot,
         workflow_session_id=workflow_sess.id,
         attempt_index=attempt_ix,
         continuation_context=continuation_context,
@@ -271,17 +271,7 @@ def list_runs(
     engagement_ids = accessible_engagement_ids(db, user)
     if engagement_ids is not None:
         query = query.filter(AgentRun.engagement_id.in_(engagement_ids))
-    runs = query.all()
-    changed = False
-    reads: list[AgentRunRead] = []
-    for run in runs:
-        before = run.status
-        reads.append(_reconcile_stale_run_status(db, run))
-        if run.status != before:
-            changed = True
-    if changed:
-        db.commit()
-    return reads
+    return _reconcile_run_reads(db, query.all())
 
 
 @router.get("/engagements/{engagement_id}/runs", response_model=list[AgentRunRead])
@@ -298,16 +288,7 @@ def list_engagement_runs(
         .order_by(AgentRun.started_at.desc())
         .all()
     )
-    changed = False
-    reads: list[AgentRunRead] = []
-    for run in runs:
-        before = run.status
-        reads.append(_reconcile_stale_run_status(db, run))
-        if run.status != before:
-            changed = True
-    if changed:
-        db.commit()
-    return reads
+    return _reconcile_run_reads(db, runs)
 
 
 @router.get("/runs/{run_id}", response_model=AgentRunRead)
@@ -459,7 +440,7 @@ async def continue_step_gated(
     if engagement is None:
         raise HTTPException(status_code=404, detail="Engagement not found")
 
-    snapshot = dict(build_workflow_snapshot(engagement.company_config, engagement_id=engagement.id))
+    dispatch_ctx = build_agent_dispatch_context(engagement)
     completed_steps_payload = completed_slice_for_agent_service(db, run_id)
 
     row.status = "running"
@@ -468,18 +449,14 @@ async def continue_step_gated(
     resume_ix = len(completed_steps_payload)
     attempt_ix = getattr(row, "attempt_index", 1) or 1
     sess_id = row.session_id
-    eng_records = engagement_resource_records_for_merge(engagement.id)
-    company_merged = merged_company_config_with_engagement_resources(
-        _agent_company_config_dict(engagement.company_config), eng_records
-    )
     owner_user_id = row.started_by_user_id or user.id
     background_tasks.add_task(
         dispatch_agent_background,
         row.engagement_id,
         run_id,
         owner_user_id,
-        company_merged,
-        snapshot,
+        dispatch_ctx.company_config,
+        dispatch_ctx.workflow_snapshot,
         workflow_session_id=sess_id,
         attempt_index=int(attempt_ix),
         continuation_context=None,
@@ -528,12 +505,7 @@ def agent_step_review_chat(
     if engagement is None:
         raise HTTPException(status_code=404, detail="Engagement not found")
 
-    eng_records = engagement_resource_records_for_merge(engagement.id)
-    merged_cfg = merged_company_config_with_engagement_resources(
-        _agent_company_config_dict(engagement.company_config), eng_records
-    )
-
-    snapshot = dict(build_workflow_snapshot(engagement.company_config, engagement_id=engagement.id))
+    dispatch_ctx = build_agent_dispatch_context(engagement)
 
     append_agent_step_chat_message(db, step_id=step_id, role="user", content=msg)
 
@@ -559,8 +531,8 @@ def agent_step_review_chat(
         "engagement_id": row.engagement_id,
         "user_id": str(row.started_by_user_id or user.id),
         "workflow_session_id": row.session_id,
-        "company_config": merged_cfg,
-        "workflow_snapshot": snapshot,
+        "company_config": dispatch_ctx.company_config,
+        "workflow_snapshot": dispatch_ctx.workflow_snapshot,
         "agent_name": step.agent,
         "previous_results": previous_results_before_step(db, row.id, step_id),
         "current_step": current_step_payload,
