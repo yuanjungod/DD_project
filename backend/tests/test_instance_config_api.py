@@ -12,9 +12,11 @@ class InstanceConfigApiTests(unittest.TestCase):
             instance_config=InstanceConfig(
                 workflow_template_id="workflow_research_demo",
                 resources=Resources(),
-                extensions={"workflow_task": {"description": "Analyze Acme quarterly results."}},
+                extensions={
+                    "task_name": "Acme quarterly review",
+                    "workflow_task": {"description": "Analyze Acme quarterly results."},
+                },
             ),
-            application_id="app-acme",
         )
         self.assertEqual(payload.instance_config.workflow_template_id, "workflow_research_demo")
 

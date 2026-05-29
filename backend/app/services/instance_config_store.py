@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from shared.instance_config import (
     materialize_stored_config,
+    require_task_name,
     require_workflow_task,
     resolve_subject_name,
     resolve_workflow_template_id,
@@ -14,6 +15,7 @@ from app.schemas.dto import EngagementCreate, EngagementUpdate, InstanceConfig
 
 def stored_config_from_instance(instance: InstanceConfig) -> dict:
     raw = instance.model_dump(mode="json")
+    require_task_name(raw)
     require_workflow_task(raw)
     return materialize_stored_config(raw)
 

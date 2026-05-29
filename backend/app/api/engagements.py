@@ -11,7 +11,7 @@ from app.core.auth import accessible_engagement_ids, ensure_engagement_access, e
 from app.core.database import get_db
 from app.models.entities import Engagement, EngagementAccess, User
 from app.schemas import EngagementCreate, EngagementRead, EngagementUpdate
-from app.services.subject_identity import normalize_application_id, subject_key_from_name
+from app.services.subject_identity import allocate_application_id, normalize_application_id, subject_key_from_name
 from app.services.engagement_resource_catalog import copy_engagement_resource_configs_tree
 from app.services.engagement_access import engagement_owner_user_id
 from app.services.engagement_resources_store import append_resources as append_engagement_resources_fs
@@ -99,10 +99,13 @@ def create_engagement(
     stored_config = stored_config_from_create(payload)
     subject_name = subject_name_from_stored(stored_config) or payload.name
     subject_key = subject_key_from_name(subject_name)
-    try:
-        application_id = normalize_application_id(payload.application_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if payload.application_id:
+        try:
+            application_id = normalize_application_id(payload.application_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    else:
+        application_id = allocate_application_id()
     version = payload.version if payload.version and payload.version > 0 else _next_version(db, subject_key, application_id)
 
     exists = (
@@ -221,7 +224,7 @@ def clone_engagement_version(
     version = _next_version(db, source.subject_key, source.application_id)
     subject_name = subject_name_from_stored(source.instance_config if isinstance(source.instance_config, dict) else {}) or source.name
     clone = Engagement(
-        name=f"{subject_name} · {source.application_id} · v{version}",
+        name=f"{subject_name} · v{version}",
         subject_key=source.subject_key,
         application_id=source.application_id,
         version=version,

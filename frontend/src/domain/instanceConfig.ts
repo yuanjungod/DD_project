@@ -1,11 +1,25 @@
 import type { InstanceConfig, InstanceResources } from "../types/domain";
 
 export type EngagementSetupForm = {
+  task_name: string;
   workflow_task: string;
   workflow_template_id: string;
   workflow_template_version?: number | null;
   resources: InstanceResources;
 };
+
+export function taskNameFromConfig(config: InstanceConfig | EngagementSetupForm): string {
+  if ("task_name" in config && typeof config.task_name === "string") {
+    const direct = config.task_name.trim();
+    if (direct) return direct.slice(0, 120);
+  }
+  const extensions = (config as InstanceConfig).extensions;
+  const fromExt = extensions?.task_name;
+  if (typeof fromExt === "string" && fromExt.trim()) {
+    return fromExt.trim().slice(0, 120);
+  }
+  return "";
+}
 
 export function workflowTemplateIdFromInstance(config: Pick<InstanceConfig, "workflow_template_id">): string {
   return (config.workflow_template_id ?? "").trim();
@@ -29,6 +43,8 @@ export function workflowTaskFromConfig(config: InstanceConfig): string {
 }
 
 export function subjectNameFromConfig(config: InstanceConfig | EngagementSetupForm): string {
+  const taskName = taskNameFromConfig(config);
+  if (taskName) return taskName;
   if ("workflow_task" in config && typeof config.workflow_task === "string") {
     const direct = config.workflow_task.trim();
     if (direct) {
@@ -47,11 +63,13 @@ export function subjectNameFromConfig(config: InstanceConfig | EngagementSetupFo
 /** Map wizard form state to API instance_config payload (normalization on backend). */
 export function toInstanceConfigPayload(form: EngagementSetupForm): InstanceConfig {
   const task = form.workflow_task.trim();
+  const taskName = form.task_name.trim();
   return {
     workflow_template_id: form.workflow_template_id.trim(),
     workflow_template_version: form.workflow_template_version ?? null,
     resources: form.resources,
     extensions: {
+      task_name: taskName,
       workflow_task: { description: task },
     },
   };
@@ -59,6 +77,7 @@ export function toInstanceConfigPayload(form: EngagementSetupForm): InstanceConf
 
 export function instanceConfigToForm(config: InstanceConfig): EngagementSetupForm {
   return {
+    task_name: taskNameFromConfig(config),
     workflow_task: workflowTaskFromConfig(config),
     workflow_template_id: workflowTemplateIdFromInstance(config),
     workflow_template_version: config.workflow_template_version ?? null,

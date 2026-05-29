@@ -229,7 +229,7 @@ export function WorkflowsHubPage() {
 
   const heroDescription =
     activeTab === "templates"
-      ? "选择已发布 Workflow Template，创建 Engagement 并填写需要完成的任务。"
+      ? "选择已发布 Workflow Template，创建任务并填写需要完成的工作内容。"
       : activeTab === "builder"
         ? "新建或编辑模板、编排 Agent、发布后与「模板应用」页同步；内置模板可修改但不可删除。"
         : "维护提示词、Skill 包与资源配置，供流程模板引用。";
@@ -270,7 +270,7 @@ export function WorkflowsHubPage() {
       {error ? <div className="error">{error}</div> : null}
 
       {activeTab === "templates" ? (
-        <SectionCard title="已发布 Workflow Templates" description="选择模板创建 Engagement，并在下一步用自然语言描述本次要完成的具体任务。">
+        <SectionCard title="已发布 Workflow Templates" description="选择模板创建任务，并在下一步用自然语言描述本次要完成的具体工作。">
           {publishedWorkflowTemplates.length === 0 ? (
             <p className="muted">暂无已发布模板，请先在「模板管理」中创建并发布。</p>
           ) : (

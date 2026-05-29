@@ -42,13 +42,13 @@ export function AppLayout({ user, onLogout, children }: AppLayoutProps) {
           <NavLink to="/skills">Skills 管理</NavLink>
           <NavLink to="/resource-configs">平台资源</NavLink>
           <NavLink to="/workflows">Agent和工作流模板</NavLink>
-          <NavLink to="/engagements/new">创建 Engagement</NavLink>
+          <NavLink to="/engagements/new">创建任务</NavLink>
           <NavLink
             to="/engagements"
             aria-current={isEngagementsSectionActive(location.pathname) ? "page" : undefined}
             className={() => (isEngagementsSectionActive(location.pathname) ? "active" : undefined)}
           >
-            Engagements
+            任务列表
           </NavLink>
           <NavLink to="/runs">历史记录</NavLink>
         </nav>

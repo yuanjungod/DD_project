@@ -295,7 +295,7 @@ export function EngagementResourceCatalogPanel({ engagementId }: { engagementId:
           description={
             showFileLibraryPanel
               ? "选择文件并填写说明，点击「上传并保存」即写入应用文件库与资源登记（与平台资源相同）。"
-              : "Engagement 级资源登记方式与平台资源一致；Run 时与当前 Engagement 的 Agent 绑定一并生效。"
+              : "任务级资源登记方式与平台资源一致；运行时与当前任务的 Agent 绑定一并生效。"
           }
         >
           {editingId ? (

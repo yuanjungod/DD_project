@@ -25,4 +25,10 @@ def normalize_application_id(raw: str) -> str:
     return app_id
 
 
-__all__ = ["normalize_application_id", "subject_key_from_name"]
+def allocate_application_id() -> str:
+    from uuid import uuid4
+
+    return normalize_application_id(f"app_{uuid4().hex[:12]}")
+
+
+__all__ = ["allocate_application_id", "normalize_application_id", "subject_key_from_name"]

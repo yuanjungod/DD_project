@@ -191,7 +191,7 @@ export function AgentOverrideEditor({
           <div>
             <strong>{agentId}</strong>
             <p className="muted">
-              {override ? "已配置 Engagement 级覆盖；启动新 run 时会合成到快照。" : "继承工作流模板配置，尚未配置 Engagement 级覆盖。"}
+              {override ? "已配置任务级覆盖；启动运行时会合成到快照。" : "继承工作流模板配置，尚未配置任务级覆盖。"}
             </p>
           </div>
         </div>
@@ -233,7 +233,7 @@ export function AgentOverrideEditor({
                 value={draft.prompt_append}
                 onChange={(event) => setDraft({ ...draft, prompt_append: event.target.value })}
                 disabled={saving}
-                placeholder="在工作流模板 prompt 之后追加当前 Engagement 专属说明…"
+                placeholder="在工作流模板 prompt 之后追加当前任务专属说明…"
               />
             </label>
             <label>
@@ -295,7 +295,7 @@ export function AgentOverrideEditor({
       </div>
       <div className="inline-form" style={{ flexWrap: "wrap" }}>
         <button type="button" onClick={() => void save()} disabled={saving}>
-          {saving ? "保存中…" : "保存 Engagement 级配置"}
+          {saving ? "保存中…" : "保存任务级配置"}
         </button>
         <button type="button" className="secondary-button" onClick={() => void remove()} disabled={saving || !override}>
           删除覆盖，恢复继承模板

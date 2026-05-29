@@ -5,11 +5,12 @@ import { createEngagement, getEngagement, listWorkflowTemplates, updateEngagemen
 import { EngagementAgentOverridesPanel } from "../components/EngagementAgentOverridesPanel";
 import { EngagementResourceCatalogPanel } from "../components/EngagementResourceCatalogPanel";
 import { SectionCard } from "../components/SectionCard";
-import { defaultApplicationId, engagementIdentityLabel } from "../domain/engagementIdentity";
+import { engagementIdentityLabel } from "../domain/engagementIdentity";
+import { ENGAGEMENT_LABELS } from "../domain/engagementLabels";
 import { workflowTemplateIdFromInstance } from "../domain/instanceConfig";
 import {
   instanceConfigToForm,
-  subjectNameFromConfig,
+  taskNameFromConfig,
   toInstanceConfigPayload,
   type EngagementSetupForm,
 } from "../domain/instanceConfig";
@@ -17,6 +18,7 @@ import type { Engagement, WorkflowTemplate } from "../types/domain";
 
 function defaultConfig(workflowTemplateId: string): EngagementSetupForm {
   return {
+    task_name: "",
     workflow_task: "",
     workflow_template_id: workflowTemplateId,
     workflow_template_version: 1,
@@ -54,7 +56,7 @@ function CreateAppWizardNav({
   onStep: (step: WizardStep) => void;
 }) {
   return (
-    <nav className="create-app-wizard-nav" aria-label="创建 Engagement 步骤">
+    <nav className="create-app-wizard-nav" aria-label="创建任务步骤">
       {WIZARD_STEPS.map((item, index) => {
         const locked = !engagementCreated && item.step !== "identity";
         const done = engagementCreated && index === 0;
@@ -85,7 +87,6 @@ export function NewEngagementPage() {
   const resumeEngagementId = searchParams.get("engagement")?.trim() ?? "";
 
   const [form, setForm] = useState<EngagementSetupForm>(() => defaultConfig(initialWorkflow));
-  const [applicationId, setApplicationId] = useState("");
   const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([]);
   const [createdEngagement, setCreatedEngagement] = useState<Engagement | null>(null);
   const [wizardStep, setWizardStep] = useState<WizardStep>(() => parseWizardStep(searchParams.get("step")) ?? "identity");
@@ -131,7 +132,6 @@ export function NewEngagementPage() {
       .then((engagement) => {
         setCreatedEngagement(engagement);
         setForm(instanceConfigToForm(engagement.instance_config));
-        setApplicationId(engagement.application_id);
         const step = parseWizardStep(searchParams.get("step")) ?? "identity";
         setWizardStep(step);
       })
@@ -139,13 +139,6 @@ export function NewEngagementPage() {
       .finally(() => setBooting(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once on engagement id
   }, [resumeEngagementId]);
-
-  useEffect(() => {
-    const taskLine = form.workflow_task.trim().split(/\r?\n/)[0]?.trim() ?? "";
-    if (!applicationId && taskLine && !createdEngagement) {
-      setApplicationId(defaultApplicationId(taskLine));
-    }
-  }, [form.workflow_task, applicationId, createdEngagement]);
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
@@ -163,7 +156,6 @@ export function NewEngagementPage() {
 
   function hydrateIdentityFromEngagement(engagement: Engagement) {
     setForm(instanceConfigToForm(engagement.instance_config));
-    setApplicationId(engagement.application_id);
   }
 
   function goToStep(step: WizardStep) {
@@ -184,19 +176,24 @@ export function NewEngagementPage() {
       setLoading(false);
       return;
     }
+    if (!form.task_name.trim()) {
+      setError("请填写任务名称。");
+      setLoading(false);
+      return;
+    }
     if (!form.workflow_task.trim()) {
       setError("请填写需要完成的任务。");
       setLoading(false);
       return;
     }
-    const displayName = `${subjectNameFromConfig(form)} - ${selectedWorkflow?.name ?? "应用"}`;
+    const taskName = form.task_name.trim();
+    const displayName = `${taskName} · ${selectedWorkflow?.name ?? "应用"}`;
     const instance_config = toInstanceConfigPayload(form);
     try {
       if (createdEngagement) {
         const engagement = await updateEngagement(createdEngagement.id, {
           name: displayName,
           instance_config,
-          application_id: applicationId.trim(),
         });
         setCreatedEngagement(engagement);
         hydrateIdentityFromEngagement(engagement);
@@ -204,7 +201,6 @@ export function NewEngagementPage() {
         const engagement = await createEngagement({
           name: displayName,
           instance_config,
-          application_id: applicationId.trim(),
         });
         setCreatedEngagement(engagement);
         hydrateIdentityFromEngagement(engagement);
@@ -222,8 +218,8 @@ export function NewEngagementPage() {
     return (
       <div className="page-stack">
         <header className="page-hero">
-          <p className="eyebrow">创建 Engagement</p>
-          <h1>加载 Engagement 配置…</h1>
+          <p className="eyebrow">{ENGAGEMENT_LABELS.createPageEyebrow}</p>
+          <h1>{ENGAGEMENT_LABELS.loadingConfig}</h1>
         </header>
       </div>
     );
@@ -232,16 +228,16 @@ export function NewEngagementPage() {
   return (
     <div className="page-stack engagement-wizard-page">
       <header className={`page-hero ${createdEngagement ? "" : "page-hero--compact"}`}>
-        <p className="eyebrow">{createdEngagement ? "Engagement · 可随时修改" : "新建 Engagement"}</p>
+        <p className="eyebrow">{createdEngagement ? ENGAGEMENT_LABELS.editEyebrow : ENGAGEMENT_LABELS.newEyebrow}</p>
         <h1>{createdEngagement ? engagementIdentityLabel(createdEngagement) : "定义一次工作流运行"}</h1>
         <p className="page-hero__lede">
           {createdEngagement ? (
             <>
-              应用标识 <code>{createdEngagement.application_id}</code> · 版本 v{createdEngagement.version}
-              。可在下方步骤间切换并保存；启动 Run 请至 Engagements 列表。
+              任务「{taskNameFromConfig(createdEngagement.instance_config) || createdEngagement.name}」· 版本 v
+              {createdEngagement.version}。可在下方步骤间切换并保存；启动运行请至「{ENGAGEMENT_LABELS.listNav}」。
             </>
           ) : (
-            "先写清楚要完成什么，再选模板与标识。创建后可在资源与 Agent 配置之间自由调整。"
+            "填写任务名称与任务说明，选择模板后即可创建；应用标识由系统自动生成。"
           )}
         </p>
       </header>
@@ -255,7 +251,7 @@ export function NewEngagementPage() {
           <header className="engagement-setup-card__header">
             <div>
               <p className="engagement-setup-card__eyebrow">{stepMeta.short} · {stepMeta.label}</p>
-              <h2>{createdEngagement ? "更新任务与标识" : "描述任务并创建"}</h2>
+              <h2>{createdEngagement ? "更新任务定义" : "描述任务并创建"}</h2>
               <p>
                 已选模板 <strong>{selectedWorkflow?.name ?? "未选择"}</strong>
                 {selectedWorkflow ? ` · v${selectedWorkflow.version}` : null}
@@ -267,28 +263,21 @@ export function NewEngagementPage() {
           </header>
 
           <form className="engagement-setup-form" onSubmit={(e) => void handleSaveIdentity(e)}>
-            <div className="engagement-task-panel">
-              <div className="engagement-task-panel__head">
-                <label htmlFor="engagement-workflow-task" className="engagement-field-label">
-                  需要完成的任务
-                </label>
-                <span className="engagement-task-panel__badge">注入全部 Agent</span>
-              </div>
-              <textarea
-                id="engagement-workflow-task"
-                className="engagement-task-panel__input"
-                value={form.workflow_task}
-                onChange={(event) => setForm({ ...form, workflow_task: event.target.value })}
-                placeholder={"用自然语言描述本次工作流要完成的具体任务。\n\n例如：对某某公司完成成长能力分析，梳理近三年营收结构、核心竞争壁垒与主要风险，并输出可交付的分析报告。"}
-                rows={6}
-                required
-              />
-              <p className="engagement-field-hint">
-                这段描述会作为<strong>最终目标</strong>写入每个 Agent 的任务上下文，请尽量具体、可执行。
-              </p>
-            </div>
-
             <div className="engagement-meta-grid">
+              <label className="engagement-meta-field engagement-meta-field--span-2">
+                <span className="engagement-field-label">
+                  任务名称 <span className="required-dot">*</span>
+                </span>
+                <input
+                  value={form.task_name}
+                  onChange={(event) => setForm({ ...form, task_name: event.target.value })}
+                  placeholder="例如：某某公司成长能力分析"
+                  required
+                  maxLength={120}
+                />
+                <span className="engagement-field-hint">在列表与页头展示；用于区分不同任务。</span>
+              </label>
+
               <label className="engagement-meta-field">
                 <span className="engagement-field-label">工作流模板</span>
                 <select
@@ -310,22 +299,27 @@ export function NewEngagementPage() {
                   ))}
                 </select>
               </label>
+            </div>
 
-              <label className="engagement-meta-field">
-                <span className="engagement-field-label">应用 ID</span>
-                <input
-                  value={applicationId}
-                  onChange={(event) => setApplicationId(event.target.value)}
-                  placeholder="growth-analysis-acme"
-                  required
-                  pattern="[a-z][a-z0-9_-]{0,62}"
-                  title="以小写字母开头，仅含小写字母、数字、下划线或连字符"
-                  spellCheck={false}
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                />
-                <span className="engagement-field-hint">唯一标识符，小写英文 / 数字 / 连字符</span>
-              </label>
+            <div className="engagement-task-panel">
+              <div className="engagement-task-panel__head">
+                <label htmlFor="engagement-workflow-task" className="engagement-field-label">
+                  需要完成的任务 <span className="required-dot">*</span>
+                </label>
+                <span className="engagement-task-panel__badge">注入全部 Agent</span>
+              </div>
+              <textarea
+                id="engagement-workflow-task"
+                className="engagement-task-panel__input"
+                value={form.workflow_task}
+                onChange={(event) => setForm({ ...form, workflow_task: event.target.value })}
+                placeholder={"用自然语言描述本次工作流要完成的具体任务。\n\n例如：对某某公司完成成长能力分析，梳理近三年营收结构、核心竞争壁垒与主要风险，并输出可交付的分析报告。"}
+                rows={6}
+                required
+              />
+              <p className="engagement-field-hint">
+                这段描述会作为<strong>最终目标</strong>写入每个 Agent 的任务上下文，请尽量具体、可执行。
+              </p>
             </div>
 
             <div className="engagement-form-actions">
@@ -335,7 +329,7 @@ export function NewEngagementPage() {
                   : "创建后可继续配置资源与 Agent，无需按顺序完成。"}
               </p>
               <button type="submit" className="engagement-form-actions__submit" disabled={loading}>
-                {loading ? "保存中…" : createdEngagement ? "保存更改" : "创建 Engagement"}
+                {loading ? "保存中…" : createdEngagement ? "保存更改" : "创建任务"}
               </button>
             </div>
           </form>
@@ -351,8 +345,8 @@ export function NewEngagementPage() {
       ) : null}
 
       {wizardStep !== "identity" && !createdEngagement ? (
-        <SectionCard title="请先创建 Engagement">
-          <p className="muted">请通过上方 Step 1 填写并创建 Engagement 后，再配置实例资源与 Agent。</p>
+        <SectionCard title="请先创建任务">
+          <p className="muted">请通过上方 Step 1 填写并创建任务后，再配置实例资源与 Agent。</p>
         </SectionCard>
       ) : null}
     </div>

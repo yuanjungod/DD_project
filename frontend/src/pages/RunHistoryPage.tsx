@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { listEngagements, listRuns } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
+import { ENGAGEMENT_LABELS } from "../domain/engagementLabels";
 import { engagementIdentityLabel } from "../domain/engagementIdentity";
 import { runDisplayLabel } from "../domain/runDisplay";
 import { resolveRunStatus, runStatusLabel, runStatusClassName } from "../domain/runStatus";
@@ -33,14 +34,14 @@ export function RunHistoryPage() {
       <header className="page-hero">
         <p className="eyebrow">Audit Trail</p>
         <h1>跑的历史记录</h1>
-        <p>集中查看所有可访问 Engagement 的 Agent run、状态与步骤数量。</p>
+        <p>集中查看所有可访问任务的运行记录、状态与步骤数量。</p>
       </header>
       {error ? <div className="error">{error}</div> : null}
       <SectionCard title="Run 历史">
         <div className="history-table" role="table" aria-label="Run 历史">
           <div className="history-table__row history-table__row--head" role="row">
             <span role="columnheader">Run</span>
-            <span role="columnheader">Engagement</span>
+            <span role="columnheader">{ENGAGEMENT_LABELS.entity}</span>
             <span role="columnheader">状态</span>
             <span role="columnheader">步骤</span>
             <span role="columnheader">时间</span>
@@ -56,7 +57,7 @@ export function RunHistoryPage() {
                   {runDisplayLabel(run)}
                 </Link>
                 <Link to={`/engagements/${encodeURIComponent(run.engagement_id)}/outputs`} role="cell">
-                  {engagementLabelById.get(run.engagement_id) ?? "Engagement"}
+                  {engagementLabelById.get(run.engagement_id) ?? ENGAGEMENT_LABELS.entity}
                 </Link>
                 <span className={`status ${runStatusClassName(run)}`} role="cell">
                   {runStatusLabel(status)}

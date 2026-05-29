@@ -9,6 +9,7 @@ INSTANCE_CONFIG_FIELD = "instance_config"
 EXTENSIONS_FIELD = "extensions"
 SUBJECT_EXTENSION = "subject"
 WORKFLOW_TASK_EXTENSION = "workflow_task"
+TASK_NAME_EXTENSION = "task_name"
 
 # Legacy keys accepted on read-only migration paths.
 _LEGACY_TARGET_COMPANY_FIELD = "target_company"
@@ -48,6 +49,15 @@ def resolve_subject(stored: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
+def resolve_task_name(stored: dict[str, Any]) -> str:
+    direct = str(stored.get("task_name") or "").strip()
+    if direct:
+        return direct[:120]
+    extensions = _as_dict(stored.get(EXTENSIONS_FIELD))
+    name = str(extensions.get(TASK_NAME_EXTENSION) or "").strip()
+    return name[:120] if name else ""
+
+
 def resolve_workflow_task(stored: dict[str, Any]) -> str:
     direct = str(stored.get("workflow_task") or "").strip()
     if direct:
@@ -65,6 +75,9 @@ def resolve_workflow_task(stored: dict[str, Any]) -> str:
 
 
 def resolve_subject_name(stored: dict[str, Any]) -> str:
+    task_name = resolve_task_name(stored)
+    if task_name:
+        return task_name
     task = resolve_workflow_task(stored)
     if task:
         first_line = task.splitlines()[0].strip()
@@ -89,6 +102,9 @@ def instance_config_view(stored: dict[str, Any]) -> dict[str, Any]:
     view.pop("workflow_task", None)
     extensions = _as_dict(view.get(EXTENSIONS_FIELD))
     extensions.pop(_LEGACY_DUE_DILIGENCE_EXTENSION, None)
+    task_name = resolve_task_name(stored)
+    if task_name:
+        extensions[TASK_NAME_EXTENSION] = task_name
     task = resolve_workflow_task(stored)
     if task:
         extensions[WORKFLOW_TASK_EXTENSION] = {"description": task}
@@ -111,14 +127,20 @@ def materialize_stored_config(payload: dict[str, Any]) -> dict[str, Any]:
     stored.pop("workflow_task", None)
     extensions = _as_dict(stored.get(EXTENSIONS_FIELD))
     extensions.pop(_LEGACY_DUE_DILIGENCE_EXTENSION, None)
+    task_name = resolve_task_name(payload)
+    if task_name:
+        extensions[TASK_NAME_EXTENSION] = task_name
     task = resolve_workflow_task(payload)
     if task:
         extensions[WORKFLOW_TASK_EXTENSION] = {"description": task}
     subject = resolve_subject(payload)
-    if task and not subject:
-        first_line = task.splitlines()[0].strip()
-        label = (first_line or task)[:120]
-        subject = {"name": label, "aliases": [], "kind": "generic"}
+    if not subject:
+        label = task_name
+        if not label and task:
+            first_line = task.splitlines()[0].strip()
+            label = (first_line or task)[:120]
+        if label:
+            subject = {"name": label, "aliases": [], "kind": "generic"}
     if subject:
         extensions[SUBJECT_EXTENSION] = subject
     if extensions:
@@ -133,6 +155,12 @@ def require_workflow_task(stored: dict[str, Any]) -> None:
     if resolve_workflow_task(stored):
         return
     raise ValueError("extensions.workflow_task.description is required")
+
+
+def require_task_name(stored: dict[str, Any]) -> None:
+    if resolve_task_name(stored):
+        return
+    raise ValueError("extensions.task_name is required")
 
 
 def to_agent_run_config(stored: dict[str, Any]) -> dict[str, Any]:

@@ -6,7 +6,8 @@ import { SectionCard } from "../components/SectionCard";
 import { workflowName } from "../data/workflows";
 import { workflowTemplateIdFromInstance } from "../domain/instanceConfig";
 import { engagementConfig, engagementIdentityLabel } from "../domain/engagementIdentity";
-import { subjectNameFromConfig } from "../domain/instanceConfig";
+import { ENGAGEMENT_LABELS } from "../domain/engagementLabels";
+import { subjectNameFromConfig, taskNameFromConfig } from "../domain/instanceConfig";
 import type { Engagement, User, WorkflowTemplate } from "../types/domain";
 
 function engagementMatchesSearch(engagement: Engagement, rawQuery: string): boolean {
@@ -14,8 +15,8 @@ function engagementMatchesSearch(engagement: Engagement, rawQuery: string): bool
   if (!query) return true;
   const haystack = [
     engagement.id,
-    engagement.application_id,
     engagement.name,
+    taskNameFromConfig(engagementConfig(engagement)),
     subjectNameFromConfig(engagementConfig(engagement)),
     engagementIdentityLabel(engagement),
     String(engagement.version),
@@ -66,7 +67,7 @@ export function EngagementsPage() {
 
   async function handleDelete(engagement: Engagement) {
     const ok = window.confirm(
-      `确定删除应用「${engagement.name}」（${subjectNameFromConfig(engagementConfig(engagement))}）吗？关联的资源、运行记录与报告将一并删除，且不可恢复。`,
+      `确定删除任务「${taskNameFromConfig(engagementConfig(engagement)) || engagement.name}」吗？关联的资源、运行记录与报告将一并删除，且不可恢复。`,
     );
     if (!ok) {
       return;
@@ -85,7 +86,7 @@ export function EngagementsPage() {
 
   async function handleClone(engagement: Engagement) {
     const ok = window.confirm(
-      `复制「${engagementIdentityLabel(engagement)}」为新版本吗？\n\n将复制实例资源、Agent 配置与上传文件，生成 v${engagement.version + 1}，随后可在创建 Engagement 中调整。`,
+      `复制「${engagementIdentityLabel(engagement)}」为新版本吗？\n\n将复制实例资源、Agent 配置与上传文件，生成 v${engagement.version + 1}，随后可在「${ENGAGEMENT_LABELS.createNav}」中调整。`,
     );
     if (!ok) return;
     setError("");
@@ -103,25 +104,25 @@ export function EngagementsPage() {
   return (
     <div className="page-stack">
       <header className="page-hero">
-        <p className="eyebrow">Applications</p>
-        <h1>Engagements</h1>
-        <p>已创建的 Engagement 列表。可复制任一 Engagement 为新版本并调整配置，或直接启动 Run。</p>
+        <p className="eyebrow">任务</p>
+        <h1>{ENGAGEMENT_LABELS.listTitle}</h1>
+        <p>已创建的任务。可复制为新版本并调整配置，或直接启动运行。</p>
       </header>
       {error ? <div className="error">{error}</div> : null}
       <label className="engagement-app-search">
-        <span className="engagement-app-search__label">搜索应用</span>
+        <span className="engagement-app-search__label">搜索任务</span>
         <input
           type="search"
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="应用 ID、实例名称、版本等关键词"
+          placeholder="任务名称、模板、版本等关键词"
         />
       </label>
       <div className="engagement-app-list">
         {filteredEngagements.map((engagement) => (
           <SectionCard key={engagement.id} title={engagementIdentityLabel(engagement)}>
             <div className="summary-box">
-              <strong>{engagement.application_id}</strong>
+              <strong>{taskNameFromConfig(engagementConfig(engagement)) || engagement.name}</strong>
               <span>
                 {workflowName(workflowTemplateIdFromInstance(engagementConfig(engagement)), workflowTemplates)} · v{engagement.version}
               </span>
@@ -160,7 +161,11 @@ export function EngagementsPage() {
       {engagements.length > 0 && filteredEngagements.length === 0 ? (
         <p className="muted">未找到包含「{searchQuery.trim()}」的应用。</p>
       ) : null}
-      {engagements.length === 0 ? <p className="muted">暂无 Engagement，请先在「创建 Engagement」中新建。</p> : null}
+      {engagements.length === 0 ? (
+        <p className="muted">
+          暂无任务，请先在「{ENGAGEMENT_LABELS.createNav}」中新建。
+        </p>
+      ) : null}
     </div>
   );
 }

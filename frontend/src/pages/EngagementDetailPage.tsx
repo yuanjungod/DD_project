@@ -20,6 +20,7 @@ import { SectionCard } from "../components/SectionCard";
 import { workflowName } from "../data/workflows";
 import { workflowTemplateIdFromInstance } from "../domain/instanceConfig";
 import { engagementConfig, engagementIdentityLabel } from "../domain/engagementIdentity";
+import { ENGAGEMENT_LABELS } from "../domain/engagementLabels";
 import { runDisplayLabel } from "../domain/runDisplay";
 import { resolveRunStatus, runStatusLabel, runStatusClassName } from "../domain/runStatus";
 import type {
@@ -300,7 +301,7 @@ const SECTION_NAV: Array<{ section: EngagementDetailSection; label: string }> = 
 
 function EngagementAppNav({ engagementId }: { engagementId: string }) {
   return (
-    <nav className="app-section-nav" aria-label="Engagement 分区">
+    <nav className="app-section-nav" aria-label="任务分区">
       {SECTION_NAV.map((item) => (
         <NavLink key={item.section} to={appSectionPath(engagementId, item.section)} preventScrollReset>
           {item.label}
@@ -515,12 +516,12 @@ export function EngagementDetailPage({ section = "outputs" }: { section?: Engage
   return (
     <div className="page-stack">
       <header className="page-hero">
-        <p className="eyebrow">Engagement</p>
-        <h1>{engagement ? engagementIdentityLabel(engagement) : "Engagement"}</h1>
+        <p className="eyebrow">{ENGAGEMENT_LABELS.entity}</p>
+        <h1>{engagement ? engagementIdentityLabel(engagement) : ENGAGEMENT_LABELS.entity}</h1>
         <p>
           {engagement ? (
             <>
-              {engagementWorkflowName} · 应用 ID <code>{engagement.application_id}</code> · v{engagement.version}
+              {engagementWorkflowName} · v{engagement.version}
             </>
           ) : (
             "加载中"
@@ -530,7 +531,7 @@ export function EngagementDetailPage({ section = "outputs" }: { section?: Engage
       <EngagementAppNav engagementId={engagementId} />
       {error ? <div className="error">{error}</div> : null}
       {section === "runs" ? (
-        <SectionCard title="当前 Engagement 历史 Run" description="按 session 与 attempt 查看当前 Engagement 历史执行记录；模型输出文件请到「运行」页查看。">
+        <SectionCard title="当前任务历史运行" description="按会话与次数查看本任务的历史执行记录；模型输出文件请到「运行」页查看。">
           <ul className="list">
             {runs.map((run) => (
               <li key={run.id}>

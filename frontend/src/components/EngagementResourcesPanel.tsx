@@ -153,7 +153,7 @@ export function EngagementResourcesPanel(props: EngagementResourcesPanelProps) {
       {!isDraft ? (
         <div style={{ marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid var(--border-subtle, #e5e7eb)" }}>
           <p className="muted" style={{ fontSize: "13px", marginBottom: "10px" }}>
-            <strong>Engagement 专属文件库</strong>：PDF / Office 等保存在当前 Engagement 目录；另有<strong>平台共享文件库</strong>（可用资源配置 →
+            <strong>任务专属文件库</strong>：PDF / Office 等保存在当前任务目录；另有<strong>平台共享文件库</strong>（可用资源配置 →
             文件库），其中文件会在<strong>任意应用</strong>
             的 Run 中自动并入 <code>resources.uploaded_files</code>（需工作流绑定「上传文件库」）。
           </p>
@@ -193,7 +193,7 @@ export function EngagementResourcesPanel(props: EngagementResourcesPanelProps) {
           {rtype === "external_clue" && "会议纪、路演、熟人渠道等不可用 URL 表达的线索。"}
           {rtype === "metric" &&
             "定义工作流运行时要跟踪的 KPI：代码 + 中文名 + 单位 + 口径说明 + 数据来源；可设比较方向与阈值。"}
-          {rtype === "agent_resource_scope" && "按当前 Engagement 的 Agent ID 限定可见文件。留空文件列表时仅作为备注，不会收窄运行时可访问的上传文件。"}
+          {rtype === "agent_resource_scope" && "按当前任务的 Agent 限定可见文件。留空文件列表时仅作为备注，不会收窄运行时可访问的上传文件。"}
         </p>
 
         {rtype === "trusted_source" ? (

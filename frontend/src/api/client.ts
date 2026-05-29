@@ -110,7 +110,7 @@ export function listEngagements(): Promise<Engagement[]> {
 export function createEngagement(payload: {
   name: string;
   instance_config: InstanceConfig;
-  application_id: string;
+  application_id?: string;
   version?: number;
   initial_resources?: Array<{ type: string; value: string; metadata_json?: Record<string, unknown> }>;
 }): Promise<Engagement> {

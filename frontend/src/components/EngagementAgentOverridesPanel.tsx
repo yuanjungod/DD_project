@@ -96,12 +96,12 @@ export function EngagementAgentOverridesPanel({
   return (
     <SectionCard
       title="Agent 场景配置"
-      description="在场景模板基础上为每个 Agent 配置提示词、Skills 与资源绑定；保存后会在启动 Run 时合成到快照。"
+      description="在场景模板基础上为每个 Agent 配置提示词、Skills 与资源绑定；保存后会在启动运行时合成到快照。"
     >
       {error ? <div className="error">{error}</div> : null}
       <div className="agent-override-list">
         {appAgentIds.length === 0 ? (
-          <p className="muted">当前应用尚未解析到工作流 Agent。</p>
+          <p className="muted">当前任务尚未解析到工作流 Agent。</p>
         ) : (
           <>
             <div className="agent-select-row">

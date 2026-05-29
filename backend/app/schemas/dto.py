@@ -36,7 +36,7 @@ class InstanceConfig(BaseModel):
 class EngagementCreate(BaseModel):
     name: str
     instance_config: InstanceConfig
-    application_id: str
+    application_id: str | None = None
     version: int = 1
     initial_resources: list["ResourceCreate"] = Field(default_factory=list)
 
