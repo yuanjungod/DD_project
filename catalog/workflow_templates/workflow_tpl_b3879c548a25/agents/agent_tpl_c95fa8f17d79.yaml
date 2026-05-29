@@ -1,0 +1,33 @@
+# Agent template — global library entry. Scenario folders may copy this into their agents/ directory.
+
+name: FINISHDD
+role: 尽调高级专家
+prompt: 完成SKILLs要求的尽调任务
+sub_agent_ids:
+- chengzhangnenglifenxi
+skill_package_ids: []
+tool_ids: []
+resource_ids: []
+platform_upload_file_ids: []
+react_config:
+  max_iters: 50
+  parallel_tool_calls: false
+  model:
+    baseUrl: http://127.0.0.1:8080/v1
+    apiKey: yuanjun
+    api: openai-completions
+    models:
+    - id: deepseek-v4-flash
+      name: deepseek-v4-flash
+      reasoning: false
+      input:
+      - text
+      cost:
+        input: 0
+        output: 0
+        cacheRead: 0
+        cacheWrite: 0
+      contextWindow: 128000
+      maxTokens: 4096
+enabled: true
+id: agent_tpl_c95fa8f17d79

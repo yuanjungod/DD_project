@@ -1,0 +1,28 @@
+# Workflow template folder — workflow graph and metadata. Agent definitions for this workflow template live in ./agents/.
+
+version: 1
+workflow:
+  id: workflow_tpl_b3879c548a25
+  name: 尽调高级专家
+  description: ''
+  workflow_template: custom
+  graph:
+    nodes:
+    - id: node_01
+      agent_template_id: agent_tpl_c95fa8f17d79
+      position:
+        x: -618.1192368717137
+        y: -105.82355655270442
+      width: 200
+      height: 120
+    edges: []
+    entry_node: node_01
+    report_node: node_01
+  status: published
+  version: 2
+  runtime:
+    command_execution: docker
+    docker:
+      image: harness-exec:0.1.0
+      idle_ttl_seconds: 1200
+      workspace_mount: workflow_tree

@@ -1,0 +1,28 @@
+# Workflow template folder — workflow graph and metadata. Agent definitions for this workflow template live in ./agents/.
+
+version: 1
+workflow:
+  id: workflow_tpl_f6b4449a5378
+  name: Docker测试
+  description: Docker测试
+  workflow_template: custom
+  graph:
+    nodes:
+    - id: node_01
+      agent_template_id: tianyancha
+      position:
+        x: 120
+        y: 40
+      width: 240
+      height: 168
+    edges: []
+    entry_node: node_01
+    report_node: node_01
+  status: published
+  version: 2
+  runtime:
+    command_execution: docker
+    docker:
+      image: harness-exec:0.1.0
+      idle_ttl_seconds: 1200
+      workspace_mount: workflow_tree
