@@ -27,7 +27,9 @@ Canonical layout:
           {engagement_id}/                # engagement runtime home
             meta/agent_overrides.json
             shared/{resources,uploads,skills,resource_configs}/
-            sessions/{session_id}/runs/{workflow_template_id}/
+            sessions/{session_id}/runs/
+              {run_id}.json
+              outputs/{run_id}_outputs/{step}_{agent}/
   data/platform/                          # SQLite, platform overlays, library uploads
   channels/                               # reserved
 ```

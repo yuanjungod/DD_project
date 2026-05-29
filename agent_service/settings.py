@@ -45,7 +45,7 @@ class AgentSettings(BaseSettings):
     session_history_enabled: bool = Field(
         default=True,
         validation_alias="DD_SESSION_HISTORY_ENABLED",
-        description="Persist each POST /runs execution under .dd_project/users/<user>/<workflow>/<engagement>/sessions/<session>/runs/<workflow>/<run>.json",
+        description="Persist each POST /runs execution under .dd_project/users/<user>/workflows/<workflow>/<engagement>/sessions/<session>/runs/<run>.json",
     )
     data_root: str = Field(
         default=_DEFAULT_DATA_ROOT,

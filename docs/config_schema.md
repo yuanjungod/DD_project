@@ -20,7 +20,7 @@ This document describes the configuration contract shared by the frontend, backe
 | `AUTH_SECRET_KEY` | backend | JWT signing secret (must not use dev default in production). |
 | `ENV` | backend + agent | Set to `production` to enforce non-default secrets. |
 | `PLATFORM_CALLBACK_BASE_URL` | agent | Backend base URL for incremental progress (default `http://127.0.0.1:8010`). Set empty or unreachable to disable callbacks (UI then only updates after finalization). |
-| `DD_SESSION_HISTORY_ENABLED` | agent | Persist each POST /runs execution under `.dd_project/users/<user>/<workflow_template>/<engagement>/sessions/<session>/runs/<workflow_template>/<run>.json`. |
+| `DD_SESSION_HISTORY_ENABLED` | agent | Persist each POST /runs execution under `.dd_project/users/<user>/workflows/<workflow_template>/<engagement>/sessions/<session>/runs/<run>.json`. |
 | `DD_SEED_DEFAULT_USERS` | backend | Seed development users on startup when the users table is empty (default `true`). |
 | `DD_DEFAULT_USERS_CONFIG` | backend | Optional path to the seed user YAML. Defaults to `catalog/default_users.yaml`; relative paths are resolved from the repository root. |
 | `VITE_API_BASE_URL` | frontend | When set, all `fetch` calls use this absolute base (skips the dev proxy). |
@@ -65,7 +65,7 @@ catalog/
             shared/resource_configs/*.yaml
             shared/uploads/{file_id}
             shared/skills/{directory_name}/
-            sessions/{session_id}/runs/{workflow_template_id}/
+            sessions/{session_id}/runs/
               {run_id}.json
               outputs/{run_id}_outputs/{step}_{agent}/
   data/platform/                             # sqlite/db + platform-level overlays/uploads
@@ -85,7 +85,7 @@ catalog/workflow_templates/{workflow_template_id}/ # built-in workflow templates
   agents/
     {agent_id}.yaml
 
-.dd_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/{workflow_template_id}/
+.dd_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/
   {run_id}.json
   outputs/{run_id}_outputs/{step}_{agent}/
 ```
@@ -162,8 +162,8 @@ Execution order stays graph-driven by node order; within one node, the `agent_te
 {
   "agent": "LegalRiskAgent",
   "status": "completed",
-  "output_dir": "/path/to/.dd_project/users/user_x/standard_due_diligence/eng_x/sessions/sess_x/runs/standard_due_diligence/outputs/run_y_outputs/run_y_step_003_LegalRiskAgent",
-  "output_readme_path": "/path/to/.dd_project/users/user_x/standard_due_diligence/eng_x/sessions/sess_x/runs/standard_due_diligence/outputs/run_y_outputs/run_y_step_003_LegalRiskAgent/README.md"
+  "output_dir": "/path/to/.dd_project/users/user_x/workflows/standard_due_diligence/eng_x/sessions/sess_x/runs/outputs/run_y_outputs/run_y_step_003_LegalRiskAgent",
+  "output_readme_path": "/path/to/.dd_project/users/user_x/workflows/standard_due_diligence/eng_x/sessions/sess_x/runs/outputs/run_y_outputs/run_y_step_003_LegalRiskAgent/README.md"
 }
 ```
 

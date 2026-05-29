@@ -61,7 +61,7 @@ catalog/
               resource_configs/*.yaml
               uploads/{file_id}
               skills/{directory_name}/
-            sessions/{session_id}/runs/{workflow_template_id}/
+            sessions/{session_id}/runs/
               {run_id}.json
               outputs/{run_id}_outputs/{step}_{agent}/
   data/platform/                        # SQLite, platform overlays, library uploads
@@ -115,7 +115,7 @@ Writable runtime data defaults to `.dd_project/data/` from the repository root:
 - Engagement-local copied skills: `.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/shared/skills/<directory_name>`.
 - Platform uploads (binary blobs): `.dd_project/data/platform/uploads/<file_id>`.
 - Platform upload manifest: `.dd_project/data/platform/uploads_manifest.json`.
-- Agent run sessions and per-step outputs: `.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<workflow_template_id>/...`.
+- Agent run sessions and per-step outputs: `.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<run_id>.json` and `.../runs/outputs/{run_id}_outputs/...`.
 - Engagement runtime config home: `.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/meta/agent_overrides.json`.
 
 Set `DD_DATA_ROOT` to move all writable file data together.

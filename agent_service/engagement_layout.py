@@ -1,4 +1,4 @@
-"""Run/session storage under repository .dd_project/users/{user}/{workflow_template}/{engagement}/."""
+"""Run/session storage under .dd_project/users/{user}/workflows/{workflow_template}/{engagement}/."""
 
 from __future__ import annotations
 
@@ -116,6 +116,22 @@ def session_json_path(
     return workflow_template_runs_root(safe_workflow_template, user_id, engagement_id, session_id) / f"{safe_run}.json"
 
 
+def _collect_run_ids_from_runs_dir(runs_dir: Path, workflow_template_id: str) -> set[str]:
+    """Collect run_id stems from canonical runs/*.json and legacy runs/{workflow_template_id}/*.json."""
+    out: set[str] = set()
+    if not runs_dir.is_dir():
+        return out
+    for path in runs_dir.glob("*.json"):
+        if path.is_file():
+            out.add(path.stem)
+    legacy = runs_dir / _validate_workflow_template_id(workflow_template_id)
+    if legacy.is_dir():
+        for path in legacy.glob("*.json"):
+            if path.is_file():
+                out.add(path.stem)
+    return out
+
+
 def list_session_files(workflow_template_id: str, user_id: str, engagement_id: str) -> list[str]:
     safe_workflow_template = _validate_workflow_template_id(workflow_template_id)
     safe_user = _validate_id(user_id, "user_id")
@@ -125,11 +141,7 @@ def list_session_files(workflow_template_id: str, user_id: str, engagement_id: s
         return []
     out: set[str] = set()
     for session_dir in root.iterdir():
-        folder = session_dir / "runs" / safe_workflow_template
-        if not folder.is_dir():
-            continue
-        for path in folder.glob("*.json"):
-            out.add(path.stem)
+        out.update(_collect_run_ids_from_runs_dir(session_dir / "runs", safe_workflow_template))
     return sorted(out)
 
 
@@ -194,7 +206,11 @@ def find_session_json_path(workflow_template_id: str, user_id: str, engagement_i
     if not root.is_dir():
         return None
     for session_dir in root.iterdir():
-        candidate = session_dir / "runs" / safe_workflow_template / f"{safe_run}.json"
+        runs_dir = session_dir / "runs"
+        candidate = runs_dir / f"{safe_run}.json"
         if candidate.is_file():
             return candidate
+        legacy = runs_dir / safe_workflow_template / f"{safe_run}.json"
+        if legacy.is_file():
+            return legacy
     return None

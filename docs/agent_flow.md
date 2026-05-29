@@ -39,9 +39,9 @@ At run time, the backend sends an immutable **workflow snapshot** to the agent s
 
 The agent service writes a **session JSON** for each `POST /runs` (on by default):
 
-`.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<workflow_template_id>/<run_id>.json`
+`.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<run_id>.json`
 
-Step outputs live under the same session branch in `outputs/{run_id}_outputs/{step}_{agent}/`.
+Step outputs live under the same session branch in `runs/outputs/{run_id}_outputs/{step}_{agent}/`.
 
 Each agent template can bind:
 
