@@ -1,8 +1,6 @@
-"""Background agent run dispatch and blocking pipeline execution."""
+"""Background agent run dispatch and pipeline execution."""
 
 from __future__ import annotations
-
-import asyncio
 
 from app.core.database import SessionLocal
 from app.services.agent_client import AgentServiceClient
@@ -23,8 +21,7 @@ async def dispatch_agent_background(
     resume_from_step_index: int,
     completed_steps: list[dict],
 ) -> None:
-    await asyncio.to_thread(
-        execute_agent_pipeline_blocking,
+    await execute_agent_pipeline(
         engagement_id,
         run_id,
         user_id,
@@ -39,7 +36,7 @@ async def dispatch_agent_background(
     )
 
 
-def execute_agent_pipeline_blocking(
+async def execute_agent_pipeline(
     engagement_id: str,
     run_id: str,
     user_id: str,
@@ -57,20 +54,18 @@ def execute_agent_pipeline_blocking(
     client = AgentServiceClient()
     try:
         try:
-            result = asyncio.run(
-                client.start_run(
-                    engagement_id,
-                    company_config,
-                    workflow_snapshot=workflow_snapshot,
-                    user_id=user_id,
-                    client_run_id=run_id,
-                    workflow_session_id=workflow_session_id,
-                    attempt_index=attempt_index,
-                    continuation_context=continuation_context,
-                    pause_after_each_step=pause_after_each_step,
-                    resume_from_step_index=resume_from_step_index,
-                    completed_steps=completed_steps,
-                )
+            result = await client.start_run(
+                engagement_id,
+                company_config,
+                workflow_snapshot=workflow_snapshot,
+                user_id=user_id,
+                client_run_id=run_id,
+                workflow_session_id=workflow_session_id,
+                attempt_index=attempt_index,
+                continuation_context=continuation_context,
+                pause_after_each_step=pause_after_each_step,
+                resume_from_step_index=resume_from_step_index,
+                completed_steps=completed_steps,
             )
         except Exception as exc:  # noqa: BLE001
             mark_agent_run_failed(db, run_id, str(exc))

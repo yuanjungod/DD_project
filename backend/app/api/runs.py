@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
@@ -477,7 +476,7 @@ async def continue_step_gated(
 
 
 @router.post("/runs/{run_id}/steps/{step_id}/review-chat", response_model=StepReviewChatOut)
-def agent_step_review_chat(
+async def agent_step_review_chat(
     run_id: str,
     step_id: str,
     body: StepReviewChatIn,
@@ -542,7 +541,7 @@ def agent_step_review_chat(
 
     client = AgentServiceClient()
     try:
-        out = asyncio.run(client.assist_step_review_chat(payload))
+        out = await client.assist_step_review_chat(payload)
     except AgentServiceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
