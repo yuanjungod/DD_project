@@ -35,5 +35,5 @@ def notify_run_progress(
             timeout=30.0,
         )
         response.raise_for_status()
-    except Exception as exc:  # noqa: BLE001 — never fail the diligence run on callback issues
+    except Exception as exc:  # noqa: BLE001 — never fail the workflow run on callback issues
         logger.warning("Platform progress callback failed (%s): %s", url, exc)

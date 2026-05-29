@@ -6,7 +6,7 @@ Accepted (2026-05-29)
 
 ## Context
 
-Architecture diagrams show coordinator fan-out to parallel research agents. The execution engine in `shared/workflow_graph.py` and `DueDiligenceWorkflow` resolves a **single linear order** from `entry_node` and one outgoing edge per node.
+Architecture diagrams show coordinator fan-out to parallel research agents. The execution engine in `shared/workflow_graph.py` and **`WorkflowEngine`** resolve **DAG execution levels** from `entry_node` and `edges` (see ADR-0008; linear MVP described here is superseded).
 
 ## Decision
 

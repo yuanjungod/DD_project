@@ -11,7 +11,7 @@ Cross-service contracts live under `shared/schemas/`. Backend, agent_service, an
 | [run_request.schema.json](run_request.schema.json) | `POST /runs` body to agent_service |
 | [run_result.schema.json](run_result.schema.json) | Agent HTTP response / backend finalize payload |
 | [agent_result.schema.json](agent_result.schema.json) | Per-step agent output |
-| [report.schema.json](report.schema.json) | Structured diligence report |
+| [report.schema.json](report.schema.json) | Structured workflow run report |
 
 Python services may continue to use Pydantic models; these JSON schemas are the portable contract reference. When fields change, update the schema first, then mirror in `backend/app/schemas/dto.py`, `agent_service/api/schemas.py`, and `frontend/src/types/domain.ts`.
 

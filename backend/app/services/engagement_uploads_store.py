@@ -1,4 +1,4 @@
-"""Persist uploaded diligence files under the engagement tree and register them as file_reference resources."""
+"""Persist uploaded engagement files under the engagement tree and register them as file_reference resources."""
 
 from __future__ import annotations
 

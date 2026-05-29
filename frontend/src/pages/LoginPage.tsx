@@ -42,7 +42,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         <p className="muted">
           {showDevLoginHints && defaultLoginEmail && defaultLoginPassword
             ? `开发默认账号：${defaultLoginEmail} / ${defaultLoginPassword}。管理员可查看全部 Engagement，分析师可创建并运行 Engagement，只读用户只能查看。`
-            : "使用分配的账号登录。支持配置尽调及其他 Agent 工作流模板。"}
+            : "使用分配的账号登录。支持配置 Agent 工作流模板与 Engagement 实例。"}
         </p>
         {error ? <div className="error">{error}</div> : null}
         <form className="form" onSubmit={handleSubmit}>

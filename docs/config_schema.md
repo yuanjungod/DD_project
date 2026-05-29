@@ -4,7 +4,7 @@ This document describes the configuration contract shared by the frontend, backe
 
 ## Terminology
 
-- `workflow_template`: reusable process definition; it answers "how the due diligence runs".
+- `workflow_template`: reusable process definition; it answers "how the workflow runs".
 - `engagement`: concrete business instance bound to a company/application/version/resources; it answers "what this run is for".
 - API routes now use `/engagements/*` for engagement resources and execution state.
 

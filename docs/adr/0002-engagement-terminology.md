@@ -6,7 +6,7 @@ Accepted (2026-05-29, superseded by ADR-0007 full rename)
 
 ## Context
 
-The product domain object was originally named "Project" in the database and early APIs. The UI and public API now use "Engagement" to reflect a due diligence business instance.
+The product domain object was originally named "Project" in the database and early APIs. The UI and public API now use **Engagement** for any workflow-backed business instance (due-diligence templates are one scenario).
 
 ## Decision
 

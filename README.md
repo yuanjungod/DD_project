@@ -8,8 +8,8 @@ An MVP **Agent orchestration platform** (Harness) with due-diligence and other w
 
 ## Terminology
 
-- `Workflow Template`: defines **how** the diligence is executed (graph/stages/agent composition).
-- `Engagement`: defines **what/who** is being analyzed for one business instance (company, app id, version, resources, runs).
+- `Workflow Template`: defines **how** a workflow runs (graph/stages/agent composition).
+- `Engagement`: defines **what/who** the run is for (subject, application id, version, resources, runs).
 
 See [CONTEXT.md](CONTEXT.md) and [docs/adr/README.md](docs/adr/README.md) for domain vocabulary and architecture decisions.
 
@@ -153,9 +153,9 @@ MVP flow:
 1. Log in.
 2. Configure Anthropic-style skill packages, executable tools, data resources, agent templates, and workflow templates as an admin.
 3. Publish a workflow template.
-4. Apply a published workflow template to a specific company engagement.
+4. Apply a published workflow template to a specific engagement instance.
 5. Add engagement resources.
-6. Start a due diligence run from the engagement detail page.
+6. Start a workflow run from the engagement detail page.
 7. Review agent steps, per-step output folders, report, workflow snapshot, and run history.
 
 After upgrading schema, reset local SQLite under `.harness_project/data/platform/` (delete `harness_platform.db` or legacy `dd_platform.db` and restart the backend) if automatic migration does not apply.

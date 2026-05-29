@@ -1,1 +1,1 @@
-"""Configured due diligence agents."""
+"""Configured workflow agents (AgentScope ReAct runtime)."""

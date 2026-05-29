@@ -657,7 +657,7 @@ export function EngagementDetailPage({ section = "outputs" }: { section?: Engage
               </ol>
             ) : runInFlight ? (
               <p className="muted">
-                后台正在执行尽调链路。若 Agent 服务配置了 <code>PLATFORM_CALLBACK_BASE_URL</code> 指向本后端，步骤会逐步出现；否则需待全流程结束。
+                后台正在执行工作流链路。若 Agent 服务配置了 <code>PLATFORM_CALLBACK_BASE_URL</code> 指向本后端，步骤会逐步出现；否则需待全流程结束。
               </p>
             ) : (
               <p className="muted">启动 run 后展示各 agent 状态。</p>

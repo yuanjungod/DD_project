@@ -192,7 +192,7 @@ class AgentScopeReActRuntime:
         ]
         sections.extend(
             _markdown_json_section(
-                "target_company（目标公司）",
+                "run_subject（运行主体）",
                 company_config.target_company.model_dump(mode="json"),
             )
         )
@@ -248,7 +248,7 @@ class AgentScopeReActRuntime:
         payload: dict[str, Any] = {
             "review_chat": True,
             "instruction_zh": (
-                "尽调复核对话：用户对当前这一步 Agent 的输出进行校验或要求修订。"
+                "步骤复核对话：用户对当前这一步 Agent 的输出进行校验或要求修订。"
                 "用清晰中文回复（除非用户用其他语言）。可指出逻辑/来源缺口、建议如何修订输出目录中的内容，不要编造未出现的来源。"
             ),
             "target_company": company_config.target_company.model_dump(mode="json"),
@@ -452,7 +452,7 @@ def _make_tool_function(
     tool_executor: ToolExecutor | None,
 ) -> Callable[..., ToolResponse]:
     def tool_function(query: str = "", url: str = "", file_id: str = "", folder_path: str = "") -> ToolResponse:
-        """Execute a configured due diligence tool."""
+        """Execute a configured platform tool."""
 
         payload = {
             "query": query,
@@ -478,7 +478,7 @@ def _tool_json_schema(tool_id: str, description: str) -> dict[str, Any]:
         "type": "function",
         "function": {
             "name": tool_id,
-            "description": description or f"Configured due diligence tool {tool_id}",
+            "description": description or f"Configured platform tool {tool_id}",
             "parameters": {
                 "type": "object",
                 "properties": {

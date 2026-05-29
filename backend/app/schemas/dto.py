@@ -26,6 +26,8 @@ class Resources(BaseModel):
 
 
 class CompanyConfig(BaseModel):
+    """Legacy API alias for due-diligence-shaped engagement input; prefer InstanceConfig on create/update."""
+
     target_company: TargetCompany
     workflow_template_id: str
     workflow_template_version: int | None = None

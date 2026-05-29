@@ -11,7 +11,7 @@ import {
 import type { SkillDebugResult, SkillPackage } from "../types/domain";
 
 const defaultSkillMd =
-  "---\nname: due-diligence-example\ndescription: Guides a due diligence workflow. Use when this agent needs domain-specific diligence instructions.\n---\n\n# Due Diligence Example\n\nUse source-backed findings and preserve uncertainty.\n";
+  "---\nname: workflow-example\ndescription: Guides a generic Agent workflow. Use when this agent needs domain-specific instructions.\n---\n\n# Workflow Skill Example\n\nUse source-backed findings and preserve uncertainty.\n";
 
 const defaultPackageFiles = {
   "references/source-guidance.md": "# Source Guidance\n\nAdd reference notes for this skill here.\n",

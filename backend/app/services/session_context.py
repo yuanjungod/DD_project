@@ -34,7 +34,7 @@ def build_continuation_context(db: Session, previous_run_id: str) -> dict[str, A
         "step_digests": digest,
         "report_executive_summary_excerpt": report_excerpt or None,
         "note_zh": (
-            "以下为本 diligence Session 上一轮 attempt 的摘要（非断点快照）。"
+            "以下为本 workflow session 上一轮 attempt 的摘要（非断点快照）。"
             "本轮仍从零执行完整链路；请在其基础上纠错、补强，避免无理由重复上一轮已确认结论。"
         ),
     }

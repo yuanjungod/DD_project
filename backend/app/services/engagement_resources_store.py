@@ -1,4 +1,4 @@
-"""Engagement-scoped diligence resources as JSON under engagement shared/resources/."""
+"""Engagement-scoped resources as JSON under engagement shared/resources/."""
 
 from __future__ import annotations
 

@@ -1,7 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://dd-platform.local/schemas/report.schema.json",
-  "title": "DueDiligenceReport",
+  "$id": "https://harness-platform.local/schemas/report.schema.json",
+  "title": "WorkflowReport",
+  "description": "Structured workflow run report. Legacy title DueDiligenceReport is equivalent.",
   "type": "object",
   "required": ["title", "executive_summary", "sections", "overall_risk"],
   "properties": {

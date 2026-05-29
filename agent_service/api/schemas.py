@@ -13,6 +13,8 @@ RiskLevel = Literal["low", "medium", "high", "unknown"]
 
 
 class TargetCompany(BaseModel):
+    """Run subject identity (wire field name retained for compatibility)."""
+
     name: str
     aliases: list[str] = Field(default_factory=list)
 
@@ -27,11 +29,16 @@ class Resources(BaseModel):
     agent_resource_scopes: list[dict[str, Any]] = Field(default_factory=list)
 
 
-class CompanyConfig(BaseModel):
+class RunInstanceConfig(BaseModel):
+    """Engagement run input for agents (JSON wire field: ``company_config``)."""
+
     target_company: TargetCompany
     workflow_template_id: str
     workflow_template_version: int | None = None
     resources: Resources = Field(default_factory=Resources)
+
+
+CompanyConfig = RunInstanceConfig
 
 
 class AgentResult(BaseModel):
@@ -50,11 +57,16 @@ class ReportSection(BaseModel):
     risk_level: RiskLevel
 
 
-class DueDiligenceReport(BaseModel):
+class WorkflowReport(BaseModel):
+    """Structured workflow run report (sections + executive summary)."""
+
     title: str
     executive_summary: str
     overall_risk: RiskLevel
     sections: list[ReportSection] = Field(default_factory=list)
+
+
+DueDiligenceReport = WorkflowReport
 
 
 class AgentStep(BaseModel):

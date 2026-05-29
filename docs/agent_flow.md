@@ -1,8 +1,10 @@
 # Agent Flow
 
-The due diligence workflow is intentionally split into generic agent configuration and company-specific run input.
+Harness splits **generic agent/workflow configuration** (catalog templates, skills, tools) from **engagement-specific run input** (`instance_config` / legacy `company_config`).
 
-## Agents
+## Example: `standard_due_diligence` template agents
+
+The table below describes agents in the built-in **due-diligence** template family. Other templates define their own agent sets under `catalog/workflow_templates/{id}/agents/`.
 
 | Agent | Purpose | Main Output |
 | --- | --- | --- |
@@ -12,7 +14,7 @@ The due diligence workflow is intentionally split into generic agent configurati
 | `FinancialAnalysisAgent` | Analyze funding, financial signals, operating scale, and business model. | Financial observations and risks. |
 | `LegalRiskAgent` | Identify litigation, penalties, sanctions, IP, and compliance risks. | Legal and compliance risk findings. |
 | `IndustryAnalysisAgent` | Compare the company with competitors and market dynamics. | Industry position and competitive analysis. |
-| `ReportWriterAgent` | Produce the final structured report. | Due diligence report sections. |
+| `ReportWriterAgent` | Produce the final structured report. | Workflow report sections. |
 
 ## Agent Rules
 
@@ -26,7 +28,7 @@ Every agent must follow these rules:
 
 ## Workflow
 
-Workflow templates are file-backed as **workflow template folders** under `catalog/workflow_templates/` (published catalog) and `.dd_project/users/{user_id}/workflows/` (user draft/save area). Each folder contains `workflow_template.yaml` plus an `agents/` subdirectory. A company engagement selects one published template through `company_config.workflow_template_id`.
+Workflow templates are file-backed as **workflow template folders** under `catalog/workflow_templates/` (published catalog) and `.harness_project/users/{user_id}/workflows/` (user draft/save area). Each folder contains `workflow_template.yaml` plus an `agents/` subdirectory. An engagement selects one published template through `instance_config.workflow_template_id` (or legacy `company_config.workflow_template_id`).
 
 Current templates:
 
@@ -93,7 +95,7 @@ Runs are intentionally **split across HTTP hops** so the platform API does not b
 
 1. **Backend** allocates `run_{random}` (`create_pending_agent_run`), returns **`AgentRunRead`** immediately with **`running`** status.
 2. **Agent_service** **`POST /runs`** accepts **`run_id`** in the JSON body when the backend allocates it in advance so the **`RunResult.run_id`** matches the pending row before persistence.
-3. **Incremental progress**: after each logical step transitions to **`running`** and again after that step completes the workflow calls **`notify_run_progress`**, which **`POST`**s to **`{PLATFORM_CALLBACK_BASE_URL}/internal/agent-runs/{run_id}/progress`** with header **`X-Agent-Callback-Secret`** (**must equal** **`AGENT_CALLBACK_SECRET`** on the backend). Callback failures are logged only—they **do not abort** the diligence run.
+3. **Incremental progress**: after each logical step transitions to **`running`** and again after that step completes the workflow calls **`notify_run_progress`**, which **`POST`**s to **`{PLATFORM_CALLBACK_BASE_URL}/internal/agent-runs/{run_id}/progress`** with header **`X-Agent-Callback-Secret`** (**must equal** **`AGENT_CALLBACK_SECRET`** on the backend). Callback failures are logged only—they **do not abort** the workflow run.
 
 The **frontend workbench polls** the run (`GET /runs/{id}`) while status is `running`, so users see steps grow when callbacks are enabled.
 

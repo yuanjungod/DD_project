@@ -188,7 +188,7 @@ export function EngagementResourcesPanel(props: EngagementResourcesPanelProps) {
           {rtype === "file_reference" && "可直接使用上方文件上传；如需对接外部托管 ID，也可手动填写 file_id。"}
           {rtype === "external_clue" && "会议纪、路演、熟人渠道等不可用 URL 表达的线索。"}
           {rtype === "metric" &&
-            "定义尽调时要盯的 KPI：代码 + 中文名 + 单位 + 口径说明 + 数据来源；可设比较方向与阈值。"}
+            "定义工作流运行时要跟踪的 KPI：代码 + 中文名 + 单位 + 口径说明 + 数据来源；可设比较方向与阈值。"}
           {rtype === "agent_resource_scope" && "按当前 Engagement 的 Agent ID 限定可见文件。留空文件列表时仅作为备注，不会收窄运行时可访问的上传文件。"}
         </p>
 

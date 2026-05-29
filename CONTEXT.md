@@ -33,3 +33,15 @@ Reusable process definition (`workflow_template_id`) with graph and agent templa
 Graph orchestration runtime in `agent_service/workflows/workflow_engine.py` (executes agents by DAG levels, parallel within a level).
 
 See [docs/adr/0008-harness-platform-rename.md](docs/adr/0008-harness-platform-rename.md) for platform rename decisions.
+
+## Naming: platform vs due-diligence templates
+
+**Platform code** uses Harness / workflow / engagement / instance_config terminology.
+
+**Intentionally unchanged** (domain templates or compatibility):
+
+- `catalog/workflow_templates/*_due_diligence/` template ids and agent prompts
+- `instance_config.extensions.due_diligence` for DD-shaped subject blocks
+- Legacy API/DB fields: `company_config`, `diligence_session_id`, `diligence-sessions` route (deprecated aliases)
+- Agent HTTP wire field `company_config` with `target_company` (synthesized run subject at dispatch)
+- Skill packages may mention 尽调 in domain-specific copy under `agent_service/skills/`
