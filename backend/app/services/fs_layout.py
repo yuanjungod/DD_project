@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 from pathlib import Path
 
 from app.core.config import settings
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from shared.harness_paths import runtime_project_home
 
 
 def repo_root() -> Path:
@@ -17,11 +24,14 @@ def data_root() -> Path:
     return settings.resolved_data_root
 
 
-def dd_flow_home_dir() -> Path:
+def harness_project_home_dir() -> Path:
     """Unified runtime home for file-backed config/state management."""
-    d = repo_root() / ".dd_project"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    return runtime_project_home(repo_root())
+
+
+def dd_flow_home_dir() -> Path:
+    """Deprecated alias for harness_project_home_dir()."""
+    return harness_project_home_dir()
 
 
 def dd_flow_config_dir() -> Path:

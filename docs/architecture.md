@@ -1,6 +1,6 @@
-# Due Diligence Platform Architecture
+# Harness Platform Architecture
 
-This project is a due diligence workspace with three runtime services:
+This project is an Agent orchestration workspace with three runtime services:
 
 - `frontend`: React workbench for configuring engagements, monitoring agent runs, and reviewing reports.
 - `backend`: FastAPI API for engagements, resources, runs, reports, OAuth-style JWT authentication, and an internal webhook for incremental run progress from the agent process.
@@ -36,7 +36,7 @@ The browser usually talks to the backend through the Vite dev **`/api` proxy** (
 
 ### Generic Agent Configuration
 
-Generic workflow configuration lives under **`catalog/`** (published templates), **`.dd_project/users/{user_id}/workflows/`** (drafts), **`agent_service/configs/tools.yaml`**, **`agent_service/skills/`**, and **`shared/schemas/`**.
+Generic workflow configuration lives under **`catalog/`** (published templates), **`.harness_project/users/{user_id}/workflows/`** (drafts; legacy **`.dd_project/`** still supported), **`agent_service/configs/tools.yaml`**, **`agent_service/skills/`**, and **`shared/schemas/`**.
 
 It defines:
 
@@ -72,21 +72,21 @@ The backend owns durable entities:
 - `AgentStep`
 - `Report`
 
-Configuration catalogs are file-first where practical. **Global agent templates** live under **`catalog/agents/{agent_id}.yaml`** (published), while user saves land in **`.dd_project/users/{user_id}/workflows/_agent_templates/{agent_id}.yaml`** before publish. **Workflow template folders** live under **`catalog/workflow_templates/{workflow_template_id}/`** (published) or **`.dd_project/users/{user_id}/workflows/{workflow_template_id}/`** (user drafts/saves). Each workflow template folder contains **`workflow_template.yaml`** plus an **`agents/`** subdirectory. Run/session/output runtime data is centralized under **`.dd_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/`** (`{run_id}.json` plus `outputs/`). **`GET/POST/PATCH /workflow-templates`** and **`GET/POST/PATCH /agent-templates`** save into user workflows, while **`POST /workflow-templates/{id}/publish`** and **`POST /agent-templates/{id}/publish`** publish into `catalog/`.
+Configuration catalogs are file-first where practical. **Global agent templates** live under **`catalog/agents/{agent_id}.yaml`** (published), while user saves land in **`.harness_project/users/{user_id}/workflows/_agent_templates/{agent_id}.yaml`** before publish. **Workflow template folders** live under **`catalog/workflow_templates/{workflow_template_id}/`** (published) or **`.harness_project/users/{user_id}/workflows/{workflow_template_id}/`** (user drafts/saves). Each workflow template folder contains **`workflow_template.yaml`** plus an **`agents/`** subdirectory. Run/session/output runtime data is centralized under **`.harness_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/`** (`{run_id}.json` plus `outputs/`). **`GET/POST/PATCH /workflow-templates`** and **`GET/POST/PATCH /agent-templates`** save into user workflows, while **`POST /workflow-templates/{id}/publish`** and **`POST /agent-templates/{id}/publish`** publish into `catalog/`.
 
-For local development the backend defaults to SQLite at **`DD_DATA_ROOT/platform/dd_platform.db`** (`DD_DATA_ROOT` defaults to repo-root **`.dd_project/data`**). Set **`DATABASE_URL`** to use PostgreSQL or another explicit database.
+For local development the backend defaults to SQLite at **`HARNESS_DATA_ROOT/platform/harness_platform.db`** (`HARNESS_DATA_ROOT` defaults to repo-root **`.harness_project/data`**; legacy **`DD_DATA_ROOT`** / **`.dd_project`** and **`dd_platform.db`** are still read when present). Set **`DATABASE_URL`** to use PostgreSQL or another explicit database.
 
 ### Agent Service
 
-The agent service exposes HTTP endpoints for runs and executes a configurable workflow. Published templates resolve to an **ordered linear agent sequence** at run time via the backend-built **workflow snapshot** (see [ADR-0005](adr/0005-linear-workflow-graph.md)). Within each graph node, a master agent may run followed by optional sub-agents.
+The agent service exposes HTTP endpoints for runs and executes a configurable workflow via **`WorkflowEngine`**. Published templates resolve to a **DAG execution order** at run time via the backend-built **workflow snapshot** (see [ADR-0005](adr/0005-linear-workflow-graph.md) for historical linear MVP; superseded by DAG levels in `shared/workflow_graph.py`). Within each graph node, a master agent may run followed by optional sub-agents.
 
 ```mermaid
 flowchart TD
   Start[POST_/runs] --> LoadSnapshot[Load_Workflow_Snapshot]
-  LoadSnapshot --> Step1[Agent_Step_1]
-  Step1 --> Step2[Agent_Step_2]
-  Step2 --> StepN[Agent_Step_N]
-  StepN --> Respond[HTTP_RunResult]
+  LoadSnapshot --> Level0[Parallel_Level_0]
+  Level0 --> Level1[Parallel_Level_1]
+  Level1 --> LevelN[Parallel_Level_N]
+  LevelN --> Respond[HTTP_RunResult]
 ```
 
 ReAct agents use AgentScope built-in file and code execution tools; optional platform catalog tools extend the same `ToolRegistry` interface when listed in `tools.yaml`.
@@ -95,7 +95,7 @@ ReAct agents use AgentScope built-in file and code execution tools; optional pla
 
 The frontend provides a workbench for:
 
-- Creating and editing company due diligence engagements.
+- Creating and editing company engagements.
 - Configuring resources and workflow template.
 - Starting and monitoring runs (polling plus incremental UI when callbacks are configured).
 - Reviewing agent steps and per-step output folders with correct **local timestamps** (**API emits UTC timestamps with `Z`** for runs).
@@ -104,7 +104,7 @@ The frontend provides a workbench for:
 ## Development Layout
 
 ```text
-DD_project/
+Harness_project/
   backend/
   agent_service/
   frontend/

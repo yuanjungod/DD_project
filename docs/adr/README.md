@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Index of significant design decisions for DD_project.
+Index of significant design decisions for Harness_Project.
 
 | ADR | Title | Status |
 | --- | --- | --- |
@@ -8,9 +8,10 @@ Index of significant design decisions for DD_project.
 | [0002](0002-engagement-terminology.md) | Engagement vs Project naming | Accepted |
 | [0003](0003-users-workflows-storage-layout.md) | `.dd_project/users/workflows/` storage layout | Accepted |
 | [0004](0004-report-from-step-outputs.md) | Report derived from agent step outputs | Accepted |
-| [0005](0005-linear-workflow-graph.md) | Linear workflow graph execution (MVP) | Accepted |
+| [0005](0005-linear-workflow-graph.md) | Linear workflow graph execution (MVP) | Superseded by DAG engine |
 | [0006](0006-docker-shared-filesystem.md) | Single-node Docker with shared filesystem | Accepted |
 | [0007](0007-engagement-api-project-db.md) | Engagement in API, Project in database | Accepted |
+| [0008](0008-harness-platform-rename.md) | Harness platform rename (`.harness_project`, `WorkflowEngine`) | Accepted |
 
 ## Template
 

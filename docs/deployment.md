@@ -1,6 +1,6 @@
 # Deployment
 
-Single-node Docker Compose deployment with a **shared filesystem** for `.dd_project/` and `agent_service/skills/`. See [ADR-0006](../docs/adr/0006-docker-shared-filesystem.md).
+Single-node Docker Compose deployment with a **shared filesystem** for `.harness_project/` (legacy `.dd_project/` still supported) and `agent_service/skills/`. See [ADR-0006](../docs/adr/0006-docker-shared-filesystem.md).
 
 ## Prerequisites
 
@@ -11,7 +11,7 @@ Single-node Docker Compose deployment with a **shared filesystem** for `.dd_proj
 
 ```bash
 docker compose up -d postgres
-export DATABASE_URL=postgresql+psycopg2://dd_user:dd_password@localhost:5432/dd_platform
+export DATABASE_URL=postgresql+psycopg2://harness_user:harness_password@localhost:5432/harness_platform
 # Run backend, agent, and frontend locally (see README)
 ```
 
@@ -31,7 +31,7 @@ Services (profile `full`):
 | backend | 8010 | FastAPI platform API |
 | frontend | 5173 | Static preview via nginx (production build) |
 
-Shared volume `dd_runtime` mounts at `/data` inside containers. Set `DD_DATA_ROOT=/data` so backend and agent_service share session output paths.
+Shared volume `harness_runtime` mounts at `/data` inside containers. Set `HARNESS_DATA_ROOT=/data` so backend and agent_service share session output paths (legacy `DD_DATA_ROOT` still accepted).
 
 ## Environment (production checklist)
 
@@ -39,8 +39,8 @@ Shared volume `dd_runtime` mounts at `/data` inside containers. Set `DD_DATA_ROO
 - `AUTH_SECRET_KEY` — non-default JWT secret
 - `AGENT_API_KEY` — shared between backend and agent_service
 - `AGENT_CALLBACK_SECRET` — progress callback HMAC
-- `DD_SEED_DEFAULT_USERS=false` — disable default passwords
-- Model provider URLs via `DD_MODEL_BASE_URL` / `DD_MODEL_API_KEY` on agent host
+- `HARNESS_SEED_DEFAULT_USERS=false` — disable default passwords (legacy `DD_SEED_DEFAULT_USERS` still accepted)
+- Model provider URLs via `HARNESS_MODEL_BASE_URL` / `HARNESS_MODEL_API_KEY` on agent host (legacy `DD_MODEL_*` still accepted)
 
 ## Health checks
 
@@ -51,4 +51,4 @@ Shared volume `dd_runtime` mounts at `/data` inside containers. Set `DD_DATA_ROO
 
 - Runs are **blocking HTTP** from backend to agent (no job queue yet).
 - Backend reads agent step folders from shared disk; multi-node K8s needs object storage follow-up.
-- Workflow graph execution is **linear only** ([ADR-0005](../docs/adr/0005-linear-workflow-graph.md)).
+- Workflow graph execution supports **DAG parallel levels**; see `shared/workflow_graph.py` and [ADR-0008](adr/0008-harness-platform-rename.md).

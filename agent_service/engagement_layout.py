@@ -1,11 +1,18 @@
-"""Run/session storage under .dd_project/users/{user}/workflows/{workflow_template}/{engagement}/."""
+"""Run/session storage under .harness_project/users/{user}/workflows/{workflow_template}/{engagement}/."""
 
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 from agent_service.settings import get_agent_settings
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from shared.harness_paths import runtime_project_home
 
 _WORKFLOW_TEMPLATE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 _ID_SAFE = re.compile(r"^[a-zA-Z0-9_-]{1,160}$")
@@ -36,10 +43,13 @@ def _repo_root() -> Path:
     return get_agent_settings().repo_root
 
 
+def harness_project_root() -> Path:
+    return runtime_project_home(_repo_root())
+
+
 def dd_project_root() -> Path:
-    base = _repo_root() / ".dd_project"
-    base.mkdir(parents=True, exist_ok=True)
-    return base
+    """Deprecated alias for harness_project_root()."""
+    return harness_project_root()
 
 
 def users_root() -> Path:

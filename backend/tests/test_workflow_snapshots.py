@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import unittest
 
+from fastapi import HTTPException
+
 from app.services.workflow_snapshots import build_workflow_snapshot, _workflow_template_id_from_config
 
 
@@ -10,8 +12,9 @@ class WorkflowSnapshotTests(unittest.TestCase):
         config = {"workflow_template_id": "legal_compliance_due_diligence"}
         self.assertEqual(_workflow_template_id_from_config(config), "legal_compliance_due_diligence")
 
-    def test_workflow_template_id_defaults_when_missing(self) -> None:
-        self.assertEqual(_workflow_template_id_from_config({}), "standard_due_diligence")
+    def test_workflow_template_id_required_when_missing(self) -> None:
+        with self.assertRaises(HTTPException):
+            _workflow_template_id_from_config({})
 
     def test_build_standard_workflow_snapshot(self) -> None:
         snapshot = build_workflow_snapshot(

@@ -32,10 +32,10 @@ export function AppLayout({ user, onLogout, children }: AppLayoutProps) {
     <div className="console-layout">
       <aside className="sidebar">
         <div className="brand-mark">
-          <span>DD</span>
+          <span>HP</span>
           <div>
-            <strong>尽调控制台</strong>
-            <small>Agent workflow ops</small>
+            <strong>Harness 控制台</strong>
+            <small>Agent orchestration</small>
           </div>
         </div>
         <nav>

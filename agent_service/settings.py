@@ -1,24 +1,21 @@
 from __future__ import annotations
 
+import sys
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_DEFAULT_DATA_ROOT = ".dd_project/data"
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from shared.harness_paths import default_data_root_relative, resolve_repo_path
+
 _ENV_FILE = _REPO_ROOT / ".env"
-_DEV_AGENT_API_KEY = "local-dd-agent-api-key"
-_DEV_CALLBACK_SECRET = "local-dd-agent-callback"
-
-
-def _resolve_repo_path(raw: str) -> Path:
-    path = Path(raw).expanduser()
-    if not path.is_absolute():
-        path = _REPO_ROOT / path
-    return path.resolve()
+_DEV_AGENT_API_KEY = "local-harness-agent-api-key"
+_DEV_CALLBACK_SECRET = "local-harness-agent-callback"
 
 
 class AgentSettings(BaseSettings):
@@ -44,12 +41,12 @@ class AgentSettings(BaseSettings):
     )
     session_history_enabled: bool = Field(
         default=True,
-        validation_alias="DD_SESSION_HISTORY_ENABLED",
-        description="Persist each POST /runs execution under .dd_project/users/<user>/workflows/<workflow>/<engagement>/sessions/<session>/runs/<run>.json",
+        validation_alias=AliasChoices("HARNESS_SESSION_HISTORY_ENABLED", "DD_SESSION_HISTORY_ENABLED"),
+        description="Persist each POST /runs execution under .harness_project/users/<user>/workflows/<workflow>/<engagement>/sessions/<session>/runs/<run>.json",
     )
     data_root: str = Field(
-        default=_DEFAULT_DATA_ROOT,
-        validation_alias="DD_DATA_ROOT",
+        default_factory=lambda: default_data_root_relative(_REPO_ROOT),
+        validation_alias=AliasChoices("HARNESS_DATA_ROOT", "DD_DATA_ROOT"),
         description="Shared writable data root for agent runtime artifacts.",
     )
 
@@ -73,7 +70,7 @@ class AgentSettings(BaseSettings):
 
     @property
     def resolved_data_root(self) -> Path:
-        return _resolve_repo_path(self.data_root)
+        return resolve_repo_path(self.repo_root, self.data_root)
 
 
 @lru_cache

@@ -20,7 +20,7 @@ def synthesize_report_from_steps(steps: list[dict[str, Any]]) -> dict[str, Any] 
     section_summary = summary or executive
 
     return {
-        "title": f"Due Diligence Report — {agent}",
+        "title": f"Workflow Report — {agent}",
         "executive_summary": executive,
         "overall_risk": "unknown",
         "sections": [

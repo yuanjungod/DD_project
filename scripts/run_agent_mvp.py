@@ -11,13 +11,13 @@ ROOT = Path(__file__).resolve().parents[1]
 path.insert(0, str(ROOT))
 
 from agent_service.api.schemas import CompanyConfig  # noqa: E402
-from agent_service.workflows.due_diligence import DueDiligenceWorkflow  # noqa: E402
+from agent_service.workflows.workflow_engine import WorkflowEngine  # noqa: E402
 
 
 def main() -> None:
     config_path = ROOT / "shared" / "schemas" / "example_company_config.json"
     config = CompanyConfig.model_validate_json(config_path.read_text(encoding="utf-8"))
-    result = DueDiligenceWorkflow().run("eng_demo", config, workflow_snapshot=_load_workflow_snapshot(config))
+    result = WorkflowEngine().run("eng_demo", config, workflow_snapshot=_load_workflow_snapshot(config))
     print(
         json.dumps(
             {

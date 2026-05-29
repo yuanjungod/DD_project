@@ -37,12 +37,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   return (
     <main className="login-stage">
       <section className="login-panel">
-        <p className="eyebrow">Permissioned Due Diligence</p>
-        <h1>登录尽调平台</h1>
+        <p className="eyebrow">Harness Agent Orchestration</p>
+        <h1>登录 Harness 平台</h1>
         <p className="muted">
           {showDevLoginHints && defaultLoginEmail && defaultLoginPassword
             ? `开发默认账号：${defaultLoginEmail} / ${defaultLoginPassword}。管理员可查看全部 Engagement，分析师可创建并运行 Engagement，只读用户只能查看。`
-            : "使用分配的账号登录。管理员可查看全部 Engagement，分析师可创建并运行 Engagement，只读用户只能查看。"}
+            : "使用分配的账号登录。支持配置尽调及其他 Agent 工作流模板。"}
         </p>
         {error ? <div className="error">{error}</div> : null}
         <form className="form" onSubmit={handleSubmit}>

@@ -1,1 +1,1 @@
-"""AgentScope due diligence service."""
+"""Harness Agent orchestration service."""

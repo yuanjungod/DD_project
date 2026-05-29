@@ -1,10 +1,10 @@
-# Due Diligence Platform
+# Harness_Project (Agent Orchestration Platform)
 
-An MVP due diligence platform with:
+An MVP **Agent orchestration platform** (Harness) with due-diligence and other workflow templates:
 
 - React frontend workbench.
 - FastAPI backend for engagements, resources, runs, and reports.
-- AgentScope-oriented Python agent service with configurable agents, tools, prompts, and workflows.
+- AgentScope-oriented Python agent service with configurable agents, tools, prompts, and DAG workflows.
 
 ## Terminology
 
@@ -42,10 +42,12 @@ catalog/
   default_users.yaml                    # Development seed users
 ```
 
-### `.dd_project/` (runtime/engagement state)
+### `.harness_project/` (runtime/engagement state)
+
+Preferred runtime root. Legacy installs may still use `.dd_project/` (see ADR-0008).
 
 ```text
-.dd_project/
+.harness_project/
   engagement_index.json
   users/
     {user_id}/
@@ -68,7 +70,16 @@ catalog/
   channels/                             # Reserved for channel mapping expansion
 ```
 
-See **[.dd_project/README.md](.dd_project/README.md)** for the full runtime storage guide.
+See **[docs/harness_runtime_storage.md](docs/harness_runtime_storage.md)** for the full runtime storage guide. Legacy **`.dd_project/`** installs keep working until you migrate (ADR-0008).
+
+### Migrating from `.dd_project/`
+
+```bash
+python scripts/migrate_dd_project_to_harness_project.py --dry-run
+python scripts/migrate_dd_project_to_harness_project.py
+```
+
+The script copies the runtime tree into `.harness_project/` and renames `dd_platform.db` when safe. Use `--merge` if `.harness_project/` already exists.
 
 ## Documentation
 
@@ -107,18 +118,18 @@ npm run dev
 
 开发模式下请求默认走 **`http://127.0.0.1:5173/api/*`**，由 Vite **代理到** `http://127.0.0.1:8010`，避免浏览器直连跨域端口失败。若要改后端地址，可在启动前设置 **`VITE_DEV_PROXY_TARGET`**（仅 dev 代理目标），或设置 **`VITE_API_BASE_URL`** 为完整后端 URL（将跳过 `/api` 代理）。
 
-Writable runtime data defaults to `.dd_project/data/` from the repository root:
+Writable runtime data defaults to `.harness_project/data/` from the repository root (legacy: `.dd_project/data/`):
 
-- SQLite: `.dd_project/data/platform/dd_platform.db` (set `DATABASE_URL` to use PostgreSQL or another explicit database).
-- Engagement resources: `.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/shared/resources` + `.../shared/resource_configs`.
-- Engagement uploads (binary blobs): `.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/shared/uploads/<file_id>`.
-- Engagement-local copied skills: `.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/shared/skills/<directory_name>`.
-- Platform uploads (binary blobs): `.dd_project/data/platform/uploads/<file_id>`.
-- Platform upload manifest: `.dd_project/data/platform/uploads_manifest.json`.
-- Agent run sessions and per-step outputs: `.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<run_id>.json` and `.../runs/outputs/{run_id}_outputs/...`.
-- Engagement runtime config home: `.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/meta/agent_overrides.json`.
+- SQLite: `.harness_project/data/platform/harness_platform.db` (set `DATABASE_URL` to use PostgreSQL or another explicit database).
+- Engagement resources: `.harness_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/shared/resources` + `.../shared/resource_configs`.
+- Engagement uploads (binary blobs): `.harness_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/shared/uploads/<file_id>`.
+- Engagement-local copied skills: `.harness_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/shared/skills/<directory_name>`.
+- Platform uploads (binary blobs): `.harness_project/data/platform/uploads/<file_id>`.
+- Platform upload manifest: `.harness_project/data/platform/uploads_manifest.json`.
+- Agent run sessions and per-step outputs: `.harness_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<run_id>.json` and `.../runs/outputs/{run_id}_outputs/...`.
+- Engagement runtime config home: `.harness_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/meta/agent_overrides.json`.
 
-Set `DD_DATA_ROOT` to move all writable file data together.
+Set `HARNESS_DATA_ROOT` to move all writable file data together (legacy alias: `DD_DATA_ROOT`).
 
 ## Docker (optional)
 
@@ -147,13 +158,13 @@ MVP flow:
 6. Start a due diligence run from the engagement detail page.
 7. Review agent steps, per-step output folders, report, workflow snapshot, and run history.
 
-After upgrading schema, reset local SQLite under `.dd_project/data/platform/` (delete `dd_platform.db` and restart the backend) if automatic migration does not apply.
+After upgrading schema, reset local SQLite under `.harness_project/data/platform/` (delete `harness_platform.db` or legacy `dd_platform.db` and restart the backend) if automatic migration does not apply.
 
 ## Tests
 
 ```bash
 # Shared workflow graph tests
-python -m unittest shared/test_workflow_graph.py
+python -m unittest shared/test_workflow_graph.py shared/test_harness_paths.py
 
 # Agent tool registry tests
 python -m unittest agent_service/tools/test_registry.py

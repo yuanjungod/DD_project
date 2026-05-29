@@ -29,7 +29,7 @@ from agent_service.workflows.graph_order import (
 )
 
 
-class DueDiligenceWorkflow:
+class WorkflowEngine:
     def step_review_chat(self, payload: StepReviewChatRequest) -> StepReviewChatResponse:
         snapshot = payload.workflow_snapshot
         if not snapshot:

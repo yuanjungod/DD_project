@@ -12,7 +12,7 @@ agent_service/sessions/
 # Local skill packages (import via Admin UI or POST /skills/import-zip)
 agent_service/skills/
 catalog/workflow_templates/*/runs/
-.dd_project/
+.harness_project/
 __MACOSX/
 tianyancha-finance-analysis/
 tianyancha-finance-analysis.zip

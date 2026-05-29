@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 
 from agent_service.settings import get_agent_settings
+from shared.harness_paths import runtime_project_home
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,7 +28,7 @@ def _workflow_template_yaml_in(directory: Path) -> Path | None:
 
 
 def _data_workflow_template_dirs() -> list[Path]:
-    users_root = get_agent_settings().repo_root / ".dd_project" / "users"
+    users_root = runtime_project_home(get_agent_settings().repo_root) / "users"
     if not users_root.is_dir():
         return []
     roots: list[Path] = []
@@ -57,8 +58,8 @@ class AgentDefinition(BaseModel):
 
 
 class WorkflowDefinition(BaseModel):
-    id: str = "standard_due_diligence"
-    name: str = "标准完整尽调"
+    id: str = ""
+    name: str = ""
     description: str = ""
     workflow_template: str = "standard"
     ordered_agents: list[str] = Field(default_factory=list)
@@ -135,7 +136,7 @@ def load_workflow_template_catalog() -> tuple[list[dict[str, Any]], str]:
             if isinstance(workflow, dict):
                 workflows.append(workflow)
                 seen.add(child.name)
-    default_id = workflows[0]["id"] if workflows else "standard_due_diligence"
+    default_id = workflows[0]["id"] if workflows else ""
     return workflows, default_id
 
 

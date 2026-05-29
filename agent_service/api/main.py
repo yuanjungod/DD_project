@@ -17,11 +17,11 @@ from agent_service.workflows.config_loader import (
     load_workflow_template_catalog,
     load_tool_config,
 )
-from agent_service.workflows.due_diligence import DueDiligenceWorkflow
+from agent_service.workflows.workflow_engine import WorkflowEngine
 
 
-app = FastAPI(title="Due Diligence Agent Service", version="0.1.0")
-workflow = DueDiligenceWorkflow()
+app = FastAPI(title="Harness Agent Service", version="0.1.0")
+workflow = WorkflowEngine()
 _require_agent_key = [Depends(require_agent_api_key)]
 
 
@@ -48,7 +48,7 @@ def config() -> dict[str, object]:
 
 
 @app.post("/runs", response_model=RunResult, dependencies=_require_agent_key)
-def run_due_diligence(request: RunRequest) -> RunResult:
+def run_workflow(request: RunRequest) -> RunResult:
     try:
         return workflow.run(
             engagement_id=request.engagement_id,

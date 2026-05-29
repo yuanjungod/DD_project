@@ -179,8 +179,8 @@ def _apply_engagement_agent_overrides(agents: list[dict], overrides: list[dict])
 def _workflow_template_id_from_config(company_config: dict) -> str:
     """Resolve published workflow template id from company_config."""
     if not company_config:
-        return "standard_due_diligence"
+        raise HTTPException(status_code=400, detail="company_config.workflow_template_id is required")
     template_id = company_config.get("workflow_template_id")
     if isinstance(template_id, str) and template_id.strip():
         return template_id.strip()
-    return "standard_due_diligence"
+    raise HTTPException(status_code=400, detail="company_config.workflow_template_id is required")

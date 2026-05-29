@@ -104,7 +104,7 @@ export function EngagementsPage() {
       <header className="page-hero">
         <p className="eyebrow">Applications</p>
         <h1>Engagements</h1>
-        <p>已创建的尽调 Engagement 列表。可复制任一 Engagement 为新版本并调整配置，或直接启动 Run。</p>
+        <p>已创建的 Engagement 列表。可复制任一 Engagement 为新版本并调整配置，或直接启动 Run。</p>
       </header>
       {error ? <div className="error">{error}</div> : null}
       <label className="engagement-app-search">

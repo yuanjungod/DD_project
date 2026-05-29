@@ -1,1 +1,1 @@
-"""Due diligence backend."""
+"""Harness backend API."""

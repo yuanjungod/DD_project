@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { Navigate, Route, BrowserRouter as Router, Routes, useLocation } from "react-router-dom";
 
 import { getMe } from "./api/client";
+import { clearAccessToken, getAccessToken, setAccessToken } from "./api/auth";
 import { AppLayout } from "./components/AppLayout";
 import { LoginPage } from "./pages/LoginPage";
 import { NewEngagementPage } from "./pages/NewEngagementPage";
@@ -26,24 +27,24 @@ export function App() {
   const [booting, setBooting] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("dd_access_token");
+    const token = getAccessToken();
     if (!token) {
       setBooting(false);
       return;
     }
     getMe()
       .then(setUser)
-      .catch(() => localStorage.removeItem("dd_access_token"))
+      .catch(() => clearAccessToken())
       .finally(() => setBooting(false));
   }, []);
 
   function handleLogin(session: AuthSession) {
-    localStorage.setItem("dd_access_token", session.access_token);
+    setAccessToken(session.access_token);
     setUser(session.user);
   }
 
   function handleLogout() {
-    localStorage.removeItem("dd_access_token");
+    clearAccessToken();
     setUser(null);
   }
 

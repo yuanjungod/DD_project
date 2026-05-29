@@ -1,6 +1,6 @@
-# Due Diligence Platform
+# Harness_Project (Agent Orchestration Platform)
 
-MVP workspace for configuring due diligence workflows, running agents, and reviewing reports.
+MVP workspace for configuring Agent workflow templates, running graph-orchestrated agents, and reviewing outputs. Due-diligence templates remain available as published scenarios.
 
 ## Language
 
@@ -21,21 +21,15 @@ Agent execution order derived from `entry_node` and `edges` via `shared/workflow
 _Avoid_: Sorting agents by YAML node list index alone.
 
 **Resource config**:
-A typed data-source definition from shipped `catalog/resource_configs/` plus optional platform overlays under `DD_DATA_ROOT`.
+A typed data-source definition from shipped `catalog/resource_configs/` plus optional platform overlays under `HARNESS_DATA_ROOT`.
 
 **Engagement**:
-A concrete diligence business instance (company, application id, version, resources, runs). Persisted in the `engagements` table.
+A concrete business instance (company/subject, application id, version, resources, runs). Persisted in the `engagements` table.
 
 **Workflow template**:
 Reusable process definition (`workflow_template_id`) with graph and agent templates under `catalog/workflow_templates/`.
 
-## Relationships
+**WorkflowEngine**:
+Graph orchestration runtime in `agent_service/workflows/workflow_engine.py` (executes agents by DAG levels, parallel within a level).
 
-- An **Agent template** references zero or more **skill packages** and **tool configs** by id (`tool_ids`).
-- A **Workflow snapshot** embeds the resolved **skill packages** and **tool configs** needed for that run.
-- **Skill packages** and **tool configs** are edited only on disk; the backend API is a thin file adapter.
-
-## Example dialogue
-
-> **Dev:** "Where do I add a new platform tool?"
-> **Domain expert:** "Add it to **tools.yaml** and wire the agent template's **tool_ids**. Runs copy it into the **workflow snapshot** — you don't touch the database."
+See [docs/adr/0008-harness-platform-rename.md](docs/adr/0008-harness-platform-rename.md) for platform rename decisions.

@@ -74,7 +74,7 @@ function CreateAppWizardNav({
 
 export function NewEngagementPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialWorkflow = searchParams.get("workflow") ?? "standard_due_diligence";
+  const initialWorkflow = searchParams.get("workflow") ?? "";
   const resumeEngagementId = searchParams.get("engagement")?.trim() ?? "";
 
   const [form, setForm] = useState<CompanyConfig>(() => defaultConfig(initialWorkflow));
@@ -171,7 +171,12 @@ export function NewEngagementPage() {
     event.preventDefault();
     setLoading(true);
     setError("");
-    const displayName = `${form.target_company.name} - ${selectedWorkflow?.name ?? "尽调应用"}`;
+    if (!workflowTemplateIdFromConfig(form)) {
+      setError("请先选择已发布的 Workflow 模板。");
+      setLoading(false);
+      return;
+    }
+    const displayName = `${form.target_company.name} - ${selectedWorkflow?.name ?? "应用"}`;
     try {
       if (createdEngagement) {
         const engagement = await updateEngagement(createdEngagement.id, {

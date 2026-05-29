@@ -23,7 +23,7 @@ def initialize_agentscope() -> bool:
     try:
         agentscope.init()
     except TypeError:
-        agentscope.init(project="due_diligence_platform")
+        agentscope.init(project="harness_platform")
     except Exception as exc:  # pragma: no cover - depends on package version
         logger.warning("AgentScope initialization failed, continuing with local runner: %s", exc)
         return False

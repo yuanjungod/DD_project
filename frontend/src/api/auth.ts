@@ -1,5 +1,27 @@
+export const ACCESS_TOKEN_KEY = "harness_access_token";
+const LEGACY_ACCESS_TOKEN_KEY = "dd_access_token";
+
+export function migrateAccessTokenStorage(): void {
+  const legacy = localStorage.getItem(LEGACY_ACCESS_TOKEN_KEY);
+  if (legacy && !localStorage.getItem(ACCESS_TOKEN_KEY)) {
+    localStorage.setItem(ACCESS_TOKEN_KEY, legacy);
+    localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
+  }
+}
+
 export function getAccessToken(): string | null {
-  return localStorage.getItem("dd_access_token");
+  migrateAccessTokenStorage();
+  return localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+export function setAccessToken(token: string): void {
+  localStorage.setItem(ACCESS_TOKEN_KEY, token);
+  localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
+}
+
+export function clearAccessToken(): void {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
 }
 
 export function authHeaders(extra: Record<string, string> = {}): Record<string, string> {

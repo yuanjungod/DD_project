@@ -1,7 +1,7 @@
 import type { CompanyConfig } from "../types/domain";
 
 export function workflowTemplateIdFromConfig(config: CompanyConfig): string {
-  return config.workflow_template_id ?? "standard_due_diligence";
+  return (config.workflow_template_id ?? "").trim();
 }
 
 export function normalizeCompanyConfig(raw: CompanyConfig): CompanyConfig {
