@@ -5,7 +5,8 @@ import { cloneEngagementVersion, deleteEngagement, getMe, listEngagements, listW
 import { SectionCard } from "../components/SectionCard";
 import { workflowName } from "../data/workflows";
 import { workflowTemplateIdFromConfig } from "../domain/companyConfig";
-import { engagementIdentityLabel } from "../domain/engagementIdentity";
+import { engagementConfig, engagementIdentityLabel } from "../domain/engagementIdentity";
+import { subjectNameFromConfig } from "../domain/instanceConfig";
 import type { Engagement, User, WorkflowTemplate } from "../types/domain";
 
 function engagementMatchesSearch(engagement: Engagement, rawQuery: string): boolean {
@@ -15,7 +16,7 @@ function engagementMatchesSearch(engagement: Engagement, rawQuery: string): bool
     engagement.id,
     engagement.application_id,
     engagement.name,
-    engagement.company_config.target_company.name,
+    subjectNameFromConfig(engagementConfig(engagement)),
     engagementIdentityLabel(engagement),
     String(engagement.version),
     `v${engagement.version}`,
@@ -65,7 +66,7 @@ export function EngagementsPage() {
 
   async function handleDelete(engagement: Engagement) {
     const ok = window.confirm(
-      `确定删除应用「${engagement.name}」（${engagement.company_config.target_company.name}）吗？关联的资源、运行记录与报告将一并删除，且不可恢复。`,
+      `确定删除应用「${engagement.name}」（${subjectNameFromConfig(engagementConfig(engagement))}）吗？关联的资源、运行记录与报告将一并删除，且不可恢复。`,
     );
     if (!ok) {
       return;
@@ -113,7 +114,7 @@ export function EngagementsPage() {
           type="search"
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="应用 ID、公司名称、技术 ID 等关键词"
+          placeholder="应用 ID、实例名称、技术 ID 等关键词"
         />
       </label>
       <div className="engagement-app-list">
@@ -122,7 +123,7 @@ export function EngagementsPage() {
             <div className="summary-box">
               <strong>{engagement.application_id}</strong>
               <span>
-                {workflowName(workflowTemplateIdFromConfig(engagement.company_config), workflowTemplates)} · {engagement.id}
+                {workflowName(workflowTemplateIdFromConfig(engagementConfig(engagement)), workflowTemplates)} · {engagement.id}
               </span>
             </div>
             <div className="row-actions">

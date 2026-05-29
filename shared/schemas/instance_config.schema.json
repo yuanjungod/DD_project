@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harness-platform.local/schemas/instance_config.schema.json",
+  "title": "InstanceConfig",
+  "type": "object",
+  "required": ["workflow_template_id", "resources"],
+  "properties": {
+    "workflow_template_id": {
+      "type": "string",
+      "description": "Published workflow template id used by downstream runs."
+    },
+    "workflow_template_version": {
+      "type": "integer",
+      "description": "Published workflow template version selected for this engagement."
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "uploaded_files": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "trusted_sources": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "blocked_sources": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "competitors": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "metrics": { "type": "array", "items": { "type": "object" }, "default": [] },
+        "external_clues": { "type": "array", "items": { "type": "object" }, "default": [] },
+        "agent_resource_scopes": { "type": "array", "items": { "type": "object" }, "default": [] }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Template-specific blocks. Due diligence uses extensions.due_diligence.target_company.",
+      "properties": {
+        "due_diligence": {
+          "type": "object",
+          "properties": {
+            "target_company": {
+              "type": "object",
+              "required": ["name"],
+              "properties": {
+                "name": { "type": "string", "minLength": 1 },
+                "aliases": { "type": "array", "items": { "type": "string" }, "default": [] }
+              }
+            }
+          }
+        },
+        "subject": {
+          "type": "object",
+          "description": "Generic non-diligence subject (research topic, product, etc.).",
+          "required": ["name"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "aliases": { "type": "array", "items": { "type": "string" }, "default": [] },
+            "kind": { "type": "string" }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "target_company": {
+      "type": "object",
+      "deprecated": true,
+      "description": "Legacy due-diligence field; prefer extensions.due_diligence.target_company.",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "aliases": { "type": "array", "items": { "type": "string" }, "default": [] }
+      }
+    }
+  }
+}

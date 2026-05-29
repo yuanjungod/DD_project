@@ -4,7 +4,9 @@ Cross-service contracts live under `shared/schemas/`. Backend, agent_service, an
 
 | Schema | Purpose |
 | --- | --- |
-| [company_config.schema.json](company_config.schema.json) | Engagement company configuration |
+| [company_config.schema.json](company_config.schema.json) | Legacy due-diligence engagement configuration (deprecated; see instance_config) |
+| [instance_config.schema.json](instance_config.schema.json) | Generic engagement instance configuration |
+| [example_instance_config_research.json](example_instance_config_research.json) | Non-diligence instance config example |
 | [workflow_snapshot.schema.json](workflow_snapshot.schema.json) | Immutable run bundle from backend |
 | [run_request.schema.json](run_request.schema.json) | `POST /runs` body to agent_service |
 | [run_result.schema.json](run_result.schema.json) | Agent HTTP response / backend finalize payload |

@@ -32,17 +32,42 @@ class CompanyConfig(BaseModel):
     resources: Resources = Field(default_factory=Resources)
 
 
+class InstanceConfig(BaseModel):
+    workflow_template_id: str
+    workflow_template_version: int | None = None
+    resources: Resources = Field(default_factory=Resources)
+    extensions: dict[str, Any] = Field(default_factory=dict)
+    target_company: TargetCompany | None = Field(
+        default=None,
+        deprecated="Legacy due-diligence field; prefer extensions.due_diligence.target_company.",
+    )
+
+
 class EngagementCreate(BaseModel):
     name: str
-    company_config: CompanyConfig
+    instance_config: InstanceConfig | None = None
+    company_config: CompanyConfig | None = Field(
+        default=None,
+        deprecated="Use instance_config instead.",
+    )
     application_id: str
     version: int = 1
     initial_resources: list["ResourceCreate"] = Field(default_factory=list)
 
+    @model_validator(mode="after")
+    def _require_config(self) -> EngagementCreate:
+        if self.instance_config is None and self.company_config is None:
+            raise ValueError("instance_config or company_config is required")
+        return self
+
 
 class EngagementUpdate(BaseModel):
     name: str | None = None
-    company_config: CompanyConfig | None = None
+    instance_config: InstanceConfig | None = None
+    company_config: CompanyConfig | None = Field(
+        default=None,
+        deprecated="Use instance_config instead.",
+    )
     application_id: str | None = None
 
 
@@ -52,11 +77,39 @@ class EngagementRead(BaseModel):
     company_key: str
     application_id: str
     version: int
-    company_config: dict[str, Any]
+    company_config: dict[str, Any] = Field(
+        deprecated="Use instance_config instead.",
+    )
+    instance_config: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _enrich_instance_config(cls, data: Any, handler: Any) -> EngagementRead:
+        from shared.instance_config import instance_config_view
+
+        if hasattr(data, "company_config"):
+            stored = data.company_config if isinstance(data.company_config, dict) else {}
+            payload = {
+                "id": data.id,
+                "name": data.name,
+                "company_key": data.company_key,
+                "application_id": data.application_id,
+                "version": data.version,
+                "company_config": stored,
+                "instance_config": instance_config_view(stored),
+                "created_at": data.created_at,
+                "updated_at": data.updated_at,
+            }
+            return handler(payload)
+        if isinstance(data, dict) and "instance_config" not in data and isinstance(data.get("company_config"), dict):
+            enriched = dict(data)
+            enriched["instance_config"] = instance_config_view(enriched["company_config"])
+            return handler(enriched)
+        return handler(data)
 
 
 class EngagementAgentOverrideBase(BaseModel):

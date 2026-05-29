@@ -1,7 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://dd-platform.local/schemas/company_config.schema.json",
+  "$id": "https://harness-platform.local/schemas/company_config.schema.json",
   "title": "CompanyConfig",
+  "description": "Legacy due-diligence engagement shape. Prefer instance_config.schema.json for new integrations.",
   "type": "object",
   "required": ["target_company", "workflow_template_id", "resources"],
   "properties": {

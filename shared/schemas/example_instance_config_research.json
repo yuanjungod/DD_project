@@ -1,0 +1,17 @@
+{
+  "workflow_template_id": "workflow_research_demo",
+  "workflow_template_version": 1,
+  "resources": {
+    "uploaded_files": [],
+    "trusted_sources": ["industry reports", "public filings"],
+    "blocked_sources": [],
+    "competitors": []
+  },
+  "extensions": {
+    "subject": {
+      "name": "APAC Robotics Market Scan",
+      "aliases": ["Robotics APAC"],
+      "kind": "research_topic"
+    }
+  }
+}

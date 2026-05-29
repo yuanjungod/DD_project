@@ -4,6 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from shared.instance_config import to_agent_company_config
 from shared.session_fields import coalesce_workflow_session_id
 
 
@@ -67,7 +68,11 @@ class AgentStep(BaseModel):
 class RunRequest(BaseModel):
     engagement_id: str
     user_id: str = Field(description="User id for session filesystem isolation.")
-    company_config: CompanyConfig
+    company_config: CompanyConfig | None = None
+    instance_config: dict[str, Any] | None = Field(
+        default=None,
+        description="Generic engagement instance config; synthesized into company_config for agents.",
+    )
     workflow_snapshot: dict[str, Any] | None = None
     run_id: str | None = Field(
         default=None,
@@ -100,12 +105,22 @@ class RunRequest(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _coalesce_session_id(cls, data: object) -> object:
+    def _coalesce_config_and_session(cls, data: object) -> object:
         if isinstance(data, dict):
+            if isinstance(data.get("instance_config"), dict):
+                data["company_config"] = to_agent_company_config(data["instance_config"])
+            elif isinstance(data.get("company_config"), dict):
+                data["company_config"] = to_agent_company_config(data["company_config"])
             resolved = coalesce_workflow_session_id(data)
             if resolved:
                 data["workflow_session_id"] = resolved
         return data
+
+    @property
+    def resolved_company_config(self) -> CompanyConfig:
+        if self.company_config is None:
+            raise ValueError("company_config is required")
+        return self.company_config
 
     @property
     def resolved_workflow_session_id(self) -> str | None:

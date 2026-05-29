@@ -24,4 +24,4 @@ Disk path layout under `.harness_project/users/.../sessions/` is unchanged.
 ## Consequences
 
 - Frontend and OpenAPI use WorkflowSession naming; legacy clients may keep sending `diligence_session_id` one release.
-- Phase E (`InstanceConfig` / `company_config` generalization) remains separate.
+- Phase E (`InstanceConfig` / `company_config` generalization) is documented in [ADR-0010](0010-instance-config-generalization.md).

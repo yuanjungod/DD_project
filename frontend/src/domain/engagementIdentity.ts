@@ -1,7 +1,14 @@
 import type { Engagement } from "../types/domain";
+import { subjectNameFromConfig } from "./instanceConfig";
 
-export function engagementIdentityLabel(engagement: Pick<Engagement, "company_config" | "application_id" | "version">): string {
-  const company = engagement.company_config?.target_company?.name?.trim() || "Engagement";
+export function engagementConfig(engagement: Pick<Engagement, "instance_config" | "company_config">) {
+  return engagement.instance_config ?? engagement.company_config;
+}
+
+export function engagementIdentityLabel(
+  engagement: Pick<Engagement, "instance_config" | "company_config" | "application_id" | "version">,
+): string {
+  const company = subjectNameFromConfig(engagementConfig(engagement)) || "Engagement";
   return `${company} · ${engagement.application_id} · v${engagement.version}`;
 }
 

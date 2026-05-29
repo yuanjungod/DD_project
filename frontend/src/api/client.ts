@@ -8,6 +8,7 @@ import type {
   CompanyConfig,
   WorkflowSessionModel,
   DiligenceSessionModel,
+  InstanceConfig,
   Engagement,
   EngagementAgentOverride,
   Report,
@@ -110,7 +111,7 @@ export function listEngagements(): Promise<Engagement[]> {
 
 export function createEngagement(payload: {
   name: string;
-  company_config: CompanyConfig;
+  instance_config: InstanceConfig;
   application_id: string;
   version?: number;
   initial_resources?: Array<{ type: string; value: string; metadata_json?: Record<string, unknown> }>;
@@ -127,7 +128,7 @@ export function getEngagement(engagementId: string): Promise<Engagement> {
 
 export function updateEngagement(
   engagementId: string,
-  payload: Partial<{ name: string; company_config: CompanyConfig; application_id: string }>,
+  payload: Partial<{ name: string; instance_config: InstanceConfig; application_id: string }>,
 ): Promise<Engagement> {
   return request<Engagement>(`/engagements/${encodeURIComponent(engagementId)}`, {
     method: "PATCH",

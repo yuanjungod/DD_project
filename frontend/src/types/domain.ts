@@ -16,12 +16,27 @@ export type CompanyConfig = {
   };
 };
 
+export type InstanceConfig = {
+  workflow_template_id: string;
+  workflow_template_version?: number | null;
+  resources: CompanyConfig["resources"];
+  extensions?: {
+    due_diligence?: { target_company?: CompanyConfig["target_company"] };
+    subject?: { name: string; aliases?: string[]; kind?: string };
+    [key: string]: unknown;
+  };
+  /** @deprecated Legacy due-diligence root field */
+  target_company?: CompanyConfig["target_company"];
+};
+
 export type Engagement = {
   id: string;
   name: string;
   company_key: string;
   application_id: string;
   version: number;
+  instance_config: InstanceConfig;
+  /** @deprecated Use instance_config */
   company_config: CompanyConfig;
   created_at: string;
   updated_at: string;

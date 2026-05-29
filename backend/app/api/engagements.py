@@ -18,6 +18,12 @@ from app.services.engagement_resources_store import delete_engagement_resources_
 from app.services.fs_layout import engagement_agent_overrides_manifest_path, engagement_uploads_dir, register_engagement_tree
 from app.services.platform_uploads_store import copy_platform_uploads_to_engagement
 from app.services.skill_files import copy_skill_directories_to_engagement
+from app.services.instance_config_store import (
+    stored_config_from_create,
+    stored_config_from_update,
+    subject_name_from_stored,
+    workflow_template_id_from_stored,
+)
 from app.services.workflow_snapshots import build_workflow_snapshot
 
 
@@ -47,7 +53,7 @@ def _selected_platform_file_ids_from_company_config(company_config: dict) -> lis
 
 
 def _selected_platform_file_ids_for_engagement_create(payload: EngagementCreate) -> list[str]:
-    return _selected_platform_file_ids_from_company_config(payload.company_config.model_dump())
+    return _selected_platform_file_ids_from_company_config(stored_config_from_create(payload))
 
 
 def _selected_skill_directories_from_company_config(company_config: dict) -> list[str]:
@@ -66,7 +72,7 @@ def _selected_skill_directories_from_company_config(company_config: dict) -> lis
 
 
 def _selected_skill_directories_for_engagement_create(payload: EngagementCreate) -> list[str]:
-    return _selected_skill_directories_from_company_config(payload.company_config.model_dump())
+    return _selected_skill_directories_from_company_config(stored_config_from_create(payload))
 
 
 def _next_version(db: Session, company_key: str, application_id: str) -> int:
@@ -84,7 +90,8 @@ def create_engagement(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> Engagement:
-    company_name = payload.company_config.target_company.name
+    stored_config = stored_config_from_create(payload)
+    company_name = subject_name_from_stored(stored_config) or payload.name
     company_key = company_key_from_name(company_name)
     try:
         application_id = normalize_application_id(payload.application_id)
@@ -112,11 +119,11 @@ def create_engagement(
         company_key=company_key,
         application_id=application_id,
         version=version,
-        company_config=payload.company_config.model_dump(),
+        company_config=stored_config,
     )
     db.add(engagement)
     db.flush()
-    workflow_template_id = str(payload.company_config.workflow_template_id or "").strip() or "_default_workflow"
+    workflow_template_id = workflow_template_id_from_stored(stored_config) or "_default_workflow"
     register_engagement_tree(engagement.id, user.id, workflow_template_id)
     db.add(EngagementAccess(engagement_id=engagement.id, user_id=user.id, access_role="owner"))
     db.commit()
@@ -164,15 +171,19 @@ def update_engagement(
     )
     if payload.name is not None:
         engagement.name = payload.name
-    if payload.company_config is not None:
-        company_config = payload.company_config.model_dump()
+    if payload.instance_config is not None or payload.company_config is not None:
+        company_config = stored_config_from_update(payload)
+        if company_config is None:
+            raise HTTPException(status_code=400, detail="instance_config or company_config required")
         register_engagement_tree(
             engagement.id,
             user.id,
             str(company_config.get("workflow_template_id") or "_default_workflow"),
         )
         engagement.company_config = company_config
-        engagement.company_key = company_key_from_name(payload.company_config.target_company.name)
+        subject_name = subject_name_from_stored(company_config)
+        if subject_name:
+            engagement.company_key = company_key_from_name(subject_name)
         copy_platform_uploads_to_engagement(
             engagement.id,
             _selected_platform_file_ids_from_company_config(company_config),
@@ -199,7 +210,7 @@ def clone_engagement_version(
 ) -> Engagement:
     source = ensure_engagement_write_access(db, user, engagement_id)
     version = _next_version(db, source.company_key, source.application_id)
-    company_name = (source.company_config or {}).get("target_company", {}).get("name", source.name)
+    company_name = subject_name_from_stored(source.company_config if isinstance(source.company_config, dict) else {}) or source.name
     clone = Engagement(
         name=f"{company_name} · {source.application_id} · v{version}",
         company_key=source.company_key,

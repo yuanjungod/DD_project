@@ -41,4 +41,4 @@ See [docs/harness_runtime_storage.md](../harness_runtime_storage.md).
 ## Consequences
 
 - Documentation and UI copy use Harness branding; due-diligence wording remains inside DD template content only.
-- Phase D (Session rename) complete; Phase E (InstanceConfig) remains a follow-up.
+- Phase D (Session rename) complete; Phase E (InstanceConfig) complete per ADR-0010.

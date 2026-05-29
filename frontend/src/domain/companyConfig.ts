@@ -1,6 +1,6 @@
-import type { CompanyConfig } from "../types/domain";
+import type { CompanyConfig, InstanceConfig } from "../types/domain";
 
-export function workflowTemplateIdFromConfig(config: CompanyConfig): string {
+export function workflowTemplateIdFromConfig(config: CompanyConfig | InstanceConfig): string {
   return (config.workflow_template_id ?? "").trim();
 }
 

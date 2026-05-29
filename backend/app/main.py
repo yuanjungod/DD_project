@@ -23,6 +23,7 @@ from app.core.config_seed import seed_configuration_catalog
 from app.core.database import Base, SessionLocal, engine, ensure_schema_patches
 from app.models.entities import Engagement
 from app.services.company_identity import company_key_from_name, normalize_application_id
+from shared.instance_config import resolve_subject_name
 
 
 def create_app() -> FastAPI:
@@ -64,8 +65,7 @@ def _backfill_engagement_identity(db) -> None:
     changed = False
     for engagement in db.query(Engagement).all():
         cfg = engagement.company_config if isinstance(engagement.company_config, dict) else {}
-        target = cfg.get("target_company") if isinstance(cfg.get("target_company"), dict) else {}
-        name = str(target.get("name") or engagement.name or "company")
+        name = resolve_subject_name(cfg) or str(engagement.name or "company")
         key = company_key_from_name(name)
         if engagement.company_key != key:
             engagement.company_key = key

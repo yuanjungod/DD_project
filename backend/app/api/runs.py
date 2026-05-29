@@ -36,6 +36,7 @@ from app.services.agent_step_output_files import (
 from app.services.agent_client import AgentServiceClient, AgentServiceError
 from app.services.agent_run_resume import completed_slice_for_agent_service, previous_results_before_step
 from app.services.company_config_merge import merged_company_config_with_engagement_resources
+from shared.instance_config import to_agent_company_config
 from app.services.persistence import append_agent_step_chat_message, create_pending_agent_run
 from app.services.run_status import resolve_effective_run_status
 from app.services.engagement_resources_store import engagement_resource_records_for_merge
@@ -45,6 +46,10 @@ from app.services.workflow_snapshots import build_workflow_snapshot
 
 
 router = APIRouter(tags=["runs"])
+
+
+def _agent_company_config_dict(stored: dict) -> dict:
+    return to_agent_company_config(stored if isinstance(stored, dict) else {})
 
 
 def _agent_run_read(run: AgentRun) -> AgentRunRead:
@@ -219,7 +224,9 @@ async def _execute_start_agent_run(
 
     snapshot_dict = dict(workflow_snapshot)
     eng_records = engagement_resource_records_for_merge(engagement.id)
-    company_dict = merged_company_config_with_engagement_resources(dict(engagement.company_config), eng_records)
+    company_dict = merged_company_config_with_engagement_resources(
+        _agent_company_config_dict(engagement.company_config), eng_records
+    )
 
     loaded = (
         db.query(AgentRun)
@@ -476,7 +483,9 @@ async def continue_step_gated(
     attempt_ix = getattr(row, "attempt_index", 1) or 1
     sess_id = row.session_id
     eng_records = engagement_resource_records_for_merge(engagement.id)
-    company_merged = merged_company_config_with_engagement_resources(dict(engagement.company_config), eng_records)
+    company_merged = merged_company_config_with_engagement_resources(
+        _agent_company_config_dict(engagement.company_config), eng_records
+    )
     owner_user_id = row.started_by_user_id or user.id
     background_tasks.add_task(
         dispatch_agent_background,
@@ -534,7 +543,9 @@ def agent_step_review_chat(
         raise HTTPException(status_code=404, detail="Engagement not found")
 
     eng_records = engagement_resource_records_for_merge(engagement.id)
-    merged_cfg = merged_company_config_with_engagement_resources(dict(engagement.company_config), eng_records)
+    merged_cfg = merged_company_config_with_engagement_resources(
+        _agent_company_config_dict(engagement.company_config), eng_records
+    )
 
     snapshot = dict(build_workflow_snapshot(engagement.company_config, engagement_id=engagement.id))
 

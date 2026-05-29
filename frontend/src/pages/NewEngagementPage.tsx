@@ -7,6 +7,12 @@ import { EngagementResourceCatalogPanel } from "../components/EngagementResource
 import { SectionCard } from "../components/SectionCard";
 import { defaultApplicationId, engagementIdentityLabel } from "../domain/engagementIdentity";
 import { normalizeCompanyConfig, workflowTemplateIdFromConfig } from "../domain/companyConfig";
+import {
+  instanceConfigToForm,
+  isDueDiligenceTemplate,
+  subjectNameFromConfig,
+  toInstanceConfigPayload,
+} from "../domain/instanceConfig";
 import type { CompanyConfig, Engagement, WorkflowTemplate } from "../types/domain";
 
 function defaultConfig(workflowTemplateId: string): CompanyConfig {
@@ -31,8 +37,8 @@ function defaultConfig(workflowTemplateId: string): CompanyConfig {
 type WizardStep = "identity" | "resources" | "agents";
 
 const WIZARD_STEPS: Array<{ step: WizardStep; label: string; short: string }> = [
-  { step: "identity", label: "公司与应用", short: "Step 1" },
-  { step: "resources", label: "公司资源", short: "Step 2" },
+  { step: "identity", label: "实例与应用", short: "Step 1" },
+  { step: "resources", label: "实例资源", short: "Step 2" },
   { step: "agents", label: "Agent 配置", short: "Step 3" },
 ];
 
@@ -92,8 +98,11 @@ export function NewEngagementPage() {
   );
 
   const workflowTemplateId = createdEngagement
-    ? workflowTemplateIdFromConfig(createdEngagement.company_config)
+    ? workflowTemplateIdFromConfig(createdEngagement.instance_config ?? createdEngagement.company_config)
     : workflowTemplateIdFromConfig(form);
+
+  const dueDiligenceMode = isDueDiligenceTemplate(workflowTemplateIdFromConfig(form));
+  const subjectFieldLabel = dueDiligenceMode ? "目标公司名称" : "实例主体名称";
 
   useEffect(() => {
     listWorkflowTemplates()
@@ -123,7 +132,7 @@ export function NewEngagementPage() {
     getEngagement(resumeEngagementId)
       .then((engagement) => {
         setCreatedEngagement(engagement);
-        setForm(normalizeCompanyConfig(engagement.company_config));
+        setForm(instanceConfigToForm(engagement.instance_config ?? engagement.company_config));
         setApplicationId(engagement.application_id);
         const step = parseWizardStep(searchParams.get("step")) ?? "identity";
         setWizardStep(step);
@@ -154,7 +163,7 @@ export function NewEngagementPage() {
   }, [createdEngagement?.id, wizardStep]);
 
   function hydrateIdentityFromEngagement(engagement: Engagement) {
-    setForm(normalizeCompanyConfig(engagement.company_config));
+    setForm(instanceConfigToForm(engagement.instance_config ?? engagement.company_config));
     setApplicationId(engagement.application_id);
   }
 
@@ -176,12 +185,13 @@ export function NewEngagementPage() {
       setLoading(false);
       return;
     }
-    const displayName = `${form.target_company.name} - ${selectedWorkflow?.name ?? "应用"}`;
+    const displayName = `${subjectNameFromConfig(form) || form.target_company.name} - ${selectedWorkflow?.name ?? "应用"}`;
+    const instance_config = toInstanceConfigPayload(normalizeCompanyConfig(form));
     try {
       if (createdEngagement) {
         const engagement = await updateEngagement(createdEngagement.id, {
           name: displayName,
-          company_config: form,
+          instance_config,
           application_id: applicationId.trim(),
         });
         setCreatedEngagement(engagement);
@@ -189,7 +199,7 @@ export function NewEngagementPage() {
       } else {
         const engagement = await createEngagement({
           name: displayName,
-          company_config: form,
+          instance_config,
           application_id: applicationId.trim(),
         });
         setCreatedEngagement(engagement);
@@ -227,7 +237,7 @@ export function NewEngagementPage() {
               。通过上方步骤栏切换各配置页，修改后保存即可；Run 请至「Engagements」启动。
             </>
           ) : (
-            "填写公司与应用标识并创建后，可在公司资源与 Agent 配置之间来回调整，无需按固定顺序完成。"
+            "填写实例标识并创建后，可在实例资源与 Agent 配置之间来回调整，无需按固定顺序完成。"
           )}
         </p>
       </header>
@@ -270,7 +280,7 @@ export function NewEngagementPage() {
                 </select>
               </label>
               <label>
-                公司名称
+                {subjectFieldLabel}
                 <input
                   value={form.target_company.name}
                   onChange={(event) => setForm({ ...form, target_company: { ...form.target_company, name: event.target.value } })}

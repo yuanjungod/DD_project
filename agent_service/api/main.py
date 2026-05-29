@@ -52,7 +52,7 @@ def run_workflow(request: RunRequest) -> RunResult:
     try:
         return workflow.run(
             engagement_id=request.engagement_id,
-            company_config=request.company_config,
+            company_config=request.resolved_company_config,
             workflow_snapshot=request.workflow_snapshot,
             run_id_override=request.run_id,
             user_id=request.user_id,
