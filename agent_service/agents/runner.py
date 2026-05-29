@@ -4,14 +4,21 @@ from typing import Any
 
 from agent_service.api.schemas import AgentResult, CompanyConfig
 from agent_service.agents.react_runtime import AgentScopeReActRuntime, build_react_system_prompt
+from agent_service.execution.context import RunExecutionContext
 from agent_service.tools.base import ToolExecutionContext
 from agent_service.tools.registry import ToolRegistry
 from agent_service.workflows.config_loader import AgentDefinition
 
 
 class ConfiguredAgentRunner:
-    def __init__(self, definition: AgentDefinition) -> None:
+    def __init__(
+        self,
+        definition: AgentDefinition,
+        *,
+        execution_context: RunExecutionContext | None = None,
+    ) -> None:
         self.definition = definition
+        self.execution_context = execution_context
         self.prompt = (definition.prompt_text or definition.prompt or "").strip()
         if not self.prompt:
             raise ValueError(f"Agent {definition.name} is missing prompt content")
@@ -21,6 +28,7 @@ class ConfiguredAgentRunner:
             definition,
             sys_prompt=build_react_system_prompt(definition, self.prompt),
             tool_executor=self._execute_react_tool,
+            execution_context=execution_context,
         )
 
     def run(

@@ -270,12 +270,22 @@ export type WorkflowGraph = {
   report_node: string;
 };
 
+export type WorkflowRuntimeConfig = {
+  command_execution: "host" | "docker";
+  docker?: {
+    image?: string;
+    idle_ttl_seconds?: number;
+    workspace_mount?: string;
+  };
+};
+
 export type WorkflowTemplate = {
   id: string;
   name: string;
   description: string;
   workflow_template: string;
   graph: WorkflowGraph;
+  runtime?: WorkflowRuntimeConfig;
   status: "draft" | "published";
   version: number;
   created_at: string;

@@ -557,6 +557,8 @@ def agent_step_review_chat(
 
     payload = {
         "engagement_id": row.engagement_id,
+        "user_id": str(row.started_by_user_id or user.id),
+        "workflow_session_id": row.session_id,
         "company_config": merged_cfg,
         "workflow_snapshot": snapshot,
         "agent_name": step.agent,

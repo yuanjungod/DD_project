@@ -83,6 +83,8 @@ def _normalize_bundle(doc: dict[str, Any]) -> dict[str, Any]:
     wf["workflow_template"] = discriminator
     wf.setdefault("status", "draft")
     wf.setdefault("version", 1)
+    if not isinstance(wf.get("runtime"), dict):
+        wf["runtime"] = {"command_execution": "host", "docker": {"image": "harness-exec:0.1.0", "idle_ttl_seconds": 3600}}
     if "graph" not in wf or not wf["graph"]:
         raise HTTPException(status_code=400, detail="Workflow missing graph")
     if "id" not in wf or not wf["id"]:
@@ -155,6 +157,7 @@ def _bundle_to_read(path: Path, bundle: dict[str, Any]) -> WorkflowTemplateRead:
         description=wf.get("description", ""),
         workflow_template=wf.get("workflow_template", "standard"),
         graph=wf["graph"],
+        runtime=wf.get("runtime") or {"command_execution": "host"},
         status=wf.get("status", "draft"),
         version=int(wf.get("version", 1)),
     )
@@ -245,6 +248,11 @@ def create_workflow_template(payload: WorkflowTemplateCreate, *, user_id: str) -
             "graph": graph,
             "status": data.get("status") or "draft",
             "version": int(data.get("version") or 1),
+            "runtime": (
+                data["runtime"].model_dump()
+                if hasattr(data.get("runtime"), "model_dump")
+                else (data.get("runtime") or {"command_execution": "host"})
+            ),
         },
     }
     path = save_workflow_bundle(wf_id, bundle, user_id=user_id)
@@ -258,6 +266,8 @@ def update_workflow_template(workflow_id: str, payload: WorkflowTemplateUpdate, 
     for key, value in updates.items():
         if key == "version" and value is not None:
             wf[key] = int(value)
+        elif key == "runtime" and value is not None:
+            wf["runtime"] = value.model_dump() if hasattr(value, "model_dump") else value
         elif value is not None:
             wf[key] = value
     if "graph" in updates and updates["graph"] is not None:

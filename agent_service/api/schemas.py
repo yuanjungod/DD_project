@@ -147,6 +147,13 @@ class RunResult(BaseModel):
 
 class StepReviewChatRequest(BaseModel):
     engagement_id: str
+    user_id: str = ""
+    workflow_session_id: str | None = None
+    diligence_session_id: str | None = Field(
+        default=None,
+        deprecated=True,
+        description="Deprecated alias for workflow_session_id.",
+    )
     company_config: CompanyConfig | None = None
     instance_config: dict[str, Any] | None = Field(
         default=None,
@@ -168,6 +175,9 @@ class StepReviewChatRequest(BaseModel):
         if isinstance(data, dict):
             if isinstance(data.get("instance_config"), dict):
                 data["company_config"] = to_agent_company_config(data["instance_config"])
+            resolved = coalesce_workflow_session_id(data)
+            if resolved:
+                data["workflow_session_id"] = resolved
         return data
 
     @property
@@ -175,6 +185,10 @@ class StepReviewChatRequest(BaseModel):
         if self.company_config is None:
             raise ValueError("company_config is required")
         return self.company_config
+
+    @property
+    def resolved_workflow_session_id(self) -> str | None:
+        return self.workflow_session_id
 
 
 class StepReviewChatResponse(BaseModel):

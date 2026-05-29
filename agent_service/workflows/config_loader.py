@@ -62,6 +62,7 @@ class WorkflowDefinition(BaseModel):
     name: str = ""
     description: str = ""
     workflow_template: str = "standard"
+    runtime: dict[str, Any] = Field(default_factory=dict)
     ordered_agents: list[str] = Field(default_factory=list)
     coordinator: str = ""
     research_agents: list[str] = Field(default_factory=list)

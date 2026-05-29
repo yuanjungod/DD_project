@@ -7,6 +7,8 @@ from typing import Any
 from uuid import uuid4
 
 from agent_service.agents.runner import ConfiguredAgentRunner
+from agent_service.execution.container_manager import ContainerManager
+from agent_service.execution.context import build_run_execution_context
 from agent_service.api.schemas import (
     AgentResult,
     AgentStep,
@@ -39,7 +41,19 @@ class WorkflowEngine:
         definition = agent_definitions.get(payload.agent_name)
         if definition is None:
             raise ValueError(f"Workflow snapshot missing agent definition: {payload.agent_name}")
-        runner = ConfiguredAgentRunner(definition)
+        workflow_section = snapshot.get("workflow") if isinstance(snapshot.get("workflow"), dict) else {}
+        execution_context = build_run_execution_context(
+            workflow_runtime=workflow_section.get("runtime"),
+            user_id=str(payload.user_id or "").strip(),
+            workflow_template_id=str(
+                payload.resolved_company_config.workflow_template_id or workflow_section.get("id") or ""
+            ),
+            engagement_id=str(payload.engagement_id or ""),
+            session_id=str(payload.resolved_workflow_session_id or payload.engagement_id or "review"),
+        )
+        if execution_context.is_docker:
+            ContainerManager().ensure_container(execution_context)
+        runner = ConfiguredAgentRunner(definition, execution_context=execution_context)
         cur = payload.current_step
         reply = runner.run_step_review_chat(
             payload.resolved_company_config,
@@ -106,6 +120,18 @@ class WorkflowEngine:
         safe_user_id = user_id.strip()
         resolved_session_id = (workflow_session_id or diligence_session_id or "").strip() or None
         safe_session_id = (resolved_session_id or run_id).strip()
+
+        workflow_section = workflow_snapshot.get("workflow") if workflow_snapshot else {}
+        execution_context = build_run_execution_context(
+            workflow_runtime=workflow_section.get("runtime") if isinstance(workflow_section, dict) else None,
+            user_id=safe_user_id,
+            workflow_template_id=workflow_template_id,
+            engagement_id=engagement_id,
+            session_id=safe_session_id,
+        )
+        container_manager = ContainerManager()
+        if execution_context.is_docker:
+            container_manager.ensure_container(execution_context)
 
         recorder: object
         start_payload = {
@@ -178,7 +204,7 @@ class WorkflowEngine:
                 definition = agent_definitions.get(agent_name)
                 if definition is None:
                     raise ValueError(f"Workflow snapshot missing agent definition: {agent_name}")
-                runner = ConfiguredAgentRunner(definition)
+                runner = ConfiguredAgentRunner(definition, execution_context=execution_context)
                 nonlocal step_seq
                 step_seq += 1
                 step = AgentStep(id=f"{run_id}_step_{step_seq:03d}", agent=agent_name, status="running")
@@ -376,6 +402,7 @@ class WorkflowEngine:
             name=workflow["name"],
             description=workflow.get("description", ""),
             workflow_template=workflow.get("workflow_template", "standard"),
+            runtime=workflow.get("runtime") if isinstance(workflow.get("runtime"), dict) else {},
             ordered_agents=agent_ids,
             coordinator=agent_ids[0],
             research_agents=agent_ids[1:-1] if len(agent_ids) >= 2 else agent_ids[1:],

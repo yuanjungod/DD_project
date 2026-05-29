@@ -42,6 +42,18 @@ Shared volume `harness_runtime` mounts at `/data` inside containers. Set `HARNES
 - `HARNESS_SEED_DEFAULT_USERS=false` — disable default passwords
 - Model provider URLs via `HARNESS_MODEL_BASE_URL` / `HARNESS_MODEL_API_KEY` on agent host
 
+## Host agent_service with per-workflow Docker execution
+
+When a workflow template sets `runtime.command_execution: docker` (see [ADR-0011](adr/0011-workflow-docker-execution.md)):
+
+1. Build the execution image on the host: `bash scripts/build_harness_exec_image.sh`
+2. Run `agent_service` on the host with access to **Docker Engine** (`/var/run/docker.sock`).
+3. Each `user_id` + `workflow_template_id` gets a long-lived `harness-exec-*` container with a single bind mount:  
+   `.harness_project/users/{user_id}/workflows/{workflow_template_id}` → `/workspace/workflow`
+4. LLM / ReAct stay in the host process; `execute_shell_command`, `execute_python_code`, and `view_text_file` run inside the container via `docker exec`.
+
+Docker socket access is privileged—use only on trusted single-tenant hosts.
+
 ## Health checks
 
 - Backend: `GET http://localhost:8010/health`

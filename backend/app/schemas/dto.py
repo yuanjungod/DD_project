@@ -396,6 +396,11 @@ class AgentTemplateRead(AgentTemplateBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class WorkflowRuntimeConfig(BaseModel):
+    command_execution: str = "host"
+    docker: dict[str, Any] = Field(default_factory=dict)
+
+
 class WorkflowTemplateBase(BaseModel):
     name: str
     description: str = ""
@@ -405,6 +410,7 @@ class WorkflowTemplateBase(BaseModel):
         serialization_alias="workflow_template",
     )
     graph: dict[str, Any]
+    runtime: WorkflowRuntimeConfig | dict[str, Any] | None = None
     status: str = "draft"
     version: int = 1
 
@@ -422,6 +428,7 @@ class WorkflowTemplateUpdate(BaseModel):
         serialization_alias="workflow_template",
     )
     graph: dict[str, Any] | None = None
+    runtime: WorkflowRuntimeConfig | dict[str, Any] | None = None
     status: str | None = None
     version: int | None = None
 

@@ -69,6 +69,7 @@ export function WorkflowsHubPage() {
     name: "",
     description: "",
     workflow_template: "custom",
+    command_execution: "host" as "host" | "docker",
   });
   const [workflowGraph, setWorkflowGraph] = useState<WorkflowGraph>(createEmptyWorkflowGraph());
   const [editingWorkflowId, setEditingWorkflowId] = useState<string | null>(null);
@@ -108,7 +109,7 @@ export function WorkflowsHubPage() {
 
   function resetWorkflowForm() {
     setEditingWorkflowId(null);
-    setForm({ id: "", name: "", description: "", workflow_template: "custom" });
+    setForm({ id: "", name: "", description: "", workflow_template: "custom", command_execution: "host" });
     setWorkflowGraph(createEmptyWorkflowGraph());
   }
 
@@ -119,6 +120,7 @@ export function WorkflowsHubPage() {
       name: workflow.name,
       description: workflow.description,
       workflow_template: workflow.workflow_template,
+      command_execution: workflow.runtime?.command_execution === "docker" ? "docker" : "host",
     });
     setWorkflowGraph(workflow.graph ?? createEmptyWorkflowGraph());
     setBuilderSubTab("create");
@@ -143,6 +145,14 @@ export function WorkflowsHubPage() {
         description: form.description,
         workflow_template: form.workflow_template,
         graph,
+        runtime: {
+          command_execution: form.command_execution,
+          docker: {
+            image: "harness-exec:0.1.0",
+            idle_ttl_seconds: 3600,
+            workspace_mount: "workflow_tree",
+          },
+        },
       };
       if (!payload.graph.nodes.length) {
         throw new Error("请至少添加一个 Agent 节点。");
@@ -391,6 +401,24 @@ export function WorkflowsHubPage() {
                             value={form.description}
                             onChange={(event) => setForm({ ...form, description: event.target.value })}
                           />
+                        </label>
+                        <label>
+                          命令执行环境
+                          <select
+                            value={form.command_execution}
+                            onChange={(event) =>
+                              setForm({
+                                ...form,
+                                command_execution: event.target.value === "docker" ? "docker" : "host",
+                              })
+                            }
+                          >
+                            <option value="host">Host（本机）</option>
+                            <option value="docker">Docker（每用户×模板独立容器）</option>
+                          </select>
+                          <span className="muted" style={{ fontSize: "12px" }}>
+                            Docker 模式下 shell/python/读写挂载目录在容器内执行；LLM 仍在 agent_service 主机。
+                          </span>
                         </label>
                       </div>
                     </div>

@@ -22,6 +22,10 @@ from agentscope.tool import (
 from pydantic import BaseModel
 
 from agent_service.api.schemas import AgentResult, CompanyConfig
+from agent_service.execution.context import RunExecutionContext
+from agent_service.execution.prompt_paths import translate_handoff_for_prompt
+from agent_service.execution.router import ExecutionRouter
+from agent_service.execution.tool_wrappers import build_docker_builtin_tools
 from agent_service.workflows.agent_outputs import build_previous_agent_handoff_context, load_handoff_readme
 from agent_service.workflows.config_loader import AgentDefinition
 
@@ -61,10 +65,13 @@ class AgentScopeReActRuntime:
         definition: AgentDefinition,
         sys_prompt: str,
         tool_executor: ToolExecutor | None = None,
+        execution_context: RunExecutionContext | None = None,
     ) -> None:
         self.definition = definition
         self.sys_prompt = sys_prompt
         self.tool_executor = tool_executor
+        self.execution_context = execution_context
+        self.execution_router = ExecutionRouter(execution_context)
         self.model_config = _normalize_model_config(definition.react_config.get("model", definition.react_config))
         self._temp_dir = tempfile.TemporaryDirectory(prefix=f"dd_{definition.name}_")
         self.toolkit = Toolkit()
@@ -140,6 +147,15 @@ class AgentScopeReActRuntime:
                 continue
 
     def _register_agentscope_builtin_tools(self) -> None:
+        if self.execution_context is not None and self.execution_context.is_docker:
+            for _name, tool_fn, description in build_docker_builtin_tools(self.execution_router):
+                self.toolkit.register_tool_function(
+                    tool_fn,
+                    func_name=_name,
+                    func_description=description,
+                    namesake_strategy="skip",
+                )
+            return
         for tool_fn in (execute_shell_command, execute_python_code, view_text_file):
             self.toolkit.register_tool_function(tool_fn, namesake_strategy="skip")
 
@@ -176,11 +192,17 @@ class AgentScopeReActRuntime:
         continuation_context: dict[str, Any] | None = None,
         agent_output_dir: str | None = None,
     ) -> str:
-        handoff = build_previous_agent_handoff_context(previous_results)
+        handoff = translate_handoff_for_prompt(
+            build_previous_agent_handoff_context(previous_results),
+            self.execution_context,
+        )
         readme_by_agent = {
             entry["agent"]: entry.get("readme", "")
             for entry in handoff.get("previous_agent_handoff_readmes", [])
         }
+        display_output_dir = (
+            self.execution_context.display_path(agent_output_dir) if agent_output_dir else None
+        )
         sections: list[str] = [
             "## 任务说明",
             "",
@@ -220,8 +242,14 @@ class AgentScopeReActRuntime:
                 company_config.resources.model_dump(mode="json"),
             )
         )
-        sections.extend(_markdown_previous_agent_results(previous_results, readme_by_agent))
-        sections.extend(_markdown_agent_output_dir(agent_output_dir, self.definition.name))
+        sections.extend(
+            _markdown_previous_agent_results(
+                previous_results,
+                readme_by_agent,
+                path_display=self.execution_context.display_path if self.execution_context else None,
+            )
+        )
+        sections.extend(_markdown_agent_output_dir(display_output_dir, self.definition.name))
         if continuation_context:
             sections.extend(
                 _markdown_json_section(
@@ -263,6 +291,7 @@ class AgentScopeReActRuntime:
         user_message: str,
     ) -> str:
         agent = self._build_agent()
+        path_display = self.execution_context.display_path if self.execution_context else None
         payload: dict[str, Any] = {
             "review_chat": True,
             "instruction_zh": (
@@ -276,17 +305,26 @@ class AgentScopeReActRuntime:
                 {
                     "agent": result.agent,
                     "status": result.status,
-                    "output_dir": result.output_dir,
-                    "output_readme_path": result.output_readme_path,
+                    "output_dir": path_display(result.output_dir) if path_display and result.output_dir else result.output_dir,
+                    "output_readme_path": (
+                        path_display(result.output_readme_path)
+                        if path_display and result.output_readme_path
+                        else result.output_readme_path
+                    ),
                 }
                 for result in previous_results
             ],
             "current_agent_step_summary": current_step_summary,
-            "current_agent_output_dir": current_output_dir,
+            "current_agent_output_dir": path_display(current_output_dir) if path_display and current_output_dir else current_output_dir,
             "prior_turns": chat_messages,
             "user_message": user_message,
         }
-        payload.update(build_previous_agent_handoff_context(previous_results))
+        payload.update(
+            translate_handoff_for_prompt(
+                build_previous_agent_handoff_context(previous_results),
+                self.execution_context,
+            )
+        )
         if current_output_dir:
             current_readme = load_handoff_readme(str(Path(current_output_dir) / "README.md"))
             if current_readme:
@@ -361,6 +399,8 @@ def _markdown_json_section(heading: str, data: Any) -> list[str]:
 def _markdown_previous_agent_results(
     previous_results: list[AgentResult],
     readme_by_agent: dict[str, str],
+    *,
+    path_display: Callable[[str], str | None] | None = None,
 ) -> list[str]:
     lines = [
         "## previous_agent_results（上游 Agent 结果）",
@@ -375,9 +415,11 @@ def _markdown_previous_agent_results(
         lines.append("")
         lines.append(f"- **status**: `{result.status}`")
         if result.output_dir:
-            lines.append(f"- **output_dir**: `{result.output_dir}`")
+            shown = path_display(result.output_dir) if path_display else result.output_dir
+            lines.append(f"- **output_dir**: `{shown}`")
         if result.output_readme_path:
-            lines.append(f"- **output_readme_path**: `{result.output_readme_path}`")
+            shown = path_display(result.output_readme_path) if path_display else result.output_readme_path
+            lines.append(f"- **output_readme_path**: `{shown}`")
         readme = (readme_by_agent.get(result.agent) or "").strip()
         if readme:
             lines.extend(["", "#### README.md（交接摘要）", "", readme])

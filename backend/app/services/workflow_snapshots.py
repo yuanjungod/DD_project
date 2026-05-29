@@ -49,6 +49,9 @@ def build_workflow_snapshot(company_config: dict, *, engagement_id: str | None =
             "workflow_template": workflow_section.get("workflow_template", "standard"),
             "version": workflow_section.get("version", 1),
             "graph": workflow_section["graph"],
+            "runtime": workflow_section.get("runtime")
+            if isinstance(workflow_section.get("runtime"), dict)
+            else {"command_execution": "host"},
         },
         "agent_templates": [
             {

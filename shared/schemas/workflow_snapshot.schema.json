@@ -14,7 +14,21 @@
         "description": { "type": "string" },
         "workflow_template": { "type": "string" },
         "version": { "type": "integer" },
-        "graph": { "type": "object" }
+        "graph": { "type": "object" },
+        "runtime": {
+          "type": "object",
+          "properties": {
+            "command_execution": { "type": "string", "enum": ["host", "docker"] },
+            "docker": {
+              "type": "object",
+              "properties": {
+                "image": { "type": "string" },
+                "idle_ttl_seconds": { "type": "integer" },
+                "workspace_mount": { "type": "string" }
+              }
+            }
+          }
+        }
       }
     },
     "agent_templates": { "type": "array", "items": { "type": "object" } },

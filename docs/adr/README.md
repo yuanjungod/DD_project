@@ -14,6 +14,7 @@ Index of significant design decisions for Harness.
 | [0008](0008-harness-platform-rename.md) | Harness platform rename (`.harness_project`, `WorkflowEngine`) | Accepted |
 | [0009](0009-workflow-session-rename.md) | `WorkflowSession` rename (Phase D) | Accepted |
 | [0010](0010-instance-config-generalization.md) | `InstanceConfig` generalization (Phase E) | Accepted |
+| [0011](0011-workflow-docker-execution.md) | Per-workflow Docker command execution | Accepted |
 
 ## Template
 

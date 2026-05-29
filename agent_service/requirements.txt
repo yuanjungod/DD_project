@@ -5,3 +5,4 @@ pydantic-settings
 PyYAML
 httpx
 agentscope
+docker>=7.0.0
