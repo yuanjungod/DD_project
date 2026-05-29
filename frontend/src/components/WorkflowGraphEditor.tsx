@@ -56,9 +56,6 @@ function agentIntro(agent: AgentTemplate | undefined): AgentIntro {
   if (agent.skill_package_ids.length > 0) {
     metaParts.push(`${agent.skill_package_ids.length} 技能`);
   }
-  if (agent.tool_ids.length > 0) {
-    metaParts.push(`${agent.tool_ids.length} 工具`);
-  }
   if (agent.resource_ids.length > 0) {
     metaParts.push(`${agent.resource_ids.length} 资源`);
   }
@@ -456,8 +453,8 @@ function WorkflowGraphEditorInner({ graph, agents, onChange }: WorkflowGraphEdit
                 <li key={agent.id}>
                   <button type="button" className="workflow-graph-editor__agent-button" onClick={() => addAgentNode(agent.id)}>
                     <AgentIntroBlock intro={intro} className="workflow-graph-editor__agent-intro" />
-                    <strong>{agent.name || agent.id}</strong>
-                    <code>{agent.id}</code>
+                    <strong>{agent.name || "未命名 Agent"}</strong>
+                    {agent.role ? <span className="muted">{agent.role}</span> : null}
                   </button>
                 </li>
               );

@@ -119,11 +119,14 @@ export function parseProjectResourceForm(
   return { type: rtype, value, metadata_json: metadata };
 }
 
-export function headlineForResourceRow(row: {
-  type: string;
-  value: string;
-  metadata_json?: Record<string, unknown>;
-}): string {
+export function headlineForResourceRow(
+  row: {
+    type: string;
+    value: string;
+    metadata_json?: Record<string, unknown>;
+  },
+  options?: { fileIdToName?: Map<string, string> },
+): string {
   const meta = row.metadata_json ?? {};
   if (row.type === "metric") {
     const nm = typeof meta.name === "string" ? meta.name : "";
@@ -138,11 +141,22 @@ export function headlineForResourceRow(row: {
     const fn = typeof meta.original_filename === "string" ? meta.original_filename.trim() : "";
     const lbl = typeof meta.label === "string" ? meta.label.trim() : "";
     if (fn) return fn;
-    if (lbl) return `${lbl} · ${row.value}`;
+    if (lbl) return lbl;
+    return "已上传文件";
   }
   if (row.type === "agent_resource_scope") {
-    const fileIds = Array.isArray(meta.uploaded_file_ids) ? meta.uploaded_file_ids.length : 0;
-    return `${row.value}${fileIds ? ` · ${fileIds} 个 file_id` : ""}`;
+    const rawIds = meta.uploaded_file_ids;
+    let fileIds: string[] = [];
+    if (Array.isArray(rawIds)) {
+      fileIds = rawIds.map((x) => String(x).trim()).filter(Boolean);
+    }
+    const lookup = options?.fileIdToName;
+    if (!fileIds.length) return row.value;
+    if (lookup) {
+      const names = fileIds.map((id) => lookup.get(id) || "未命名文件");
+      return `${row.value} · ${names.join("、")}`;
+    }
+    return `${row.value} · ${fileIds.length} 个文件`;
   }
   return row.value.length > 120 ? `${row.value.slice(0, 120)}…` : row.value;
 }

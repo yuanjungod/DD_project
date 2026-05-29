@@ -14,7 +14,7 @@ export function skillPickerItems(skills: SkillPackage[]): PickerItem[] {
     .map((skill) => ({
       id: skill.id,
       name: skill.name || skill.id,
-      hint: skill.description || skill.directory_name,
+      hint: skill.description || "",
       enabled: skill.enabled,
     }));
 }
@@ -66,7 +66,7 @@ export function uploadFilePickerItems(projectResources: Resource[], libraryFiles
     byId.set(fileId, {
       id: fileId,
       name: label,
-      hint: label,
+      hint: "应用文件库",
       fileSource: "应用文件库",
       enabled: true,
     });
@@ -76,8 +76,8 @@ export function uploadFilePickerItems(projectResources: Resource[], libraryFiles
     if (byId.has(file.id)) continue;
     byId.set(file.id, {
       id: file.id,
-      name: file.original_filename || file.id,
-      hint: file.original_filename || file.id,
+      name: file.original_filename?.trim() || "未命名文件",
+      hint: "平台共享文件库",
       fileSource: "平台共享文件库",
       enabled: true,
     });

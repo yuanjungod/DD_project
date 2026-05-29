@@ -114,7 +114,7 @@ export function EngagementsPage() {
           type="search"
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="应用 ID、实例名称、技术 ID 等关键词"
+          placeholder="应用 ID、实例名称、版本等关键词"
         />
       </label>
       <div className="engagement-app-list">
@@ -123,7 +123,7 @@ export function EngagementsPage() {
             <div className="summary-box">
               <strong>{engagement.application_id}</strong>
               <span>
-                {workflowName(workflowTemplateIdFromInstance(engagementConfig(engagement)), workflowTemplates)} · {engagement.id}
+                {workflowName(workflowTemplateIdFromInstance(engagementConfig(engagement)), workflowTemplates)} · v{engagement.version}
               </span>
             </div>
             <div className="row-actions">

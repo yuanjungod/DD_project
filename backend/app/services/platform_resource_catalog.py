@@ -11,6 +11,7 @@ from app.schemas import ResourceConfigCreate, ResourceConfigRead, ResourceConfig
 from app.services.catalog_yaml_utils import load_yaml_file, utc_now_naive, write_yaml_file
 from app.services.fs_layout import builtin_resource_configs_dir, platform_resource_configs_overlay_dir
 from app.services.platform_uploads_store import delete_platform_upload
+from app.services.catalog_name_validation import assert_unique_name_in_index
 from app.services.resource_catalog_common import resource_config_read_from_dict
 from shared.platform_resource_types import validate_platform_resource_type
 
@@ -106,6 +107,7 @@ def _write_overlay(data: dict[str, Any]) -> None:
 
 def create_resource_config_overlay(payload: ResourceConfigCreate) -> ResourceConfigRead:
     validate_platform_resource_type(payload.type)
+    assert_unique_name_in_index(merged_resource_config_index(), payload.name, label="Resource name")
     rid = (payload.id or "").strip()
     if not rid:
         rid = new_id("resource_cfg")
@@ -140,6 +142,13 @@ def update_resource_config_overlay(resource_id: str, payload: ResourceConfigUpda
     updates = payload.model_dump(exclude_unset=True)
     if "type" in updates and updates["type"] is not None:
         validate_platform_resource_type(str(updates["type"]))
+    if "name" in updates and updates["name"] is not None:
+        assert_unique_name_in_index(
+            idx,
+            str(updates["name"]),
+            exclude_id=resource_id,
+            label="Resource name",
+        )
     for k, v in updates.items():
         if k in {"id"}:
             continue

@@ -1,19 +1,30 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { listRuns } from "../api/client";
+import { listEngagements, listRuns } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
+import { engagementIdentityLabel } from "../domain/engagementIdentity";
+import { runDisplayLabel } from "../domain/runDisplay";
 import { resolveRunStatus, runStatusLabel, runStatusClassName } from "../domain/runStatus";
+import type { Engagement } from "../types/domain";
 import type { AgentRun } from "../types/domain";
 import { formatApiDateTimeLocal } from "../utils/apiTime";
 
 export function RunHistoryPage() {
   const [runs, setRuns] = useState<AgentRun[]>([]);
+  const [engagements, setEngagements] = useState<Engagement[]>([]);
   const [error, setError] = useState("");
 
+  const engagementLabelById = useMemo(() => {
+    return new Map(engagements.map((engagement) => [engagement.id, engagementIdentityLabel(engagement)]));
+  }, [engagements]);
+
   useEffect(() => {
-    listRuns()
-      .then(setRuns)
+    Promise.all([listRuns(), listEngagements()])
+      .then(([runItems, engagementItems]) => {
+        setRuns(runItems);
+        setEngagements(engagementItems);
+      })
       .catch((err: unknown) => setError(String(err)));
   }, []);
 
@@ -42,10 +53,10 @@ export function RunHistoryPage() {
               return (
               <div key={run.id} className="history-table__row" role="row">
                 <Link to={`/engagements/${encodeURIComponent(run.engagement_id)}/outputs`} role="cell">
-                  <code>{run.id}</code>
+                  {runDisplayLabel(run)}
                 </Link>
                 <Link to={`/engagements/${encodeURIComponent(run.engagement_id)}/outputs`} role="cell">
-                  <code>{run.engagement_id}</code>
+                  {engagementLabelById.get(run.engagement_id) ?? "Engagement"}
                 </Link>
                 <span className={`status ${runStatusClassName(run)}`} role="cell">
                   {runStatusLabel(status)}

@@ -44,7 +44,7 @@ export function IdSelectField({
         <option value="">{placeholder}</option>
         {items.map((item) => (
           <option key={item.id} value={item.id} disabled={item.enabled === false}>
-            {item.name !== item.id ? `${item.name} (${item.id})` : item.id}
+            {item.name}
           </option>
         ))}
       </select>
@@ -89,6 +89,7 @@ function PickerListRows(props: {
   onChange: (selected: string[]) => void;
   disabled?: boolean;
   emptyText: string;
+  showItemId?: boolean;
 }) {
   const selectedSet = useMemo(() => new Set(props.selected), [props.selected]);
 
@@ -120,7 +121,6 @@ function PickerListRows(props: {
                 <span className="picker-resource-row__title">{item.name}</span>
                 {item.hint ? <span className="picker-resource-row__sub">{item.hint}</span> : null}
               </div>
-              <code className="picker-resource-row__id">{item.id}</code>
             </label>
           </li>
         );
@@ -284,7 +284,7 @@ export function FileSourceMultiPickerSection({
   selected,
   onChange,
   disabled,
-  emptyText = "暂无可选 file_id",
+  emptyText = "暂无可选文件",
 }: ResourceTypeMultiPickerSectionProps) {
   const [filter, setFilter] = useState("");
   const [sourceTab, setSourceTab] = useState<FileSourceTab>(() => defaultFileSourceTab(items, selected));
@@ -423,7 +423,6 @@ export function IdMultiPickerSection({
                   <div className="agent-option-tile__body">
                     <span className="agent-option-tile__title">{item.name}</span>
                     {item.hint ? <span className="agent-option-tile__sub">{item.hint}</span> : null}
-                    <code>{item.id}</code>
                   </div>
                 </label>
               );

@@ -237,8 +237,8 @@ export function NewEngagementPage() {
         <p className="page-hero__lede">
           {createdEngagement ? (
             <>
-              应用标识 <code>{createdEngagement.application_id}</code> · 技术 ID{" "}
-              <code>{createdEngagement.id}</code>。可在下方步骤间切换并保存；启动 Run 请至 Engagements 列表。
+              应用标识 <code>{createdEngagement.application_id}</code> · 版本 v{createdEngagement.version}
+              。可在下方步骤间切换并保存；启动 Run 请至 Engagements 列表。
             </>
           ) : (
             "先写清楚要完成什么，再选模板与标识。创建后可在资源与 Agent 配置之间自由调整。"

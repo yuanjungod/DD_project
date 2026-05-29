@@ -2,12 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { createSkill, debugSkillDraft, deleteSkill, getSkill, importSkillZip, listSkills, updateSkill } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
-import {
-  normalizeOptionalTechnicalId,
-  TECHNICAL_ID_HINT,
-  TECHNICAL_ID_PLACEHOLDER,
-  technicalIdValidationError,
-} from "../domain/technicalId";
+import { duplicateCatalogNameError, findDuplicateCatalogName, slugFromCatalogName } from "../domain/catalogNames";
 import type { SkillDebugResult, SkillPackage } from "../types/domain";
 
 const defaultSkillMd =
@@ -30,7 +25,6 @@ const defaultManifest = JSON.stringify(
 
 export function SkillsPage() {
   const zipInputRef = useRef<HTMLInputElement>(null);
-  const [zipDirOverride, setZipDirOverride] = useState("");
   const [zipUploading, setZipUploading] = useState(false);
   const [deletingSkillId, setDeletingSkillId] = useState("");
   const [skills, setSkills] = useState<SkillPackage[]>([]);
@@ -42,10 +36,8 @@ export function SkillsPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [form, setForm] = useState({
-    id: "",
     name: "",
     description: "",
-    directory_name: "",
     skill_md: defaultSkillMd,
     package_files: defaultPackageFiles as Record<string, string>,
     resources_manifest: defaultManifest,
@@ -65,28 +57,29 @@ export function SkillsPage() {
     setError("");
     setNotice("");
     try {
-      if (!selectedSkillId) {
-        const idError = technicalIdValidationError(form.id);
-        if (idError) {
-          setError(idError);
-          return;
-        }
+      const nameError = duplicateCatalogNameError(
+        "Skill",
+        form.name,
+        findDuplicateCatalogName(skills, form.name, selectedSkillId || null),
+      );
+      if (nameError) {
+        setError(nameError);
+        return;
       }
       const payload = {
         name: form.name,
         description: form.description,
-        directory_name: form.directory_name,
         skill_md: form.skill_md,
         package_files: form.package_files,
         resources_manifest: JSON.parse(form.resources_manifest) as Record<string, unknown>,
         enabled: form.enabled,
       };
-      const existing = skills.some((skill) => skill.id === form.id);
-      const saved = existing
-        ? await updateSkill(form.id, payload)
-        : await createSkill({ ...payload, id: normalizeOptionalTechnicalId(form.id) });
+      const wasEdit = Boolean(selectedSkillId);
+      const saved = wasEdit
+        ? await updateSkill(selectedSkillId, payload)
+        : await createSkill({ ...payload, directory_name: slugFromCatalogName(form.name) });
       setSelectedSkillId(saved.id);
-      setNotice(existing ? "Skill 已更新" : "Skill 已创建");
+      setNotice(wasEdit ? "Skill 已更新" : "Skill 已创建");
       await refresh();
     } catch (err) {
       setError(String(err));
@@ -102,10 +95,8 @@ export function SkillsPage() {
       setSelectedSkillId(skill.id);
       setView("editor");
       setForm({
-        id: skill.id,
         name: skill.name,
         description: skill.description,
-        directory_name: skill.directory_name,
         skill_md: skill.skill_md,
         package_files: skill.package_files ?? {},
         resources_manifest: JSON.stringify(skill.resources_manifest ?? {}, null, 2),
@@ -122,10 +113,12 @@ export function SkillsPage() {
     setNotice("");
     try {
       const result = await debugSkillDraft({
-        id: form.id || undefined,
+        id: selectedSkillId || undefined,
         name: form.name,
         description: form.description,
-        directory_name: form.directory_name,
+        directory_name: selectedSkillId
+          ? skills.find((item) => item.id === selectedSkillId)?.directory_name ?? slugFromCatalogName(form.name)
+          : slugFromCatalogName(form.name),
         skill_md: form.skill_md,
         package_files: form.package_files,
         resources_manifest: JSON.parse(form.resources_manifest) as Record<string, unknown>,
@@ -144,10 +137,8 @@ export function SkillsPage() {
     setNotice("");
     setError("");
     setForm({
-      id: "",
       name: "",
       description: "",
-      directory_name: "",
       skill_md: defaultSkillMd,
       package_files: defaultPackageFiles,
       resources_manifest: defaultManifest,
@@ -158,9 +149,7 @@ export function SkillsPage() {
   }
 
   async function handleDeleteSkill(skill: SkillPackage) {
-    const ok = window.confirm(
-      `确定删除 Skill「${skill.name}」（${skill.directory_name}）吗？将删除 agent_service/skills/${skill.directory_name}/ 下的全部文件，且不可恢复。`,
-    );
+    const ok = window.confirm(`确定删除 Skill「${skill.name}」吗？磁盘上的 Skill 包将一并删除，且不可恢复。`);
     if (!ok) return;
     setError("");
     setNotice("");
@@ -266,9 +255,8 @@ export function SkillsPage() {
                   setNotice("");
                   setZipUploading(true);
                   try {
-                    const saved = await importSkillZip(picked, zipDirOverride.trim() ? zipDirOverride : undefined);
-                    setNotice(`已从 ZIP 创建 Skill「${saved.name}」(${saved.directory_name})`);
-                    setZipDirOverride("");
+                    const saved = await importSkillZip(picked);
+                    setNotice(`已从 ZIP 创建 Skill「${saved.name}」`);
                     await refresh();
                   } catch (err: unknown) {
                     setError(String(err));
@@ -277,15 +265,6 @@ export function SkillsPage() {
                   }
                 }}
               />
-              <label className="skill-zip-dir-label">
-                目录名（可选）
-                <input
-                  className="skill-zip-dir-input"
-                  placeholder="覆盖 SKILL 目录名（英文短横杠）"
-                  value={zipDirOverride}
-                  onChange={(e) => setZipDirOverride(e.target.value)}
-                />
-              </label>
               <button
                 type="button"
                 className="secondary-button"
@@ -306,7 +285,6 @@ export function SkillsPage() {
                   <span>{skill.enabled ? "enabled" : "disabled"}</span>
                   <strong>{skill.name}</strong>
                   <p>{skill.description}</p>
-                  <small>agent_service/skills/{skill.directory_name}/</small>
                 </div>
                 <div className="skill-card-actions">
                   <button type="button" className="secondary-button" onClick={() => handleSelect(skill.id)}>
@@ -333,8 +311,7 @@ export function SkillsPage() {
             </button>
             <div>
               <span>{selectedSkillId ? "编辑 Skill" : "新增 Skill"}</span>
-              <strong>{form.name || form.id || "未命名 Skill"}</strong>
-              <small>agent_service/skills/{form.directory_name || "<directory>"}/</small>
+              <strong>{form.name || "未命名 Skill"}</strong>
             </div>
             {selectedSkillId ? (
               <button
@@ -354,24 +331,8 @@ export function SkillsPage() {
             <form className="form" onSubmit={handleSubmit}>
               <div className="grid two">
                 <label>
-                  技术 ID（可选）
-                  <input
-                    disabled={Boolean(selectedSkillId)}
-                    value={form.id}
-                    onChange={(event) => setForm({ ...form, id: event.target.value })}
-                    placeholder={TECHNICAL_ID_PLACEHOLDER}
-                  />
-                  <span className="muted" style={{ fontSize: "12px" }}>
-                    {TECHNICAL_ID_HINT}
-                  </span>
-                </label>
-                <label>
-                  名称
-                  <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-                </label>
-                <label>
-                  目录名
-                  <input value={form.directory_name} onChange={(event) => setForm({ ...form, directory_name: event.target.value })} />
+                  名称 <span className="required-dot">*</span>
+                  <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
                 </label>
                 <label>
                   启用

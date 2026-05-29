@@ -136,10 +136,8 @@ export function summarizeConnection(row: ResourceConfig): string {
     case "metrics_platform":
       return [c.provider, c.grain].filter(Boolean).join(" · ") || "—";
     case "file_store": {
-      const fileId = fileIdFromConfig(c);
       const fileName = fileNameFromConfig(c);
-      if (fileName && fileId) return `${fileName} · ${fileId}`;
-      if (fileId) return fileId;
+      if (fileName) return fileName;
       if (typeof c.notes === "string" && c.notes.trim()) return c.notes.trim();
       return "文件库 · 用途见条目说明";
     }

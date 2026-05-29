@@ -9,12 +9,7 @@ import {
   uploadLibraryFile,
 } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
-import {
-  normalizeOptionalTechnicalId,
-  TECHNICAL_ID_HINT,
-  TECHNICAL_ID_PLACEHOLDER,
-  technicalIdValidationError,
-} from "../domain/technicalId";
+import { duplicateCatalogNameError, findDuplicateCatalogName } from "../domain/catalogNames";
 import {
   buildConnection,
   buildFileStoreConnection,
@@ -52,7 +47,7 @@ export function ResourceConfigsPage() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [disablingId, setDisablingId] = useState("");
   const [error, setError] = useState("");
-  const [form, setForm] = useState({ id: "", name: "", description: "" });
+  const [form, setForm] = useState({ name: "", description: "" });
   const [formEnabled, setFormEnabled] = useState(true);
   const [ptype, setPtype] = useState<PlatformResourceType>("file_store");
   const [fields, setFields] = useState<Record<string, string>>(() => emptyFields("file_store"));
@@ -87,7 +82,7 @@ export function ResourceConfigsPage() {
   function resetEditorForm() {
     setEditingId(null);
     setEditUnknownType(null);
-    setForm({ id: "", name: "", description: "" });
+    setForm({ name: "", description: "" });
     setFormEnabled(true);
     setConnectionRawJson("{}");
     setLibraryPick(null);
@@ -140,7 +135,7 @@ export function ResourceConfigsPage() {
     } else {
       setListFilter("other");
     }
-    setForm({ id: resource.id, name: resource.name, description: resource.description });
+    setForm({ name: resource.name, description: resource.description });
     setFormEnabled(resource.enabled);
     if (isKnownPlatformResourceType(resource.type)) {
       setEditUnknownType(null);
@@ -248,12 +243,14 @@ export function ResourceConfigsPage() {
         return;
       }
 
-      if (!editingId) {
-        const idError = technicalIdValidationError(form.id);
-        if (idError) {
-          setError(idError);
-          return;
-        }
+      const nameError = duplicateCatalogNameError(
+        "资源",
+        resolvedName,
+        findDuplicateCatalogName(resources, resolvedName, editingId),
+      );
+      if (nameError) {
+        setError(nameError);
+        return;
       }
 
       if (editingId) {
@@ -269,7 +266,6 @@ export function ResourceConfigsPage() {
       } else {
         setSavingEdit(true);
         await createResourceConfig({
-          id: normalizeOptionalTechnicalId(form.id),
           name: resolvedName,
           type: effectiveType,
           description: form.description,
@@ -289,14 +285,13 @@ export function ResourceConfigsPage() {
   async function handleDelete(resource: ResourceConfig) {
     if (!resource.deletable) return;
     const isRevertBuiltin = Boolean(resource.builtin_base);
-    const linkedFileId = resource.type === "file_store" ? fileIdFromConfig(resource.connection_config ?? {}) : "";
     const linkedFileName = fileNameFromConfig(resource.connection_config ?? {});
     const ok = window.confirm(
       isRevertBuiltin
         ? `确定移除「${resource.name}」（${resource.id}）的数据目录覆盖吗？将恢复为仓库内置版本。`
-        : linkedFileId
-          ? `确定删除文件资源「${resource.name}」吗？将同时删除资源登记与平台文件${linkedFileName ? `「${linkedFileName}」` : ""}（${linkedFileId}）。`
-          : `确定删除「${resource.name}」（${resource.id}）吗？该资源条目将从平台移除且不可恢复。`,
+        : resource.type === "file_store" && linkedFileName
+          ? `确定删除文件资源「${resource.name}」吗？将同时删除资源登记与平台文件「${linkedFileName}」。`
+          : `确定删除「${resource.name}」吗？该资源条目将从平台移除且不可恢复。`,
     );
     if (!ok) return;
     setError("");
@@ -324,7 +319,7 @@ export function ResourceConfigsPage() {
         <h1>平台资源</h1>
         <p>
           按类型登记平台<strong>连接器资源</strong>（文件库、MCP、指标/数仓平台）。
-          <strong>文件库</strong> 选择文件后一次保存即完成上传与登记；在「场景与 Agent」中通过 <code>resource_ids</code> 引用。
+          <strong>文件库</strong> 选择文件后一次保存即完成上传与登记；在「场景与 Agent」中绑定对应资源条目即可。
         </p>
         <nav className="resource-kind-tabs" aria-label="平台资源类型">
           {PLATFORM_CONFIG_TAB_OPTIONS.map((o) => (
@@ -373,7 +368,7 @@ export function ResourceConfigsPage() {
           {editingId ? (
             <div className="resource-edit-banner">
               <span>
-                编辑模式 · <code>{editingId}</code>
+                编辑模式 · {editingResource?.name ?? "资源"}
               </span>
               <button type="button" className="ghost-button" onClick={() => resetEditorForm()}>
                 取消编辑
@@ -398,26 +393,14 @@ export function ResourceConfigsPage() {
                     }}
                   />
                 </label>
-                {editingId && editingFileId ? (
+                {editingId && (editingFileName || editingFileId) ? (
                   <p className="muted">
-                    当前文件：{editingFileName || "—"}
-                    {editingFileSize ? ` · ${editingFileSize}` : ""} · <code>{editingFileId}</code>
+                    当前文件：{editingFileName || "未命名文件"}
+                    {editingFileSize ? ` · ${editingFileSize}` : ""}
                   </p>
                 ) : null}
               </>
             ) : null}
-            <label>
-              技术 ID（可选，留空自动生成）
-              <input
-                value={form.id}
-                disabled={Boolean(editingId)}
-                onChange={(event) => setForm({ ...form, id: event.target.value })}
-                placeholder={TECHNICAL_ID_PLACEHOLDER}
-              />
-              <span className="muted" style={{ fontSize: "12px" }}>
-                {TECHNICAL_ID_HINT}
-              </span>
-            </label>
             <label>
               名称
               <input
@@ -540,7 +523,6 @@ export function ResourceConfigsPage() {
                   <p className="muted resource-registry-summary">登记要点：{summarizeConnection(resource)}</p>
                 </div>
                 <div className="resource-registry-actions">
-                  <code className="resource-registry-id">{resource.id}</code>
                   <button type="button" className="secondary-button" onClick={() => beginEdit(resource)}>
                     编辑
                   </button>

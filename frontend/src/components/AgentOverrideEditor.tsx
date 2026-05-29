@@ -8,12 +8,11 @@ import {
 } from "./IdPickerSection";
 import type { AgentTemplate, EngagementAgentOverride } from "../types/domain";
 
-type OverrideConfigTab = "resources" | "skills" | "tools" | "prompt";
+type OverrideConfigTab = "resources" | "skills" | "prompt";
 
 const OVERRIDE_CONFIG_TABS: { id: OverrideConfigTab; label: string }[] = [
   { id: "resources", label: "资源管理" },
   { id: "skills", label: "Skills" },
-  { id: "tools", label: "工具" },
   { id: "prompt", label: "提示词" },
 ];
 
@@ -23,9 +22,6 @@ function overrideTabCount(draft: EngagementAgentOverride, tab: OverrideConfigTab
   }
   if (tab === "skills") {
     return draft.skill_package_ids_add.length + draft.skill_package_ids_remove.length;
-  }
-  if (tab === "tools") {
-    return draft.tool_ids_add.length + draft.tool_ids_remove.length;
   }
   return (draft.prompt_append.trim() ? 1 : 0) + (draft.prompt_override.trim() ? 1 : 0);
 }
@@ -54,7 +50,6 @@ export function AgentOverrideEditor({
   template,
   onRefresh,
   skillItems,
-  toolItems,
   globalResourceItems,
   engagementResourceItems,
   fileItems,
@@ -65,7 +60,6 @@ export function AgentOverrideEditor({
   template?: AgentTemplate;
   onRefresh: () => Promise<void>;
   skillItems: PickerItem[];
-  toolItems: PickerItem[];
   globalResourceItems: PickerItem[];
   engagementResourceItems: PickerItem[];
   fileItems: PickerItem[];
@@ -93,7 +87,6 @@ export function AgentOverrideEditor({
   );
 
   const templateSkillIds = useMemo(() => new Set(template?.skill_package_ids ?? []), [template?.skill_package_ids]);
-  const templateToolIds = useMemo(() => new Set(template?.tool_ids ?? []), [template?.tool_ids]);
   const templateResourceIds = useMemo(() => new Set(template?.resource_ids ?? []), [template?.resource_ids]);
 
   const managedSkillIds = useMemo(() => {
@@ -105,14 +98,6 @@ export function AgentOverrideEditor({
       )
       .map((item) => item.id);
   }, [skillItems, templateSkillIds, draft.skill_package_ids_add, draft.skill_package_ids_remove]);
-
-  const managedToolIds = useMemo(() => {
-    return toolItems
-      .filter((item) =>
-        templateToolIds.has(item.id) ? !draft.tool_ids_remove.includes(item.id) : draft.tool_ids_add.includes(item.id),
-      )
-      .map((item) => item.id);
-  }, [toolItems, templateToolIds, draft.tool_ids_add, draft.tool_ids_remove]);
 
   const managedResourceIds = useMemo(() => {
     return allResourceItems
@@ -141,25 +126,6 @@ export function AgentOverrideEditor({
       setDraft((prev) => ({ ...prev, skill_package_ids_add: newAdd, skill_package_ids_remove: newRemove }));
     },
     [skillItems, templateSkillIds],
-  );
-
-  const handleToolChange = useCallback(
-    (nextSelected: string[]) => {
-      const nextSet = new Set(nextSelected);
-      const newAdd: string[] = [];
-      const newRemove: string[] = [];
-      for (const item of toolItems) {
-        const inDefault = templateToolIds.has(item.id);
-        const checked = nextSet.has(item.id);
-        if (inDefault) {
-          if (!checked) newRemove.push(item.id);
-        } else {
-          if (checked) newAdd.push(item.id);
-        }
-      }
-      setDraft((prev) => ({ ...prev, tool_ids_add: newAdd, tool_ids_remove: newRemove }));
-    },
-    [toolItems, templateToolIds],
   );
 
   const handleResourceChange = useCallback(
@@ -291,17 +257,6 @@ export function AgentOverrideEditor({
             onChange={handleSkillChange}
             disabled={saving}
             emptyText="暂无可用 Skill"
-          />
-        ) : null}
-        {activeTab === "tools" ? (
-          <IdMultiPickerSection
-            title="工具管理"
-            description="勾选表示在 Run 中使用该工具；取消勾选表示不使用。"
-            items={toolItems}
-            selected={managedToolIds}
-            onChange={handleToolChange}
-            disabled={saving}
-            emptyText="暂无可用工具"
           />
         ) : null}
         {activeTab === "resources" ? (

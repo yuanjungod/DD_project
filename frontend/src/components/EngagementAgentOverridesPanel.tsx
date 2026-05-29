@@ -8,13 +8,11 @@ import {
   listResourceConfigs,
   listResources,
   listSkills,
-  listToolConfigs,
   listWorkflowTemplates,
 } from "../api/client";
 import {
   resourceConfigPickerItems,
   skillPickerItems,
-  toolPickerItems,
   uploadFilePickerItems,
 } from "../domain/catalogPickerItems";
 import { resolveGraphAgentOrder } from "../domain/workflowGraph";
@@ -38,7 +36,6 @@ export function EngagementAgentOverridesPanel({
   const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([]);
   const [agentTemplates, setAgentTemplates] = useState<AgentTemplate[]>([]);
   const [skills, setSkills] = useState<Awaited<ReturnType<typeof listSkills>>>([]);
-  const [tools, setTools] = useState<Awaited<ReturnType<typeof listToolConfigs>>>([]);
   const [resourceConfigs, setResourceConfigs] = useState<Awaited<ReturnType<typeof listResourceConfigs>>>([]);
   const [libraryFiles, setLibraryFiles] = useState<Awaited<ReturnType<typeof listLibraryUploads>>>([]);
   const [engagementResourceConfigs, setEngagementResourceConfigs] = useState<
@@ -66,10 +63,9 @@ export function EngagementAgentOverridesPanel({
   }, [engagementId]);
 
   useEffect(() => {
-    Promise.all([listSkills(), listToolConfigs(), listResourceConfigs(), listLibraryUploads()])
-      .then(([skillItems, toolItems, configItems, libraryItems]) => {
+    Promise.all([listSkills(), listResourceConfigs(), listLibraryUploads()])
+      .then(([skillItems, configItems, libraryItems]) => {
         setSkills(skillItems);
-        setTools(toolItems);
         setResourceConfigs(configItems);
         setLibraryFiles(libraryItems);
       })
@@ -90,7 +86,6 @@ export function EngagementAgentOverridesPanel({
     }
   }, [appAgentIds, selectedAgentId]);
   const skillItems = useMemo(() => skillPickerItems(skills), [skills]);
-  const toolItems = useMemo(() => toolPickerItems(tools), [tools]);
   const globalResourceItems = useMemo(() => resourceConfigPickerItems(resourceConfigs), [resourceConfigs]);
   const engagementResourceItems = useMemo(
     () => resourceConfigPickerItems(engagementResourceConfigs),
@@ -101,7 +96,7 @@ export function EngagementAgentOverridesPanel({
   return (
     <SectionCard
       title="Agent 场景配置"
-      description="在场景模板基础上为每个 Agent 配置提示词、Skills、工具与资源绑定；保存后会在启动 Run 时合成到快照。"
+      description="在场景模板基础上为每个 Agent 配置提示词、Skills 与资源绑定；保存后会在启动 Run 时合成到快照。"
     >
       {error ? <div className="error">{error}</div> : null}
       <div className="agent-override-list">
@@ -137,7 +132,6 @@ export function EngagementAgentOverridesPanel({
                 override={agentOverrides.find((item) => item.agent_id === selectedAgentId)}
                 onRefresh={refresh}
                 skillItems={skillItems}
-                toolItems={toolItems}
                 globalResourceItems={globalResourceItems}
                 engagementResourceItems={engagementResourceItems}
                 fileItems={fileItems}

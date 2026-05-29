@@ -488,12 +488,21 @@ def build_react_system_prompt(definition: AgentDefinition, base_prompt: str) -> 
     allow_files = [str(x).strip() for x in (definition.platform_upload_file_ids or []) if str(x).strip()]
     if allow_files:
         lines = [
-            "下列为本 Agent **限定可见**的平台共享上传文件 `file_id`。调用文件相关工具时请优先基于这些 ID：",
+            "下列数量为本 Agent **限定可见**的平台共享上传文件（内部标识已省略）。",
+            "调用文件相关工具时请通过 Run 配置中的 `project_resources.uploaded_files` 与挂载路径访问，勿猜测路径。",
             "",
-            *[f"- `{fid}`" for fid in allow_files],
+            f"- 共 {len(allow_files)} 个文件已纳入限定范围。",
         ]
         sections.append("# 平台共享文件限定\n" + "\n".join(lines))
     return "\n\n".join(sections)
+
+
+def _connection_config_for_sys_prompt(rtype: str, conn_dict: dict[str, Any]) -> dict[str, Any]:
+    if rtype != "file_store":
+        return conn_dict
+    redacted = dict(conn_dict)
+    redacted.pop("file_id", None)
+    return redacted
 
 
 def _connection_config_sys_text(cfg: dict[str, Any], *, max_chars: int = 8000) -> str:
@@ -524,14 +533,16 @@ def _format_bound_resources_for_sys_prompt(resources: list[dict[str, Any]]) -> s
         desc = str(r.get("description", "") or "").strip()
         conn = r.get("connection_config")
         conn_dict = conn if isinstance(conn, dict) else {}
+        conn_for_prompt = _connection_config_for_sys_prompt(rtype, conn_dict)
 
-        lines.append(f"## {idx}. `{rid}`")
+        heading = name or rid
+        lines.append(f"## {idx}. {heading}")
         lines.append(f"- **名称**: {name or '—'}")
         lines.append(f"- **类型**: {rtype or '—'}")
         lines.append(f"- **描述**: {desc or '—'}")
         lines.append("- **登记详情 (connection_config)**:")
         lines.append("```json")
-        lines.append(_connection_config_sys_text(conn_dict))
+        lines.append(_connection_config_sys_text(conn_for_prompt))
         lines.append("```")
         lines.append("")
     return "\n".join(lines).rstrip()

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from app.exceptions import NotFoundError
+from app.exceptions import ConflictError, NotFoundError
+from shared.catalog_names import names_conflict
 from app.models.entities import new_id
 from app.schemas.dto import SkillPackageCreate, SkillPackageUpdate
 from app.services.catalog_records import SkillPackageRecord
@@ -51,6 +52,8 @@ def update_skill_package(skill_id: str, payload: SkillPackageUpdate) -> SkillPac
     record = get_skill_package(skill_id)
     previous_directory_name = record.directory_name
     updates = payload.model_dump(exclude_unset=True)
+    if updates.get("name") is not None:
+        ensure_unique_skill_name(str(updates["name"]), exclude_id=record.id)
     for key, value in updates.items():
         setattr(record, key, value)
     record.updated_at = datetime.utcnow()
@@ -64,28 +67,35 @@ def delete_skill_package(skill_id: str) -> None:
         raise NotFoundError("Skill package not found")
 
 
+def ensure_unique_skill_name(name: str, *, exclude_id: str | None = None) -> None:
+    for row in load_skill_packages_from_disk():
+        if exclude_id and row.id == exclude_id:
+            continue
+        if names_conflict(row.name, name):
+            raise ConflictError(f"Skill name already exists: {name.strip()}")
+
+
+def _allocate_directory_name(requested: str, *, exclude_id: str | None = None) -> str:
+    base = str(requested or "").strip() or "skill"
+    directories = {
+        row.directory_name
+        for row in load_skill_packages_from_disk()
+        if not exclude_id or row.id != exclude_id
+    }
+    candidate = base
+    suffix = 2
+    while candidate in directories:
+        candidate = f"{base}-{suffix}"
+        suffix += 1
+    return candidate
+
+
 def ensure_unique_skill_catalog_fields(payload: SkillPackageCreate) -> SkillPackageCreate:
-    existing = load_skill_packages_from_disk()
-    names = {row.name for row in existing}
-    directories = {row.directory_name for row in existing}
-
-    name = payload.name
-    base_name = name
-    suffix = 2
-    while name in names:
-        name = f"{base_name}-{suffix}"
-        suffix += 1
-
-    dname = payload.directory_name
-    base_d = dname
-    suffix = 2
-    while dname in directories:
-        dname = f"{base_d}-{suffix}"
-        suffix += 1
-
-    if name == payload.name and dname == payload.directory_name:
+    ensure_unique_skill_name(payload.name)
+    directory_name = _allocate_directory_name(payload.directory_name or payload.name)
+    if directory_name == payload.directory_name:
         return payload
-    return payload.model_copy(update={"name": name, "directory_name": dname})
+    return payload.model_copy(update={"directory_name": directory_name})
 
 
 def load_skill_packages_by_ids(skill_package_ids: list[str], *, only_enabled: bool = True) -> list[SkillPackageRecord]:

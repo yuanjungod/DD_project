@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useMemo, useState } from "react";
 
 import { createResource, deleteResource, uploadEngagementFile } from "../api/client";
-import { IdMultiPickerSection, IdSelectField, type PickerItem } from "./IdPickerSection";
+import { FileSourceMultiPickerSection, IdSelectField, type PickerItem } from "./IdPickerSection";
 import {
   PROJECT_RESOURCE_TYPE_LABELS,
   type ParsedProjectResource,
@@ -73,6 +73,10 @@ export function EngagementResourcesPanel(props: EngagementResourcesPanelProps) {
   const formDisabled = isDraft ? Boolean(props.disabled) : busy;
   const agentOptions = props.pickerOptions?.agentOptions ?? [];
   const fileOptions = props.pickerOptions?.fileOptions ?? [];
+  const fileIdToName = useMemo(
+    () => new Map(fileOptions.map((item) => [item.id, item.name])),
+    [fileOptions],
+  );
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -185,7 +189,7 @@ export function EngagementResourcesPanel(props: EngagementResourcesPanelProps) {
           {rtype === "trusted_source" && "用于补充可信网址、研报链接或简短说明（写入主字段，可附显示名）。"}
           {rtype === "blocked_source" && "域名、URL 片段或站点名；Agent 采集时应降低权重或忽略。"}
           {rtype === "competitor" && "对标企业名称必填；股票代码写进附属字段便于消歧。"}
-          {rtype === "file_reference" && "可直接使用上方文件上传；如需对接外部托管 ID，也可手动填写 file_id。"}
+          {rtype === "file_reference" && "可直接使用上方文件上传，再从列表中选择已上传文件。"}
           {rtype === "external_clue" && "会议纪、路演、熟人渠道等不可用 URL 表达的线索。"}
           {rtype === "metric" &&
             "定义工作流运行时要跟踪的 KPI：代码 + 中文名 + 单位 + 口径说明 + 数据来源；可设比较方向与阈值。"}
@@ -277,7 +281,7 @@ export function EngagementResourcesPanel(props: EngagementResourcesPanelProps) {
           <>
             {fileOptions.length ? (
               <IdSelectField
-                label="file_id"
+                label="文件"
                 items={fileOptions}
                 value={fields.value ?? ""}
                 onChange={(fileId) => setFields({ ...fields, value: fileId })}
@@ -287,7 +291,7 @@ export function EngagementResourcesPanel(props: EngagementResourcesPanelProps) {
               />
             ) : (
               <p className="muted" style={{ fontSize: "13px" }}>
-                暂无可选 file_id。请先在上方上传应用文件，或在平台资源配置中登记共享文件库。
+                暂无可选文件。请先在上方上传应用文件，或在平台资源配置中登记共享文件库。
               </p>
             )}
             <label>
@@ -525,19 +529,18 @@ export function EngagementResourcesPanel(props: EngagementResourcesPanelProps) {
               </p>
             )}
             {fileOptions.length ? (
-              <IdMultiPickerSection
-                title="可见 file_id"
+              <FileSourceMultiPickerSection
+                title="可见文件"
                 description="勾选本 Agent 在 Run 中可访问的上传文件；未选则继承默认可见范围。"
                 items={fileOptions}
                 selected={idsFromField(fields.uploaded_file_ids ?? "")}
                 onChange={(ids) => setFields({ ...fields, uploaded_file_ids: fieldFromIds(ids) })}
                 disabled={formDisabled}
-                emptyText="暂无可选 file_id"
-                compact
+                emptyText="暂无可选文件"
               />
             ) : (
               <p className="muted" style={{ fontSize: "13px" }}>
-                暂无可选 file_id。请先上传应用文件或配置平台共享文件库。
+                暂无可选文件。请先上传应用文件或配置平台共享文件库。
               </p>
             )}
             <label>
@@ -560,7 +563,7 @@ export function EngagementResourcesPanel(props: EngagementResourcesPanelProps) {
         {listRows.map((row) => (
           <li key={isDraft ? (row as DraftResourceRow).tempId : (row as Resource).id}>
             <span className="resource-type-pill">{row.type}</span>
-            <strong>{headlineForResourceRow(row)}</strong>
+            <strong>{headlineForResourceRow(row, { fileIdToName })}</strong>
             <button
               type="button"
               className="ghost-button resource-delete-btn"

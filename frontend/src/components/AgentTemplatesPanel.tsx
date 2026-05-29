@@ -7,15 +7,9 @@ import {
   publishAgentTemplate,
   listResourceConfigs,
   listSkills,
-  listToolConfigs,
   updateAgentTemplate,
 } from "../api/client";
-import {
-  normalizeOptionalTechnicalId,
-  TECHNICAL_ID_HINT,
-  TECHNICAL_ID_PLACEHOLDER,
-  technicalIdValidationError,
-} from "../domain/technicalId";
+import { catalogDisplayName, duplicateCatalogNameError, findDuplicateCatalogName } from "../domain/catalogNames";
 import {
   KNOWN_PLATFORM_RESOURCE_TYPES,
   PLATFORM_RESOURCE_TYPE_OPTIONS,
@@ -25,7 +19,8 @@ import {
   resourceListFilterLabel,
 } from "../domain/platformResourceRegistry";
 import { SectionCard } from "./SectionCard";
-import type { AgentTemplate, LibraryFile, ResourceConfig, SkillPackage, ToolConfig } from "../types/domain";
+import { buildFileIdNameMap, resolveFileDisplayName } from "../domain/fileDisplay";
+import type { AgentTemplate, LibraryFile, ResourceConfig, SkillPackage } from "../types/domain";
 
 function formatLibraryBytes(n: number): string {
   if (!Number.isFinite(n) || n < 0) return "—";
@@ -130,7 +125,6 @@ function SelectableBindingBlock(props: {
               <div className="agent-option-tile__body">
                 <span className="agent-option-tile__title">{item.name}</span>
                 {item.hint ? <span className="agent-option-tile__sub">{item.hint}</span> : null}
-                <code>{item.id}</code>
               </div>
             </label>
           ))
@@ -140,7 +134,12 @@ function SelectableBindingBlock(props: {
   );
 }
 
-function PillRow(props: { label: string; ids: string[]; variant: "skill" | "tool" | "resource" }) {
+function PillRow(props: {
+  label: string;
+  ids: string[];
+  variant: "skill" | "tool" | "resource";
+  resolveLabel: (id: string) => string;
+}) {
   if (!props.ids.length) {
     return (
       <p className="agent-catalog-meta">
@@ -155,7 +154,7 @@ function PillRow(props: { label: string; ids: string[]; variant: "skill" | "tool
       <div className="agent-pill-row">
         {props.ids.map((id) => (
           <span key={id} className={`agent-pill agent-pill--${props.variant}`}>
-            {id}
+            {props.resolveLabel(id)}
           </span>
         ))}
       </div>
@@ -212,11 +211,14 @@ function ResourceBindingsSummary(props: { ids: string[]; catalog: ResourceConfig
         <div key={typeKey} className="agent-resource-type-group">
           <span className="agent-resource-type-group__label">{typeGroupHeading(typeKey)}</span>
           <div className="agent-pill-row">
-            {(groups.get(typeKey) ?? []).map((id) => (
-              <span key={id} className="agent-pill agent-pill--resource">
-                {id}
-              </span>
-            ))}
+            {(groups.get(typeKey) ?? []).map((id) => {
+              const resource = byId.get(id);
+              return (
+                <span key={id} className="agent-pill agent-pill--resource">
+                  {catalogDisplayName(resource ?? { name: id })}
+                </span>
+              );
+            })}
           </div>
         </div>
       ))}
@@ -228,30 +230,22 @@ type AgentTemplatesPanelProps = {
   onAgentsChanged?: () => void;
 };
 
-function normalizeOptionalAgentId(raw: string): string | undefined {
-  return normalizeOptionalTechnicalId(raw);
-}
-
 export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProps) {
   const [agents, setAgents] = useState<AgentTemplate[]>([]);
   const [skills, setSkills] = useState<SkillPackage[]>([]);
-  const [tools, setTools] = useState<ToolConfig[]>([]);
   const [resources, setResources] = useState<ResourceConfig[]>([]);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
-    id: "",
     name: "",
     role: "",
     prompt: "",
     react_config: defaultReActConfig,
   });
   const [skillSel, setSkillSel] = useState<Set<string>>(new Set());
-  const [toolSel, setToolSel] = useState<Set<string>>(new Set());
   const [subAgentSel, setSubAgentSel] = useState<Set<string>>(new Set());
   const [resourceSel, setResourceSel] = useState<Set<string>>(new Set());
   const [subAgentFilter, setSubAgentFilter] = useState("");
   const [skillFilter, setSkillFilter] = useState("");
-  const [toolFilter, setToolFilter] = useState("");
   const [resourceFilter, setResourceFilter] = useState("");
   const [resourceKindTab, setResourceKindTab] = useState<ResourceListFilter>("all");
   const [libraryFiles, setLibraryFiles] = useState<LibraryFile[]>([]);
@@ -261,15 +255,6 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
 
   const toggleSkill = useCallback((id: string) => {
     setSkillSel((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const toggleTool = useCallback((id: string) => {
-    setToolSel((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -305,22 +290,19 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
   }, []);
 
   async function refresh() {
-    const [agentItems, skillItems, toolItems, resourceItems] = await Promise.all([
+    const [agentItems, skillItems, resourceItems] = await Promise.all([
       listAgentTemplates(),
       listSkills(),
-      listToolConfigs(),
       listResourceConfigs(),
     ]);
     setAgents(agentItems);
     setSkills(skillItems);
-    setTools(toolItems);
     setResources(resourceItems);
   }
 
   function resetAgentForm() {
     setEditingAgentId(null);
     setForm({
-      id: "",
       name: "",
       role: "",
       prompt: "",
@@ -328,11 +310,9 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
     });
     setSubAgentSel(new Set());
     setSkillSel(new Set());
-    setToolSel(new Set());
     setResourceSel(new Set());
     setSubAgentFilter("");
     setSkillFilter("");
-    setToolFilter("");
     setResourceFilter("");
     setResourceKindTab("all");
     setPlatformFileSel(new Set());
@@ -341,7 +321,6 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
   function beginEditAgent(agent: AgentTemplate) {
     setEditingAgentId(agent.id);
     setForm({
-      id: agent.id,
       name: agent.name,
       role: agent.role,
       prompt: agent.prompt,
@@ -349,12 +328,10 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
     });
     setSubAgentSel(new Set(agent.sub_agent_ids ?? []));
     setSkillSel(new Set(agent.skill_package_ids ?? []));
-    setToolSel(new Set(agent.tool_ids ?? []));
     setResourceSel(new Set(agent.resource_ids ?? []));
     setPlatformFileSel(new Set(agent.platform_upload_file_ids ?? []));
     setSubAgentFilter("");
     setSkillFilter("");
-    setToolFilter("");
     setResourceFilter("");
     setResourceKindTab("all");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -372,6 +349,21 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
       })
       .catch((err: unknown) => setLibraryLoadError(String(err)));
   }, []);
+
+  const platformFileNameById = useMemo(
+    () => buildFileIdNameMap(libraryFiles, [], resources),
+    [libraryFiles, resources],
+  );
+
+  const skillNameById = useMemo(
+    () => new Map(skills.map((skill) => [skill.id, catalogDisplayName(skill)])),
+    [skills],
+  );
+  const agentNameById = useMemo(
+    () => new Map(agents.map((agent) => [agent.id, catalogDisplayName(agent)])),
+    [agents],
+  );
+  const editingAgent = editingAgentId ? agents.find((agent) => agent.id === editingAgentId) : undefined;
 
   const fileStoreConnectorSelected = useMemo(
     () =>
@@ -406,20 +398,9 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
         id: s.id,
         name: s.name,
         enabled: s.enabled,
-        hint: s.directory_name ? `目录 ${s.directory_name}` : "",
+        hint: s.description ? String(s.description).slice(0, 64) : "",
       })),
     [skills],
-  );
-
-  const toolRows: BindingRow[] = useMemo(
-    () =>
-      tools.map((t) => ({
-        id: t.id,
-        name: t.name,
-        enabled: t.enabled,
-        hint: t.implementation ? String(t.implementation).slice(0, 48) : "",
-      })),
-    [tools],
   );
 
   const subAgentRows: BindingRow[] = useMemo(
@@ -499,13 +480,14 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
     event.preventDefault();
     setError("");
     try {
-      const optionalId = normalizeOptionalAgentId(form.id);
-      if (!editingAgentId) {
-        const idError = technicalIdValidationError(form.id);
-        if (idError) {
-          setError(idError);
-          return;
-        }
+      const nameError = duplicateCatalogNameError(
+        "Agent",
+        form.name,
+        findDuplicateCatalogName(agents, form.name, editingAgentId),
+      );
+      if (nameError) {
+        setError(nameError);
+        return;
       }
       const payload = {
         name: form.name,
@@ -513,7 +495,6 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
         prompt: form.prompt,
         sub_agent_ids: Array.from(subAgentSel),
         skill_package_ids: Array.from(skillSel),
-        tool_ids: Array.from(toolSel),
         resource_ids: Array.from(resourceSel),
         platform_upload_file_ids: fileStoreConnectorSelected ? Array.from(platformFileSel) : [],
         react_config: JSON.parse(form.react_config) as Record<string, unknown>,
@@ -522,7 +503,6 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
         await updateAgentTemplate(editingAgentId, payload);
       } else {
         await createAgentTemplate({
-          id: optionalId,
           ...payload,
           enabled: true,
         });
@@ -554,14 +534,14 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
           title={editingAgentId ? "编辑 Agent 模板" : "新增 Agent 模板"}
           description={
             editingAgentId
-              ? `正在编辑 ${editingAgentId}；保存后更新模板，已引用该 Agent 的流程需重新发布才会生效。`
-              : "勾选 Skills / 工具 / 资源即可绑定；禁用的条目来自后台配置，无法在模板中启用。"
+              ? `正在编辑「${editingAgent?.name ?? "Agent"}」；保存后更新模板，已引用该 Agent 的流程需重新发布才会生效。`
+              : "勾选 Skills / 资源即可绑定；禁用的条目来自后台配置，无法在模板中启用。"
           }
         >
           {editingAgentId ? (
             <div className="resource-edit-banner">
               <span>
-                编辑模式 · <code>{editingAgentId}</code>
+                编辑模式 · {editingAgent?.name ?? "Agent"}
               </span>
               <button type="button" className="ghost-button" onClick={() => resetAgentForm()}>
                 取消编辑
@@ -572,18 +552,6 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
             <div className="agent-template-editor__basics">
               <h4 className="agent-template-editor__section-label">基本信息</h4>
               <div className="agent-template-editor__basics-grid">
-                <label>
-                  技术 ID（可选）
-                  <input
-                    value={form.id}
-                    disabled={Boolean(editingAgentId)}
-                    onChange={(event) => setForm({ ...form, id: event.target.value })}
-                    placeholder={TECHNICAL_ID_PLACEHOLDER}
-                  />
-                  <span className="muted" style={{ fontSize: "12px" }}>
-                    {TECHNICAL_ID_HINT}
-                  </span>
-                </label>
                 <label>
                   名称 <span className="required-dot">*</span>
                   <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
@@ -621,16 +589,6 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
                 onToggle={toggleSkill}
                 emptyText="暂无 Skill 或未匹配筛选条件。"
               />
-              <SelectableBindingBlock
-                title="工具"
-                description="AgentScope / 后端注册的工具实现。"
-                filter={toolFilter}
-                onFilterChange={setToolFilter}
-                items={toolRows}
-                selected={toolSel}
-                onToggle={toggleTool}
-                emptyText="暂无工具或未匹配筛选条件。"
-              />
               <>
                 <SelectableBindingBlock
                   title="平台资源（连接器）"
@@ -649,11 +607,11 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
                     <div className="agent-binding-section__head">
                       <h3 className="agent-binding-section__title">
                         平台共享文件（可选限定）
-                        <span className="agent-selected-count">{platformFileSel.size} 个 file_id</span>
+                        <span className="agent-selected-count">{platformFileSel.size} 个文件</span>
                       </h3>
                       <p className="agent-binding-section__desc">
-                        来自「可用资源配置 → 文件库」上传区。下方<strong>不勾选</strong>表示本 Agent 可读 Run 合并后的<strong>全部</strong>
-                        uploaded_files；勾选后仅处理所选文件（应用私有上传仍会在合并列表中，若也要限定请只勾选需要的 ID）。
+                        来自「平台资源 → 文件库」上传区。下方<strong>不勾选</strong>表示本 Agent 可读 Run 合并后的<strong>全部</strong>
+                        上传文件；勾选后仅处理所选文件。
                       </p>
                     </div>
                     {libraryLoadError ? <div className="error">{libraryLoadError}</div> : null}
@@ -672,9 +630,10 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
                               onChange={() => togglePlatformFile(row.id)}
                             />
                             <div className="agent-option-tile__body">
-                              <span className="agent-option-tile__title">{row.original_filename}</span>
+                              <span className="agent-option-tile__title">
+                                {row.original_filename?.trim() || "未命名文件"}
+                              </span>
                               <span className="agent-option-tile__sub">{formatLibraryBytes(row.size_bytes)}</span>
-                              <code>{row.id}</code>
                             </div>
                           </label>
                         ))
@@ -703,20 +662,27 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
           </form>
         </SectionCard>
 
-        <SectionCard title="已有模板目录" description="当前磁盘上的 Agent 模板及已绑定 ID。">
+        <SectionCard title="已有模板目录" description="当前磁盘上的 Agent 模板及已绑定项。">
           <ul className="agent-catalog-list">
             {agents.map((agent) => {
-              const toolIds = agent.tool_ids ?? [];
               return (
                 <li key={agent.id} className="agent-catalog-row">
                   <div className="agent-catalog-row__top">
                     <span className="agent-catalog-role">{agent.role}</span>
                     <strong className="agent-catalog-name">{agent.name}</strong>
-                    <code className="agent-catalog-id">{agent.id}</code>
                   </div>
-                  <PillRow label="Skills" ids={agent.skill_package_ids ?? []} variant="skill" />
-                  <PillRow label="Sub Agents" ids={agent.sub_agent_ids ?? []} variant="tool" />
-                  <PillRow label="工具" ids={toolIds} variant="tool" />
+                  <PillRow
+                    label="Skills"
+                    ids={agent.skill_package_ids ?? []}
+                    variant="skill"
+                    resolveLabel={(id) => skillNameById.get(id) ?? id}
+                  />
+                  <PillRow
+                    label="Sub Agents"
+                    ids={agent.sub_agent_ids ?? []}
+                    variant="tool"
+                    resolveLabel={(id) => agentNameById.get(id) ?? id}
+                  />
                   <ResourceBindingsSummary ids={agent.resource_ids ?? []} catalog={resources} />
                   {agent.platform_upload_file_ids?.length ? (
                     <div className="agent-catalog-meta agent-platform-upload-ids">
@@ -724,7 +690,7 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
                       <div className="agent-pill-row">
                         {agent.platform_upload_file_ids.map((fid) => (
                           <span key={fid} className="agent-pill agent-pill--resource">
-                            {fid}
+                            {resolveFileDisplayName(fid, platformFileNameById)}
                           </span>
                         ))}
                       </div>

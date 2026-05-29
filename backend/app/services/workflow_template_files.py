@@ -37,6 +37,7 @@ from app.services.workflow_graph import (
     resolve_graph_agent_order,
     validate_workflow_graph,
 )
+from shared.catalog_names import names_conflict
 
 
 def workflow_templates_dir() -> Path:
@@ -230,9 +231,24 @@ def _prepare_graph(graph: dict[str, Any]) -> dict[str, Any]:
     return prepared
 
 
+def _assert_unique_workflow_name(name: str, *, user_id: str, exclude_id: str | None = None) -> None:
+    for wf_dir in list_workflow_template_config_dirs(user_id=user_id):
+        wf_id = wf_dir.name
+        if exclude_id and wf_id == exclude_id:
+            continue
+        try:
+            bundle = load_workflow_bundle(wf_id, user_id=user_id)
+        except HTTPException:
+            continue
+        existing = str(bundle.get("workflow", {}).get("name") or "")
+        if names_conflict(existing, name):
+            raise HTTPException(status_code=409, detail=f"Workflow name already exists: {name.strip()}")
+
+
 def create_workflow_template(payload: WorkflowTemplateCreate, *, user_id: str) -> WorkflowTemplateRead:
     ensure_workflow_templates_dir()
     data = payload.model_dump(exclude_none=True)
+    _assert_unique_workflow_name(str(data.get("name") or ""), user_id=user_id)
     wf_id = data.get("id") or new_id("workflow_tpl")
     _assert_safe_workflow_id(wf_id)
     if workflow_template_config_root(wf_id, user_id=user_id) is not None:
@@ -266,6 +282,8 @@ def update_workflow_template(workflow_id: str, payload: WorkflowTemplateUpdate, 
     bundle = load_workflow_bundle(workflow_id, user_id=user_id)
     wf = bundle["workflow"]
     updates = payload.model_dump(exclude_unset=True)
+    if updates.get("name") is not None:
+        _assert_unique_workflow_name(str(updates["name"]), user_id=user_id, exclude_id=workflow_id)
     for key, value in updates.items():
         if key == "version" and value is not None:
             wf[key] = int(value)

@@ -20,6 +20,7 @@ import { SectionCard } from "../components/SectionCard";
 import { workflowName } from "../data/workflows";
 import { workflowTemplateIdFromInstance } from "../domain/instanceConfig";
 import { engagementConfig, engagementIdentityLabel } from "../domain/engagementIdentity";
+import { runDisplayLabel } from "../domain/runDisplay";
 import { resolveRunStatus, runStatusLabel, runStatusClassName } from "../domain/runStatus";
 import type {
   AgentRun,
@@ -519,7 +520,7 @@ export function EngagementDetailPage({ section = "outputs" }: { section?: Engage
         <p>
           {engagement ? (
             <>
-              {engagementWorkflowName} · 应用 ID <code>{engagement.application_id}</code> · 技术 ID <code>{engagement.id}</code>
+              {engagementWorkflowName} · 应用 ID <code>{engagement.application_id}</code> · v{engagement.version}
             </>
           ) : (
             "加载中"
@@ -534,7 +535,7 @@ export function EngagementDetailPage({ section = "outputs" }: { section?: Engage
             {runs.map((run) => (
               <li key={run.id}>
                 <span className={`status ${runStatusClassName(run)}`}>{runStatusLabel(resolveRunStatus(run))}</span>
-                <strong>{run.id}</strong>
+                <strong>{runDisplayLabel(run)}</strong>
                 <p className="muted">session {run.session_id ?? "—"} · attempt {run.attempt_index ?? 1}</p>
                 <p>{formatApiDateTimeLocal(run.started_at)}</p>
               </li>

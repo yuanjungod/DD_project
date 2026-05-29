@@ -143,6 +143,12 @@ def create_agent(payload: AgentTemplateCreate, *, user_id: str) -> AgentTemplate
 def update_agent(agent_id: str, payload: AgentTemplateUpdate, *, user_id: str) -> AgentTemplateRead:
     current, _ = load_agent(agent_id, user_id=user_id)
     updates = payload.model_dump(exclude_unset=True)
+    if updates.get("name") is not None:
+        pool = global_agent_by_id(user_id=user_id)
+        new_name = str(updates["name"])
+        for other_id, row in pool.items():
+            if other_id != agent_id and row.get("name") == new_name:
+                raise HTTPException(status_code=409, detail=f"Agent name already exists: {new_name}")
     for key, value in updates.items():
         current[key] = value
     current["id"] = agent_id

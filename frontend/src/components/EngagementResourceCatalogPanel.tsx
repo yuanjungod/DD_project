@@ -26,6 +26,7 @@ import {
   isKnownPlatformResourceType,
   resourceListFilterLabel,
 } from "../domain/platformResourceRegistry";
+import { duplicateCatalogNameError, findDuplicateCatalogName } from "../domain/catalogNames";
 import type { ResourceConfig } from "../types/domain";
 
 type TabFilter = PlatformResourceType | "other";
@@ -36,7 +37,7 @@ export function EngagementResourceCatalogPanel({ engagementId }: { engagementId:
   const [error, setError] = useState("");
   const [ptype, setPtype] = useState<PlatformResourceType>("file_store");
   const [fields, setFields] = useState<Record<string, string>>(() => emptyFields("file_store"));
-  const [form, setForm] = useState({ id: "", name: "", description: "" });
+  const [form, setForm] = useState({ name: "", description: "" });
   const [formEnabled, setFormEnabled] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editUnknownType, setEditUnknownType] = useState<string | null>(null);
@@ -85,7 +86,7 @@ export function EngagementResourceCatalogPanel({ engagementId }: { engagementId:
   function resetEditorForm() {
     setEditingId(null);
     setEditUnknownType(null);
-    setForm({ id: "", name: "", description: "" });
+    setForm({ name: "", description: "" });
     setFormEnabled(true);
     setConnectionRawJson("{}");
     setFilePick(null);
@@ -111,7 +112,7 @@ export function EngagementResourceCatalogPanel({ engagementId }: { engagementId:
     } else {
       setListFilter("other");
     }
-    setForm({ id: resource.id, name: resource.name, description: resource.description });
+    setForm({ name: resource.name, description: resource.description });
     setFormEnabled(resource.enabled);
     if (isKnownPlatformResourceType(resource.type)) {
       setEditUnknownType(null);
@@ -192,6 +193,16 @@ export function EngagementResourceCatalogPanel({ engagementId }: { engagementId:
         return;
       }
 
+      const nameError = duplicateCatalogNameError(
+        "资源",
+        resolvedName,
+        findDuplicateCatalogName(resources, resolvedName, editingId),
+      );
+      if (nameError) {
+        setError(nameError);
+        return;
+      }
+
       if (editingId) {
         setSavingEdit(true);
         await updateEngagementResourceConfig(engagementId, editingId, {
@@ -205,7 +216,6 @@ export function EngagementResourceCatalogPanel({ engagementId }: { engagementId:
       } else {
         setSavingEdit(true);
         await createEngagementResourceConfig(engagementId, {
-          id: form.id.trim() || undefined,
           name: resolvedName,
           type: effectiveType,
           description: form.description,
@@ -223,12 +233,11 @@ export function EngagementResourceCatalogPanel({ engagementId }: { engagementId:
   }
 
   async function handleDelete(resource: ResourceConfig) {
-    const linkedFileId = resource.type === "file_store" ? fileIdFromConfig(resource.connection_config ?? {}) : "";
     const linkedFileName = fileNameFromConfig(resource.connection_config ?? {});
     const ok = window.confirm(
-      linkedFileId
-        ? `确定删除文件资源「${resource.name}」吗？将同时删除资源登记与应用文件${linkedFileName ? `「${linkedFileName}」` : ""}（${linkedFileId}）。`
-        : `确定删除「${resource.name}」（${resource.id}）吗？`,
+      resource.type === "file_store" && linkedFileName
+        ? `确定删除文件资源「${resource.name}」吗？将同时删除资源登记与应用文件「${linkedFileName}」。`
+        : `确定删除「${resource.name}」吗？`,
     );
     if (!ok) return;
     setDeletingId(resource.id);
@@ -292,7 +301,7 @@ export function EngagementResourceCatalogPanel({ engagementId }: { engagementId:
           {editingId ? (
             <div className="resource-edit-banner">
               <span>
-                编辑模式 · <code>{editingId}</code>
+                编辑模式 · {editingResource?.name ?? "资源"}
               </span>
               <button type="button" className="secondary-button" onClick={() => resetEditorForm()}>
                 取消编辑
@@ -317,18 +326,14 @@ export function EngagementResourceCatalogPanel({ engagementId }: { engagementId:
                     }}
                   />
                 </label>
-                {editingId && editingFileId ? (
+                {editingId && (editingFileName || editingFileId) ? (
                   <p className="muted">
-                    当前文件：{editingFileName || "—"}
-                    {editingFileSize ? ` · ${editingFileSize}` : ""} · <code>{editingFileId}</code>
+                    当前文件：{editingFileName || "未命名文件"}
+                    {editingFileSize ? ` · ${editingFileSize}` : ""}
                   </p>
                 ) : null}
               </>
             ) : null}
-            <label>
-              ID（可选，留空自动生成）
-              <input value={form.id} disabled={Boolean(editingId)} onChange={(e) => setForm({ ...form, id: e.target.value })} />
-            </label>
             <label>
               名称
               <input
@@ -435,7 +440,6 @@ export function EngagementResourceCatalogPanel({ engagementId }: { engagementId:
                   <p className="muted resource-registry-summary">登记要点：{summarizeConnection(resource)}</p>
                 </div>
                 <div className="resource-registry-actions">
-                  <code className="resource-registry-id">{resource.id}</code>
                   <button type="button" className="secondary-button" onClick={() => beginEdit(resource)}>
                     编辑
                   </button>

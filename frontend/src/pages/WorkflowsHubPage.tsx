@@ -21,12 +21,7 @@ import {
   validateWorkflowGraph,
   WorkflowGraphValidationError,
 } from "../domain/workflowGraph";
-import {
-  normalizeOptionalTechnicalId,
-  TECHNICAL_ID_HINT,
-  TECHNICAL_ID_PLACEHOLDER,
-  technicalIdValidationError,
-} from "../domain/technicalId";
+import { catalogDisplayName, duplicateCatalogNameError, findDuplicateCatalogName } from "../domain/catalogNames";
 import type { AgentTemplate, PublishedWorkflowTemplate, WorkflowGraph, WorkflowTemplate } from "../types/domain";
 
 type HubTab = "templates" | "builder" | "agents";
@@ -62,7 +57,6 @@ export function WorkflowsHubPage() {
   const [agents, setAgents] = useState<AgentTemplate[]>([]);
   const [builderLoaded, setBuilderLoaded] = useState(false);
   const [form, setForm] = useState({
-    id: "",
     name: "",
     description: "",
     workflow_template: "custom",
@@ -108,7 +102,6 @@ export function WorkflowsHubPage() {
   function resetWorkflowForm() {
     setEditingWorkflowId(null);
     setForm({
-      id: "",
       name: "",
       description: "",
       workflow_template: "custom",
@@ -121,7 +114,6 @@ export function WorkflowsHubPage() {
   function beginEditWorkflow(workflow: WorkflowTemplate) {
     setEditingWorkflowId(workflow.id);
     setForm({
-      id: workflow.id,
       name: workflow.name,
       description: workflow.description,
       workflow_template: workflow.workflow_template,
@@ -135,10 +127,20 @@ export function WorkflowsHubPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  const editingWorkflow = editingWorkflowId ? workflows.find((workflow) => workflow.id === editingWorkflowId) : undefined;
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     try {
+      const nameError = duplicateCatalogNameError(
+        "流程模板",
+        form.name,
+        findDuplicateCatalogName(workflows, form.name, editingWorkflowId),
+      );
+      if (nameError) {
+        throw new Error(nameError);
+      }
       const graph = normalizeWorkflowGraph(workflowGraph);
       try {
         validateWorkflowGraph(graph);
@@ -169,17 +171,10 @@ export function WorkflowsHubPage() {
       if (!payload.graph.nodes.length) {
         throw new Error("请至少添加一个 Agent 节点。");
       }
-      if (!editingWorkflowId) {
-        const idError = technicalIdValidationError(form.id);
-        if (idError) {
-          throw new Error(idError);
-        }
-      }
       if (editingWorkflowId) {
         await updateWorkflowTemplate(editingWorkflowId, payload);
       } else {
         await createWorkflowTemplate({
-          id: normalizeOptionalTechnicalId(form.id),
           ...payload,
           status: "draft",
           version: 1,
@@ -220,7 +215,7 @@ export function WorkflowsHubPage() {
       workflow.status === "published"
         ? "该模板已发布，删除后「模板应用」中将不再出现。确定删除吗？"
         : "确定删除该未发布模板吗？";
-    if (!window.confirm(`${publishedHint}\n\n「${workflow.name}」 (${workflow.id})`)) {
+    if (!window.confirm(`${publishedHint}\n\n「${workflow.name}」`)) {
       return;
     }
     setError("");
@@ -237,7 +232,7 @@ export function WorkflowsHubPage() {
       ? "选择已发布 Workflow Template，创建 Engagement 并填写需要完成的任务。"
       : activeTab === "builder"
         ? "新建或编辑模板、编排 Agent、发布后与「模板应用」页同步；内置模板可修改但不可删除。"
-        : "维护提示词、Skill 包、工具与资源配置，供流程模板引用。";
+        : "维护提示词、Skill 包与资源配置，供流程模板引用。";
 
   return (
     <div className="page-stack">
@@ -294,7 +289,6 @@ export function WorkflowsHubPage() {
                 <article key={workflowTemplate.id} className="published-template-list__row">
                   <div className="published-template-list__cell published-template-list__name">
                     <strong>{workflowTemplate.name}</strong>
-                    <code className="published-template-list__id">{workflowTemplate.id}</code>
                     {workflowTemplate.description ? (
                       <p className="published-template-list__desc">{workflowTemplate.description}</p>
                     ) : null}
@@ -350,14 +344,14 @@ export function WorkflowsHubPage() {
                   title={editingWorkflowId ? "编辑流程模板" : "新增流程模板"}
                   description={
                     editingWorkflowId
-                      ? `正在编辑 ${editingWorkflowId}；保存后更新模板内容，已发布场景需重新发布才会同步到「使用场景」。`
+                      ? `正在编辑「${editingWorkflow?.name ?? "流程模板"}」；保存后更新模板内容，已发布场景需重新发布才会同步到「使用场景」。`
                       : "填写基本信息并选择执行顺序，保存后在「已保存模板」中发布。"
                   }
                 >
                   {editingWorkflowId ? (
                     <div className="resource-edit-banner">
                       <span>
-                        编辑模式 · <code>{editingWorkflowId}</code>
+                        编辑模式 · {editingWorkflow?.name ?? "流程模板"}
                       </span>
                       <button type="button" className="secondary-button" onClick={() => resetWorkflowForm()}>
                         取消编辑
@@ -380,16 +374,6 @@ export function WorkflowsHubPage() {
                     <div className="form-section workflow-template-form__meta">
                       <h3 className="form-section__title">基本信息</h3>
                       <div className="workflow-template-form__meta-grid">
-                        <label className="workflow-field">
-                          <span className="workflow-field__label">技术 ID（可选）</span>
-                          <input
-                            value={form.id}
-                            disabled={Boolean(editingWorkflowId)}
-                            onChange={(event) => setForm({ ...form, id: event.target.value })}
-                            placeholder={TECHNICAL_ID_PLACEHOLDER}
-                          />
-                          <span className="workflow-field__hint">{TECHNICAL_ID_HINT}</span>
-                        </label>
                         <label className="workflow-field">
                           <span className="workflow-field__label">名称</span>
                           <input
@@ -498,7 +482,7 @@ export function WorkflowsHubPage() {
                     {agents.map((agent) => (
                       <li key={agent.id}>
                         <span>{agent.enabled ? "enabled" : "disabled"}</span>
-                        <strong>{agent.id}</strong>
+                        <strong>{catalogDisplayName(agent)}</strong>
                         <p>{agent.role}</p>
                       </li>
                     ))}
@@ -516,7 +500,7 @@ export function WorkflowsHubPage() {
                           <h3>{workflow.name}</h3>
                           <p>{workflow.description}</p>
                           <small>
-                            {workflow.id} · v{workflow.version} · {workflow.graph.nodes.length} agents
+                            v{workflow.version} · {workflow.graph.nodes.length} 个 Agent
                           </small>
                         </div>
                         <ol className="agent-chain">
