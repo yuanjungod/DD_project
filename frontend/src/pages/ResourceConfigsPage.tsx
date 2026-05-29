@@ -11,6 +11,12 @@ import {
 } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
 import {
+  normalizeOptionalTechnicalId,
+  TECHNICAL_ID_HINT,
+  TECHNICAL_ID_PLACEHOLDER,
+  technicalIdValidationError,
+} from "../domain/technicalId";
+import {
   buildConnection,
   buildFileStoreConnection,
   emptyFields,
@@ -255,6 +261,14 @@ export function ResourceConfigsPage() {
         return;
       }
 
+      if (!editingId) {
+        const idError = technicalIdValidationError(form.id);
+        if (idError) {
+          setError(idError);
+          return;
+        }
+      }
+
       if (editingId) {
         setSavingEdit(true);
         await updateResourceConfig(editingId, {
@@ -268,7 +282,7 @@ export function ResourceConfigsPage() {
       } else {
         setSavingEdit(true);
         await createResourceConfig({
-          id: (form.id || "").trim() || undefined,
+          id: normalizeOptionalTechnicalId(form.id),
           name: resolvedName,
           type: effectiveType,
           description: form.description,
@@ -433,12 +447,16 @@ export function ResourceConfigsPage() {
               </>
             ) : null}
             <label>
-              ID（可选，留空自动生成）
+              技术 ID（可选，留空自动生成）
               <input
                 value={form.id}
                 disabled={Boolean(editingId)}
                 onChange={(event) => setForm({ ...form, id: event.target.value })}
+                placeholder={TECHNICAL_ID_PLACEHOLDER}
               />
+              <span className="muted" style={{ fontSize: "12px" }}>
+                {TECHNICAL_ID_HINT}
+              </span>
             </label>
             <label>
               名称

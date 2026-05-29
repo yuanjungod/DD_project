@@ -13,62 +13,24 @@ import {
 } from "../api/client";
 import { AgentTemplatesPanel } from "../components/AgentTemplatesPanel";
 import { SectionCard } from "../components/SectionCard";
-import { resolveGraphAgentOrder } from "../domain/workflowGraph";
+import { WorkflowGraphEditor } from "../components/WorkflowGraphEditor";
+import {
+  createEmptyWorkflowGraph,
+  normalizeWorkflowGraph,
+  resolveGraphAgentOrder,
+  validateWorkflowGraph,
+  WorkflowGraphValidationError,
+} from "../domain/workflowGraph";
+import {
+  normalizeOptionalTechnicalId,
+  TECHNICAL_ID_HINT,
+  TECHNICAL_ID_PLACEHOLDER,
+  technicalIdValidationError,
+} from "../domain/technicalId";
 import type { AgentTemplate, PublishedWorkflowTemplate, WorkflowGraph, WorkflowTemplate } from "../types/domain";
 
 type HubTab = "templates" | "builder" | "agents";
 type BuilderSubTab = "create" | "agents" | "saved";
-type OrchestrationMode = "linear" | "master_sub";
-type AgentNodeForm = {
-  key: string;
-  master: string;
-  subAgents: string[];
-};
-
-function newNodeForm(): AgentNodeForm {
-  return {
-    key: `tmp_${Math.random().toString(36).slice(2, 10)}`,
-    master: "",
-    subAgents: [],
-  };
-}
-
-function graphFromNodeForms(forms: AgentNodeForm[], mode: OrchestrationMode): WorkflowGraph {
-  const normalized = forms
-    .map((row) => ({
-      master: row.master.trim(),
-      subs: mode === "master_sub" ? row.subAgents.filter(Boolean) : [],
-    }))
-    .filter((row) => row.master);
-  const nodes = normalized.map((row, index) => ({
-    id: `node_${index + 1}`,
-    agent_template_id: row.master,
-    sub_agent_template_ids: row.subs,
-    stage: index === 0 ? "coordination" : index === normalized.length - 1 ? "reporting" : "execution",
-  }));
-  return {
-    nodes,
-    edges: nodes.slice(0, -1).map((node, index) => ({ from: node.id, to: nodes[index + 1].id })),
-    entry_node: nodes[0]?.id ?? "",
-    report_node: nodes[nodes.length - 1]?.id ?? "",
-  };
-}
-
-function nodeFormsFromGraph(graph: WorkflowGraph): { mode: OrchestrationMode; forms: AgentNodeForm[] } {
-  const rows = (graph?.nodes ?? []).map((node) => {
-    const master = (node.agent_template_id ?? "").trim();
-    const subAgents = (node.sub_agent_template_ids ?? []).map((item) => (item ?? "").trim()).filter(Boolean);
-    return {
-      key: node.id || `tmp_${Math.random().toString(36).slice(2, 10)}`,
-      master,
-      subAgents,
-    } as AgentNodeForm;
-  });
-  const mode: OrchestrationMode = rows.some((row) => row.subAgents.length) ? "master_sub" : "linear";
-  return { mode, forms: rows.length ? rows : [newNodeForm()] };
-}
-
-/** Must match backend `workflow_template_files._PROTECTED_WORKFLOW_TEMPLATE_IDS`. */
 const PROTECTED_WORKFLOW_TEMPLATE_IDS = new Set([
   "standard_due_diligence",
   "financial_investment_due_diligence",
@@ -108,14 +70,11 @@ export function WorkflowsHubPage() {
     description: "",
     workflow_template: "custom",
   });
-  const [nodeForms, setNodeForms] = useState<AgentNodeForm[]>([newNodeForm()]);
-  const [orchestrationMode, setOrchestrationMode] = useState<OrchestrationMode>("linear");
+  const [workflowGraph, setWorkflowGraph] = useState<WorkflowGraph>(createEmptyWorkflowGraph());
   const [editingWorkflowId, setEditingWorkflowId] = useState<string | null>(null);
   const [builderSubTab, setBuilderSubTab] = useState<BuilderSubTab>("create");
 
   const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents]);
-  const selectableAgents = useMemo(() => agents.filter((agent) => agent.enabled), [agents]);
-  const allowMasterSubMode = Boolean(editingWorkflowId);
 
   const loadPublishedWorkflowTemplates = useCallback(async () => {
     const items = await listPublishedWorkflowTemplates();
@@ -150,8 +109,7 @@ export function WorkflowsHubPage() {
   function resetWorkflowForm() {
     setEditingWorkflowId(null);
     setForm({ id: "", name: "", description: "", workflow_template: "custom" });
-    setNodeForms([newNodeForm()]);
-    setOrchestrationMode("linear");
+    setWorkflowGraph(createEmptyWorkflowGraph());
   }
 
   function beginEditWorkflow(workflow: WorkflowTemplate) {
@@ -162,67 +120,44 @@ export function WorkflowsHubPage() {
       description: workflow.description,
       workflow_template: workflow.workflow_template,
     });
-    const nodeConfig = nodeFormsFromGraph(workflow.graph);
-    setOrchestrationMode(nodeConfig.mode);
-    setNodeForms(nodeConfig.forms);
+    setWorkflowGraph(workflow.graph ?? createEmptyWorkflowGraph());
     setBuilderSubTab("create");
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function addNodeForm() {
-    setNodeForms((prev) => [...prev, newNodeForm()]);
-  }
-
-  function removeNodeForm(key: string) {
-    setNodeForms((prev) => {
-      const next = prev.filter((item) => item.key !== key);
-      return next.length ? next : [newNodeForm()];
-    });
-  }
-
-  function updateNodeForm(key: string, patch: Partial<AgentNodeForm>) {
-    setNodeForms((prev) =>
-      prev.map((item) => {
-        if (item.key !== key) return item;
-        const next: AgentNodeForm = { ...item, ...patch };
-        next.subAgents = next.subAgents.filter((id) => id !== next.master);
-        return next;
-      }),
-    );
-  }
-
-  function toggleSubAgentForNode(key: string, agentId: string) {
-    if (orchestrationMode !== "master_sub") return;
-    setNodeForms((prev) =>
-      prev.map((item) => {
-        if (item.key !== key) return item;
-        const has = item.subAgents.includes(agentId);
-        return {
-          ...item,
-          subAgents: has ? item.subAgents.filter((id) => id !== agentId) : [...item.subAgents, agentId],
-        };
-      }),
-    );
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     try {
+      const graph = normalizeWorkflowGraph(workflowGraph);
+      try {
+        validateWorkflowGraph(graph);
+      } catch (err) {
+        if (err instanceof WorkflowGraphValidationError) {
+          throw new Error(err.message);
+        }
+        throw err;
+      }
       const payload = {
         name: form.name,
         description: form.description,
         workflow_template: form.workflow_template,
-        graph: graphFromNodeForms(nodeForms, allowMasterSubMode ? orchestrationMode : "linear"),
+        graph,
       };
       if (!payload.graph.nodes.length) {
-        throw new Error("请至少配置一个步骤并选择 Agent。");
+        throw new Error("请至少添加一个 Agent 节点。");
+      }
+      if (!editingWorkflowId) {
+        const idError = technicalIdValidationError(form.id);
+        if (idError) {
+          throw new Error(idError);
+        }
       }
       if (editingWorkflowId) {
         await updateWorkflowTemplate(editingWorkflowId, payload);
       } else {
         await createWorkflowTemplate({
-          id: form.id || undefined,
+          id: normalizeOptionalTechnicalId(form.id),
           ...payload,
           status: "draft",
           version: 1,
@@ -319,24 +254,36 @@ export function WorkflowsHubPage() {
 
       {activeTab === "templates" ? (
         <SectionCard title="已发布 Workflow Templates" description="可直接绑定目标公司并创建 Engagement。">
-          <div className="workflow-template-grid">
-            {publishedWorkflowTemplates.map((workflowTemplate) => (
-              <SectionCard key={workflowTemplate.id} title={workflowTemplate.name} description={workflowTemplate.description}>
-                <div className="tag-row">
-                  <span>{workflowTemplate.workflow_template}</span>
-                  <span>{workflowTemplate.agents.length} agents</span>
-                </div>
-                <ol className="agent-chain">
-                  {workflowTemplate.agents.map((agent) => (
-                    <li key={`${workflowTemplate.id}-${agent}`}>{agent}</li>
-                  ))}
-                </ol>
-                <Link className="button-link" to={`/engagements/new?workflow=${workflowTemplate.id}`}>
-                  应用到 Engagement
-                </Link>
-              </SectionCard>
-            ))}
-          </div>
+          {publishedWorkflowTemplates.length === 0 ? (
+            <p className="muted">暂无已发布模板，请先在「模板管理」中创建并发布。</p>
+          ) : (
+            <div className="published-template-list" aria-label="已发布模板列表">
+              <div className="published-template-list__row published-template-list__row--head">
+                <span>模板</span>
+                <span>Agent 链</span>
+                <span>类型</span>
+                <span>操作</span>
+              </div>
+              {publishedWorkflowTemplates.map((workflowTemplate) => (
+                <article key={workflowTemplate.id} className="published-template-list__row">
+                  <div className="published-template-list__name">
+                    <strong>{workflowTemplate.name}</strong>
+                    <small>
+                      <code>{workflowTemplate.id}</code>
+                      {workflowTemplate.description ? ` · ${workflowTemplate.description}` : null}
+                    </small>
+                  </div>
+                  <p className="published-template-list__agents" title={workflowTemplate.agents.join(" → ")}>
+                    {workflowTemplate.agents.join(" → ")}
+                  </p>
+                  <span className="published-template-list__type">{workflowTemplate.workflow_template}</span>
+                  <Link className="button-link published-template-list__action" to={`/engagements/new?workflow=${workflowTemplate.id}`}>
+                    应用
+                  </Link>
+                </article>
+              ))}
+            </div>
+          )}
         </SectionCard>
       ) : activeTab === "builder" ? (
         <>
@@ -390,17 +337,32 @@ export function WorkflowsHubPage() {
                     </div>
                   ) : null}
                   <form className="form workflow-template-form" onSubmit={handleSubmit}>
+                    <div className="form-section workflow-graph-section">
+                      <div className="workflow-graph-section__header">
+                        <div>
+                          <h3 className="form-section__title">流程编排</h3>
+                          <p className="muted">
+                            连线带箭头：箭尾为被依赖 Agent，箭头指向依赖方；无依赖节点同层并行。选中连线后按 Delete 可删除，或双击连线直接删除。
+                          </p>
+                        </div>
+                      </div>
+                      <WorkflowGraphEditor graph={workflowGraph} agents={agents} onChange={setWorkflowGraph} />
+                    </div>
+
                     <div className="form-section workflow-template-form__meta">
                       <h3 className="form-section__title">基本信息</h3>
                       <div className="workflow-template-form__meta-grid">
                         <label>
-                          ID
+                          技术 ID（可选）
                           <input
                             value={form.id}
                             disabled={Boolean(editingWorkflowId)}
                             onChange={(event) => setForm({ ...form, id: event.target.value })}
-                            placeholder="留空则自动生成"
+                            placeholder={TECHNICAL_ID_PLACEHOLDER}
                           />
+                          <span className="muted" style={{ fontSize: "12px" }}>
+                            {TECHNICAL_ID_HINT}
+                          </span>
                         </label>
                         <label>
                           名称
@@ -425,131 +387,6 @@ export function WorkflowsHubPage() {
                           />
                         </label>
                       </div>
-                    </div>
-
-                    {allowMasterSubMode ? (
-                      <label className="workflow-template-form__mode">
-                        编排模式
-                        <select
-                          value={orchestrationMode}
-                          onChange={(event) => setOrchestrationMode(event.target.value as OrchestrationMode)}
-                        >
-                          <option value="linear">串行</option>
-                          <option value="master_sub">主从（仅编辑旧模板）</option>
-                        </select>
-                      </label>
-                    ) : null}
-
-                    <div className="form-section workflow-pipeline">
-                      <div className="workflow-pipeline__header">
-                        <div>
-                          <h3 className="form-section__title">执行顺序</h3>
-                          <p className="muted">按步骤依次执行，点击卡片选择 Agent。</p>
-                        </div>
-                        <button type="button" className="secondary-button workflow-pipeline__add-step" onClick={addNodeForm}>
-                          添加步骤
-                        </button>
-                      </div>
-
-                      {selectableAgents.length === 0 ? (
-                        <p className="workflow-pipeline__empty">暂无可用 Agent，请先在「Agent 配置」中创建并启用。</p>
-                      ) : (
-                        <ol className="workflow-pipeline__list">
-                          {nodeForms.map((node, index) => {
-                            const selected = node.master ? agentById.get(node.master) : undefined;
-                            const missingSelected = node.master && !selected;
-                            const collaboratorIds = [
-                              ...selectableAgents
-                                .filter((agent) => agent.id !== node.master)
-                                .map((agent) => agent.id),
-                              ...node.subAgents.filter(
-                                (agentId) =>
-                                  agentId !== node.master && !selectableAgents.some((agent) => agent.id === agentId),
-                              ),
-                            ];
-                            return (
-                              <li key={node.key} className="workflow-pipeline__item">
-                                {index > 0 ? <div className="workflow-pipeline__connector" aria-hidden="true" /> : null}
-                                <article className="workflow-pipeline__step">
-                                  <div className="workflow-pipeline__step-head">
-                                    <span className="workflow-pipeline__step-badge">{index + 1}</span>
-                                    <div className="workflow-pipeline__step-title">
-                                      <strong>步骤 {index + 1}</strong>
-                                      {selected ? (
-                                        <span className="workflow-pipeline__step-sub">{selected.role}</span>
-                                      ) : missingSelected ? (
-                                        <span className="workflow-pipeline__step-sub muted">{node.master}</span>
-                                      ) : (
-                                        <span className="workflow-pipeline__step-sub muted">未选择</span>
-                                      )}
-                                    </div>
-                                    {nodeForms.length > 1 ? (
-                                      <button
-                                        type="button"
-                                        className="workflow-pipeline__remove"
-                                        onClick={() => removeNodeForm(node.key)}
-                                      >
-                                        移除
-                                      </button>
-                                    ) : null}
-                                  </div>
-
-                                  <div className="workflow-pipeline__agent-grid" role="listbox" aria-label={`步骤 ${index + 1} Agent`}>
-                                    {selectableAgents.map((agent) => (
-                                      <button
-                                        key={`${node.key}-${agent.id}`}
-                                        type="button"
-                                        role="option"
-                                        aria-selected={node.master === agent.id}
-                                        className={`workflow-agent-chip ${node.master === agent.id ? "is-selected" : ""}`}
-                                        onClick={() => updateNodeForm(node.key, { master: agent.id })}
-                                      >
-                                        <span className="workflow-agent-chip__name">{agent.name || agent.id}</span>
-                                        <code>{agent.id}</code>
-                                      </button>
-                                    ))}
-                                    {missingSelected ? (
-                                      <button
-                                        type="button"
-                                        className="workflow-agent-chip is-selected is-missing"
-                                        onClick={() => updateNodeForm(node.key, { master: node.master })}
-                                      >
-                                        <span className="workflow-agent-chip__name">{node.master}</span>
-                                        <code>不在当前目录</code>
-                                      </button>
-                                    ) : null}
-                                  </div>
-
-                                  {allowMasterSubMode && orchestrationMode === "master_sub" && node.master ? (
-                                    <div className="workflow-pipeline__collab">
-                                      <p className="workflow-pipeline__collab-label">协作（可选，多选）</p>
-                                      <div className="workflow-pipeline__agent-grid workflow-pipeline__agent-grid--compact">
-                                        {collaboratorIds.map((agentId) => {
-                                          const agent = agentById.get(agentId);
-                                          const checked = node.subAgents.includes(agentId);
-                                          return (
-                                            <button
-                                              key={`${node.key}-collab-${agentId}`}
-                                              type="button"
-                                              className={`workflow-agent-chip workflow-agent-chip--collab ${checked ? "is-selected" : ""}`}
-                                              onClick={() => toggleSubAgentForNode(node.key, agentId)}
-                                            >
-                                              <span className="workflow-agent-chip__name">
-                                                {agent?.name || agentId}
-                                              </span>
-                                              <code>{agentId}</code>
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  ) : null}
-                                </article>
-                              </li>
-                            );
-                          })}
-                        </ol>
-                      )}
                     </div>
 
                     <div className="workflow-template-form__actions">
@@ -587,9 +424,12 @@ export function WorkflowsHubPage() {
                           </small>
                         </div>
                         <ol className="agent-chain">
-                          {resolveGraphAgentOrder(workflow.graph).map((agentId, index) => (
-                            <li key={`${workflow.id}-${agentId}-${index}`}>{agentId}</li>
-                          ))}
+                          {resolveGraphAgentOrder(workflow.graph).map((agentId, index) => {
+                            const agent = agentById.get(agentId);
+                            return (
+                              <li key={`${workflow.id}-${agentId}-${index}`}>{agent?.name || agentId}</li>
+                            );
+                          })}
                         </ol>
                         <div className="row-actions">
                           <button type="button" className="secondary-button" onClick={() => beginEditWorkflow(workflow)}>

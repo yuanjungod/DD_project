@@ -7,6 +7,24 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from shared.workflow_graph import resolve_graph_agent_order, resolve_graph_node_ids
+from shared.workflow_graph import (
+    WorkflowGraphError,
+    infer_entry_and_report_nodes,
+    resolve_graph_agent_order,
+    resolve_graph_execution_levels,
+    resolve_graph_node_agent_plan,
+    resolve_graph_node_ids,
+    resolve_graph_predecessors,
+    validate_workflow_graph,
+)
 
-__all__ = ["resolve_graph_agent_order", "resolve_graph_node_ids"]
+__all__ = [
+    "WorkflowGraphError",
+    "infer_entry_and_report_nodes",
+    "resolve_graph_agent_order",
+    "resolve_graph_execution_levels",
+    "resolve_graph_node_agent_plan",
+    "resolve_graph_node_ids",
+    "resolve_graph_predecessors",
+    "validate_workflow_graph",
+]

@@ -30,7 +30,12 @@ from app.services.catalog_layout import (
     workflow_template_yaml_path,
 )
 from app.services.catalog_yaml_utils import load_yaml, utc_from_mtime
-from app.services.workflow_graph import resolve_graph_agent_order
+from app.services.workflow_graph import (
+    WorkflowGraphError,
+    infer_entry_and_report_nodes,
+    resolve_graph_agent_order,
+    validate_workflow_graph,
+)
 
 
 def workflow_templates_dir() -> Path:
@@ -207,6 +212,18 @@ def _pick_agents_for_graph(agent_ids: list[str], pool: dict[str, dict[str, Any]]
     return picked
 
 
+def _prepare_graph(graph: dict[str, Any]) -> dict[str, Any]:
+    prepared = copy.deepcopy(graph)
+    try:
+        validate_workflow_graph(prepared)
+    except WorkflowGraphError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    entry_node, report_node = infer_entry_and_report_nodes(prepared)
+    prepared["entry_node"] = entry_node
+    prepared["report_node"] = report_node
+    return prepared
+
+
 def create_workflow_template(payload: WorkflowTemplateCreate, *, user_id: str) -> WorkflowTemplateRead:
     ensure_workflow_templates_dir()
     data = payload.model_dump(exclude_none=True)
@@ -214,7 +231,7 @@ def create_workflow_template(payload: WorkflowTemplateCreate, *, user_id: str) -
     _assert_safe_workflow_id(wf_id)
     if workflow_template_config_root(wf_id, user_id=user_id) is not None:
         raise HTTPException(status_code=409, detail=f"Workflow id already exists: {wf_id}")
-    graph = data["graph"]
+    graph = _prepare_graph(data["graph"])
     agent_ids = resolve_graph_agent_order(graph)
     pool = union_agent_by_id(user_id=user_id)
     _pick_agents_for_graph(agent_ids, pool)
@@ -244,7 +261,8 @@ def update_workflow_template(workflow_id: str, payload: WorkflowTemplateUpdate, 
         elif value is not None:
             wf[key] = value
     if "graph" in updates and updates["graph"] is not None:
-        agent_ids = resolve_graph_agent_order(updates["graph"])
+        wf["graph"] = _prepare_graph(updates["graph"])
+        agent_ids = resolve_graph_agent_order(wf["graph"])
         pool = union_agent_by_id(user_id=user_id)
         _pick_agents_for_graph(agent_ids, pool)
     path = save_workflow_bundle(workflow_id, bundle, user_id=user_id)

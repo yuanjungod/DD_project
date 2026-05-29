@@ -245,6 +245,9 @@ export type WorkflowGraph = {
     /** Optional sub-agents executed after node master agent. */
     sub_agent_template_ids?: string[];
     stage?: string;
+    position?: { x: number; y: number };
+    width?: number;
+    height?: number;
   }>;
   edges: Array<{ from: string; to: string }>;
   entry_node: string;

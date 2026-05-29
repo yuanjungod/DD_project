@@ -11,6 +11,12 @@ import {
   updateAgentTemplate,
 } from "../api/client";
 import {
+  normalizeOptionalTechnicalId,
+  TECHNICAL_ID_HINT,
+  TECHNICAL_ID_PLACEHOLDER,
+  technicalIdValidationError,
+} from "../domain/technicalId";
+import {
   KNOWN_PLATFORM_RESOURCE_TYPES,
   PLATFORM_RESOURCE_TYPE_OPTIONS,
   type PlatformResourceType,
@@ -222,11 +228,8 @@ type AgentTemplatesPanelProps = {
   onAgentsChanged?: () => void;
 };
 
-const AGENT_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
-
 function normalizeOptionalAgentId(raw: string): string | undefined {
-  const text = raw.trim();
-  return text ? text : undefined;
+  return normalizeOptionalTechnicalId(raw);
 }
 
 export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProps) {
@@ -497,9 +500,12 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
     setError("");
     try {
       const optionalId = normalizeOptionalAgentId(form.id);
-      if (!editingAgentId && optionalId && !AGENT_ID_PATTERN.test(optionalId)) {
-        setError("ID 只能包含字母、数字、连字符和下划线；留空则自动生成。");
-        return;
+      if (!editingAgentId) {
+        const idError = technicalIdValidationError(form.id);
+        if (idError) {
+          setError(idError);
+          return;
+        }
       }
       const payload = {
         name: form.name,
@@ -567,13 +573,16 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
               <h4 className="agent-template-editor__section-label">基本信息</h4>
               <div className="agent-template-editor__basics-grid">
                 <label>
-                  ID（可选）
+                  技术 ID（可选）
                   <input
                     value={form.id}
                     disabled={Boolean(editingAgentId)}
                     onChange={(event) => setForm({ ...form, id: event.target.value })}
-                    placeholder="留空则自动生成；仅字母、数字、-、_"
+                    placeholder={TECHNICAL_ID_PLACEHOLDER}
                   />
+                  <span className="muted" style={{ fontSize: "12px" }}>
+                    {TECHNICAL_ID_HINT}
+                  </span>
                 </label>
                 <label>
                   名称 <span className="required-dot">*</span>

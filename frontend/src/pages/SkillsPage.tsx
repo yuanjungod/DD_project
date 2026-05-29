@@ -2,6 +2,12 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { createSkill, debugSkillDraft, deleteSkill, getSkill, importSkillZip, listSkills, updateSkill } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
+import {
+  normalizeOptionalTechnicalId,
+  TECHNICAL_ID_HINT,
+  TECHNICAL_ID_PLACEHOLDER,
+  technicalIdValidationError,
+} from "../domain/technicalId";
 import type { SkillDebugResult, SkillPackage } from "../types/domain";
 
 const defaultSkillMd =
@@ -59,6 +65,13 @@ export function SkillsPage() {
     setError("");
     setNotice("");
     try {
+      if (!selectedSkillId) {
+        const idError = technicalIdValidationError(form.id);
+        if (idError) {
+          setError(idError);
+          return;
+        }
+      }
       const payload = {
         name: form.name,
         description: form.description,
@@ -71,7 +84,7 @@ export function SkillsPage() {
       const existing = skills.some((skill) => skill.id === form.id);
       const saved = existing
         ? await updateSkill(form.id, payload)
-        : await createSkill({ ...payload, id: form.id || undefined });
+        : await createSkill({ ...payload, id: normalizeOptionalTechnicalId(form.id) });
       setSelectedSkillId(saved.id);
       setNotice(existing ? "Skill 已更新" : "Skill 已创建");
       await refresh();
@@ -341,12 +354,16 @@ export function SkillsPage() {
             <form className="form" onSubmit={handleSubmit}>
               <div className="grid two">
                 <label>
-                  ID
+                  技术 ID（可选）
                   <input
                     disabled={Boolean(selectedSkillId)}
                     value={form.id}
                     onChange={(event) => setForm({ ...form, id: event.target.value })}
+                    placeholder={TECHNICAL_ID_PLACEHOLDER}
                   />
+                  <span className="muted" style={{ fontSize: "12px" }}>
+                    {TECHNICAL_ID_HINT}
+                  </span>
                 </label>
                 <label>
                   名称

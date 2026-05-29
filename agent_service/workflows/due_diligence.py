@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -17,7 +19,14 @@ from agent_service.callback_client import notify_run_progress
 from agent_service.session_history import build_session_recorder, open_session_recorder_for_resume
 from agent_service.workflows.agent_outputs import agent_step_output_dir, ensure_step_output_handoff
 from agent_service.workflows.config_loader import AgentDefinition, WorkflowDefinition
-from agent_service.workflows.graph_order import resolve_graph_agent_order
+from agent_service.workflows.graph_order import (
+    resolve_graph_agent_order,
+    resolve_graph_execution_levels,
+    resolve_graph_node_agent_plan,
+    resolve_graph_node_ids,
+    resolve_graph_predecessors,
+    validate_workflow_graph,
+)
 
 
 class DueDiligenceWorkflow:
@@ -73,7 +82,13 @@ class DueDiligenceWorkflow:
         for st in steps:
             if st.result is not None:
                 results.append(st.result)
+        graph = self._graph_from_snapshot(workflow_snapshot)
+        validate_workflow_graph(graph)
         ordered_agents = self._ordered_agents(workflow)
+        execution_levels = resolve_graph_execution_levels(graph)
+        flat_plan = resolve_graph_node_agent_plan(graph)
+        predecessor_map = resolve_graph_predecessors(graph)
+        topo_node_ids = resolve_graph_node_ids(graph)
         if workflow_snapshot:
             missing = [a for a in ordered_agents if a not in agent_definitions]
             if missing:
@@ -99,6 +114,7 @@ class DueDiligenceWorkflow:
             "company_config": company_config.model_dump(mode="json"),
             "workflow_meta": self._workflow_session_meta(workflow_snapshot, workflow),
             "agents_ordered": ordered_agents,
+            "execution_levels": execution_levels,
             "pause_after_each_step": pause_after_each_step,
         }
         resumed = open_session_recorder_for_resume(
@@ -126,80 +142,153 @@ class DueDiligenceWorkflow:
             )
             recorder.start(start_payload)
 
-        for step_idx in range(resume_from_step_index, len(ordered_agents)):
-            agent_name = ordered_agents[step_idx]
-            definition = agent_definitions.get(agent_name)
-            if definition is None:
-                raise ValueError(f"Workflow snapshot missing agent definition: {agent_name}")
-            runner = ConfiguredAgentRunner(definition)
-            step = AgentStep(id=f"{run_id}_step_{step_idx + 1:03d}", agent=agent_name, status="running")
-            steps.append(step)
-            recorder.append_event({"type": "step_started", "step_id": step.id, "agent": agent_name})
-            notify_run_progress(engagement_id, run_id, step)
-            inject_ctx = continuation_context if step_idx == 0 and resume_from_step_index == 0 else None
-            planned_output_dir = str(
-                agent_step_output_dir(
-                    workflow_template_id=workflow_template_id,
-                    user_id=safe_user_id,
-                    engagement_id=engagement_id,
-                    session_id=safe_session_id,
-                    run_id=run_id,
+        completed_plan_keys = {
+            flat_plan[index]
+            for index in range(min(resume_from_step_index, len(flat_plan)))
+        }
+        node_results: dict[str, list[AgentResult]] = defaultdict(list)
+        for index, step in enumerate(done_steps):
+            if index >= len(flat_plan):
+                break
+            node_id, _agent_id = flat_plan[index]
+            if step.result is not None:
+                node_results[node_id].append(step.result)
+
+        step_seq = resume_from_step_index
+
+        def predecessor_results(node_id: str) -> list[AgentResult]:
+            ordered_preds = [node for node in topo_node_ids if node in predecessor_map.get(node_id, [])]
+            handoff: list[AgentResult] = []
+            for pred_id in ordered_preds:
+                handoff.extend(node_results.get(pred_id, []))
+            return handoff
+
+        def run_node(node_id: str) -> tuple[list[AgentStep], list[AgentResult], RunResult | None]:
+            node_steps: list[AgentStep] = []
+            node_agent_results: list[AgentResult] = []
+            node_plan = [(nid, agent_name) for nid, agent_name in flat_plan if nid == node_id]
+            handoff = predecessor_results(node_id)
+
+            for plan_node_id, agent_name in node_plan:
+                if (plan_node_id, agent_name) in completed_plan_keys:
+                    continue
+                definition = agent_definitions.get(agent_name)
+                if definition is None:
+                    raise ValueError(f"Workflow snapshot missing agent definition: {agent_name}")
+                runner = ConfiguredAgentRunner(definition)
+                nonlocal step_seq
+                step_seq += 1
+                step = AgentStep(id=f"{run_id}_step_{step_seq:03d}", agent=agent_name, status="running")
+                node_steps.append(step)
+                recorder.append_event({"type": "step_started", "step_id": step.id, "agent": agent_name})
+                notify_run_progress(engagement_id, run_id, step)
+                inject_ctx = (
+                    continuation_context
+                    if step_seq == 1 and resume_from_step_index == 0
+                    else None
+                )
+                planned_output_dir = str(
+                    agent_step_output_dir(
+                        workflow_template_id=workflow_template_id,
+                        user_id=safe_user_id,
+                        engagement_id=engagement_id,
+                        session_id=safe_session_id,
+                        run_id=run_id,
+                        step_id=step.id,
+                        agent_name=agent_name,
+                    )
+                )
+                Path(planned_output_dir).mkdir(parents=True, exist_ok=True)
+                try:
+                    result = runner.run(
+                        company_config,
+                        handoff + node_agent_results,
+                        continuation_context=inject_ctx,
+                        agent_output_dir=planned_output_dir,
+                    )
+                except Exception as exc:
+                    msg = str(exc)
+                    step.status = "failed"
+                    step.summary = msg
+                    step.result = None
+                    recorder.append_event(
+                        {
+                            "type": "step_failed",
+                            "step_id": step.id,
+                            "agent": agent_name,
+                            "error": msg,
+                        },
+                    )
+                    return (
+                        node_steps,
+                        node_agent_results,
+                        RunResult(
+                            run_id=run_id,
+                            engagement_id=engagement_id,
+                            status="failed",
+                            steps=steps + node_steps,
+                        ),
+                    )
+                step.status = result.status
+                finalized_dir, output_readme_path = ensure_step_output_handoff(
+                    planned_output_dir,
+                    agent=agent_name,
                     step_id=step.id,
-                    agent_name=agent_name,
+                    status=result.status,
+                    summary=step.summary or "",
                 )
-            )
-            Path(planned_output_dir).mkdir(parents=True, exist_ok=True)
-            try:
-                result = runner.run(
-                    company_config,
-                    results,
-                    continuation_context=inject_ctx,
-                    agent_output_dir=planned_output_dir,
-                )
-            except Exception as exc:
-                msg = str(exc)
-                step.status = "failed"
-                step.summary = msg
-                step.result = None
+                result.output_dir = finalized_dir
+                result.output_readme_path = output_readme_path
+                step.result = result
+                node_agent_results.append(result)
+                notify_run_progress(engagement_id, run_id, step)
                 recorder.append_event(
                     {
-                        "type": "step_failed",
+                        "type": "step_completed",
                         "step_id": step.id,
                         "agent": agent_name,
-                        "error": msg,
+                        "output_dir": finalized_dir,
+                        "output_readme_path": output_readme_path,
                     },
                 )
-                rr = RunResult(
-                    run_id=run_id,
-                    engagement_id=engagement_id,
-                    status="failed",
-                    steps=steps,
+            return node_steps, node_agent_results, None
+
+        for level_idx, level_node_ids in enumerate(execution_levels):
+            pending_nodes = [
+                node_id
+                for node_id in level_node_ids
+                if any(
+                    (nid, agent_name) not in completed_plan_keys
+                    for nid, agent_name in flat_plan
+                    if nid == node_id
                 )
-                recorder.finalize_failure(msg, partial_result=rr.model_dump(mode="json"))
-                return rr
-            step.status = result.status
-            finalized_dir, output_readme_path = ensure_step_output_handoff(
-                planned_output_dir,
-                agent=agent_name,
-                step_id=step.id,
-                status=result.status,
-                summary=step.summary or "",
-            )
-            result.output_dir = finalized_dir
-            result.output_readme_path = output_readme_path
-            step.result = result
-            results.append(result)
-            notify_run_progress(engagement_id, run_id, step)
-            recorder.append_event(
-                {
-                    "type": "step_completed",
-                    "step_id": step.id,
-                    "agent": agent_name,
-                    "output_dir": finalized_dir,
-                    "output_readme_path": output_readme_path,
-                },
-            )
-            if pause_after_each_step and step_idx < len(ordered_agents) - 1:
+            ]
+            if not pending_nodes:
+                continue
+
+            level_outputs: dict[str, tuple[list[AgentStep], list[AgentResult], RunResult | None]] = {}
+            max_workers = max(1, len(pending_nodes))
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                futures = {pool.submit(run_node, node_id): node_id for node_id in pending_nodes}
+                for future in futures:
+                    node_id = futures[future]
+                    level_outputs[node_id] = future.result()
+
+            for node_id in level_node_ids:
+                if node_id not in level_outputs:
+                    continue
+                node_steps, node_agent_results, failure = level_outputs[node_id]
+                steps.extend(node_steps)
+                results.extend(node_agent_results)
+                node_results[node_id].extend(node_agent_results)
+                if failure is not None:
+                    recorder.finalize_failure(
+                        failure.steps[-1].summary or "step failed",
+                        partial_result=failure.model_dump(mode="json"),
+                    )
+                    return failure
+
+            if pause_after_each_step and level_idx < len(execution_levels) - 1:
                 rr = RunResult(
                     run_id=run_id,
                     engagement_id=engagement_id,
@@ -255,7 +344,7 @@ class DueDiligenceWorkflow:
                 seen.add(agent_name)
         return ordered
 
-    def _workflow_from_snapshot(self, snapshot: dict | None) -> WorkflowDefinition:
+    def _graph_from_snapshot(self, snapshot: dict | None) -> dict[str, Any]:
         if not snapshot:
             raise ValueError("Missing workflow snapshot")
         workflow = snapshot.get("workflow")
@@ -264,6 +353,15 @@ class DueDiligenceWorkflow:
         graph = workflow.get("graph")
         if not isinstance(graph, dict):
             raise ValueError("workflow_snapshot.workflow must contain a 'graph' object")
+        return graph
+
+    def _workflow_from_snapshot(self, snapshot: dict | None) -> WorkflowDefinition:
+        if not snapshot:
+            raise ValueError("Missing workflow snapshot")
+        workflow = snapshot.get("workflow")
+        if not isinstance(workflow, dict):
+            raise ValueError("workflow_snapshot must contain a 'workflow' object")
+        graph = self._graph_from_snapshot(snapshot)
         agent_ids = resolve_graph_agent_order(graph)
         if not agent_ids:
             raise ValueError(
