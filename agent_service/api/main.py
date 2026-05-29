@@ -65,14 +65,18 @@ def run_workflow(request: RunRequest) -> RunResult:
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/assist/step-review-chat", response_model=StepReviewChatResponse, dependencies=_require_agent_key)
 def assist_step_review_chat(request: StepReviewChatRequest) -> StepReviewChatResponse:
     try:
         return workflow.step_review_chat(request)
-    except Exception as exc:  # noqa: BLE001 — surface clearer API error
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/sessions/{workflow_template_id}/{user_id}/{engagement_id}/{run_id}", dependencies=_require_agent_key)

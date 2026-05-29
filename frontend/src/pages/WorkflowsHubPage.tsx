@@ -368,58 +368,87 @@ export function WorkflowsHubPage() {
                     <div className="form-section workflow-template-form__meta">
                       <h3 className="form-section__title">基本信息</h3>
                       <div className="workflow-template-form__meta-grid">
-                        <label>
-                          技术 ID（可选）
+                        <label className="workflow-field">
+                          <span className="workflow-field__label">技术 ID（可选）</span>
                           <input
                             value={form.id}
                             disabled={Boolean(editingWorkflowId)}
                             onChange={(event) => setForm({ ...form, id: event.target.value })}
                             placeholder={TECHNICAL_ID_PLACEHOLDER}
                           />
-                          <span className="muted" style={{ fontSize: "12px" }}>
-                            {TECHNICAL_ID_HINT}
-                          </span>
+                          <span className="workflow-field__hint">{TECHNICAL_ID_HINT}</span>
                         </label>
-                        <label>
-                          名称
+                        <label className="workflow-field">
+                          <span className="workflow-field__label">名称</span>
                           <input
                             value={form.name}
                             onChange={(event) => setForm({ ...form, name: event.target.value })}
+                            placeholder="在界面中展示的名称"
                             required
                           />
                         </label>
-                        <label>
-                          模板分类
+                        <label className="workflow-field">
+                          <span className="workflow-field__label">模板分类</span>
                           <input
                             value={form.workflow_template}
                             onChange={(event) => setForm({ ...form, workflow_template: event.target.value })}
+                            placeholder="custom"
                           />
+                          <span className="workflow-field__hint">用于区分模板族，如 custom、standard</span>
                         </label>
-                        <label className="workflow-template-form__span-2">
-                          描述
+                        <label className="workflow-field">
+                          <span className="workflow-field__label">描述</span>
                           <input
                             value={form.description}
                             onChange={(event) => setForm({ ...form, description: event.target.value })}
+                            placeholder="简要说明该模板的用途"
                           />
                         </label>
-                        <label>
-                          命令执行环境
-                          <select
-                            value={form.command_execution}
-                            onChange={(event) =>
-                              setForm({
-                                ...form,
-                                command_execution: event.target.value === "docker" ? "docker" : "host",
-                              })
-                            }
-                          >
-                            <option value="host">Host（本机）</option>
-                            <option value="docker">Docker（每用户×模板独立容器）</option>
-                          </select>
-                          <span className="muted" style={{ fontSize: "12px" }}>
-                            Docker 模式下 shell/python/读写挂载目录在容器内执行；LLM 仍在 agent_service 主机。
-                          </span>
-                        </label>
+                        <div className="workflow-template-form__span-2 workflow-runtime-panel">
+                          <div className="workflow-runtime-panel__head">
+                            <span className="workflow-field__label">命令执行环境</span>
+                            <span className="workflow-runtime-panel__badge">Agent 工具链</span>
+                          </div>
+                          <div className="workflow-runtime-picker" role="radiogroup" aria-label="命令执行环境">
+                            <button
+                              type="button"
+                              role="radio"
+                              aria-checked={form.command_execution === "host"}
+                              className={
+                                form.command_execution === "host"
+                                  ? "workflow-runtime-picker__option workflow-runtime-picker__option--active"
+                                  : "workflow-runtime-picker__option"
+                              }
+                              onClick={() => setForm({ ...form, command_execution: "host" })}
+                            >
+                              <span className="workflow-runtime-picker__title">Host · 本机</span>
+                              <span className="workflow-runtime-picker__desc">
+                                Shell / Python / 读写在 agent_service 进程内执行
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              role="radio"
+                              aria-checked={form.command_execution === "docker"}
+                              className={
+                                form.command_execution === "docker"
+                                  ? "workflow-runtime-picker__option workflow-runtime-picker__option--active workflow-runtime-picker__option--docker"
+                                  : "workflow-runtime-picker__option"
+                              }
+                              onClick={() => setForm({ ...form, command_execution: "docker" })}
+                            >
+                              <span className="workflow-runtime-picker__title">Docker · 隔离容器</span>
+                              <span className="workflow-runtime-picker__desc">
+                                每用户 × 模板独立容器；LLM 仍在主机
+                              </span>
+                            </button>
+                          </div>
+                          <p className="workflow-field__hint">
+                            Docker 模式需预先构建镜像{" "}
+                            <code className="workflow-inline-code">harness-exec:0.1.0</code>
+                            ，挂载该用户工作流目录；命令与文件读写均在容器内完成。
+                          </p>
+                        </div>
                       </div>
                     </div>
 
