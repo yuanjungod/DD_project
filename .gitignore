@@ -13,6 +13,7 @@ agent_service/sessions/
 agent_service/skills/
 catalog/workflow_templates/*/runs/
 .harness_project/
+.dd_project/
 __MACOSX/
 tianyancha-finance-analysis/
 tianyancha-finance-analysis.zip
