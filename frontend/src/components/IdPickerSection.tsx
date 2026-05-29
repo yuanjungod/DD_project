@@ -12,7 +12,7 @@ export type PickerItem = {
   name: string;
   hint?: string;
   enabled?: boolean;
-  /** Platform resource connector type (web, file_store, …). */
+  /** Platform resource connector type (file_store, mcp, metrics_platform, …). */
   resourceType?: string;
   /** File picker: 应用文件库 | 平台共享文件库 */
   fileSource?: string;
@@ -144,7 +144,7 @@ function defaultResourceTypeTab(items: PickerItem[], selected: string[]): Resour
   if (items.some((item) => item.resourceType && !isKnownPlatformResourceType(item.resourceType))) {
     return "other";
   }
-  return "web";
+  return "file_store";
 }
 
 type ResourceTypeMultiPickerSectionProps = Omit<IdMultiPickerSectionProps, "compact"> & {

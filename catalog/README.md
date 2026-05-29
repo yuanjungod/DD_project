@@ -70,7 +70,7 @@ Important boundary:
 
 Built-in platform resource connector definitions.
 
-Examples include public web, file store, database-like connectors, etc.
+Supported connector types: **file library** (`file_store`), **MCP** (`mcp`), and **metrics / data warehouse** (`metrics_platform`).
 
 Runtime/project overlays are stored under `.harness_project/data/platform/resource_configs` (or the configured data root), not in this folder.
 

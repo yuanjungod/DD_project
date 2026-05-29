@@ -18,7 +18,7 @@ def resource_config_read_from_dict(
     return ResourceConfigRead(
         id=rid,
         name=str(data.get("name", rid)),
-        type=str(data.get("type", "web")),
+        type=str(data.get("type", "file_store")),
         description=str(data.get("description", "")),
         connection_config=data.get("connection_config") if isinstance(data.get("connection_config"), dict) else {},
         enabled=bool(data.get("enabled", True)),

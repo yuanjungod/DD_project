@@ -20,8 +20,7 @@ prompt: 'You are a public web researcher.
   '
 skill_package_ids: []
 tool_ids: []
-resource_ids:
-- resource_public_web
+resource_ids: []
 react_config:
   max_iters: 6
   parallel_tool_calls: false

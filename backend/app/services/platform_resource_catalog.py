@@ -12,6 +12,7 @@ from app.services.catalog_yaml_utils import load_yaml_file, utc_now_naive, write
 from app.services.fs_layout import builtin_resource_configs_dir, platform_resource_configs_overlay_dir
 from app.services.platform_uploads_store import delete_platform_upload
 from app.services.resource_catalog_common import resource_config_read_from_dict
+from shared.platform_resource_types import validate_platform_resource_type
 
 _ID_SAFE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_-]{0,126}$")
 
@@ -104,6 +105,7 @@ def _write_overlay(data: dict[str, Any]) -> None:
 
 
 def create_resource_config_overlay(payload: ResourceConfigCreate) -> ResourceConfigRead:
+    validate_platform_resource_type(payload.type)
     rid = (payload.id or "").strip()
     if not rid:
         rid = new_id("resource_cfg")
@@ -136,6 +138,8 @@ def update_resource_config_overlay(resource_id: str, payload: ResourceConfigUpda
     old_conn = base.get("connection_config") if isinstance(base.get("connection_config"), dict) else {}
     old_file_id = str(old_conn.get("file_id") or "").strip()
     updates = payload.model_dump(exclude_unset=True)
+    if "type" in updates and updates["type"] is not None:
+        validate_platform_resource_type(str(updates["type"]))
     for k, v in updates.items():
         if k in {"id"}:
             continue

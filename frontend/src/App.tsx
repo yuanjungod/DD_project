@@ -67,7 +67,7 @@ export function App() {
                   <Route path="/workflow-templates" element={<Navigate to="/workflows" replace />} />
                   <Route path="/agent-templates" element={<Navigate to={{ pathname: "/workflows", search: "?tab=agents" }} replace />} />
                   <Route path="/skills" element={<SkillsPage />} />
-                  <Route path="/tools" element={<Navigate to="/resource-configs?tab=tools" replace />} />
+                  <Route path="/tools" element={<Navigate to="/resource-configs" replace />} />
                   <Route path="/resource-configs" element={<ResourceConfigsPage />} />
                   <Route path="/engagements/new" element={<NewEngagementPage />} />
                   <Route path="/engagements" element={<EngagementsPage />} />

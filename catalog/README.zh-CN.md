@@ -72,7 +72,7 @@ catalog/
 ### `resource_configs/`
 
 内置平台资源连接器配置。  
-例如公开网页、文件库、数据库类连接器等。
+支持的连接器类型：**文件库**（`file_store`）、**MCP**（`mcp`）、**指标/数仓平台**（`metrics_platform`）。
 
 项目运行时覆盖配置应写入 `.harness_project/data/platform/resource_configs`（或你配置的数据根目录），而不是修改这里的基线文件。
 

@@ -5,7 +5,6 @@ import {
   createResourceConfig,
   deleteResourceConfig,
   listResourceConfigs,
-  listToolConfigs,
   updateResourceConfig,
   uploadLibraryFile,
 } from "../api/client";
@@ -34,19 +33,19 @@ import {
   PLATFORM_RESOURCE_TYPE_OPTIONS,
   type ResourceConfigsTabFilter,
   isKnownPlatformResourceType,
-  isToolsConfigTab,
   resourceListFilterLabel,
 } from "../domain/platformResourceRegistry";
-import type { ResourceConfig, ToolConfig } from "../types/domain";
+import type { ResourceConfig } from "../types/domain";
 
 function initialListFilter(searchParams: URLSearchParams): ResourceConfigsTabFilter {
-  return searchParams.get("tab") === "tools" ? "tools" : "web";
+  const tab = searchParams.get("tab");
+  if (tab && isKnownPlatformResourceType(tab)) return tab;
+  return "file_store";
 }
 
 export function ResourceConfigsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [tools, setTools] = useState<ToolConfig[]>([]);
   const [resources, setResources] = useState<ResourceConfig[]>([]);
   const [listFilter, setListFilter] = useState<ResourceConfigsTabFilter>(() => initialListFilter(searchParams));
   const [deletingId, setDeletingId] = useState("");
@@ -55,8 +54,8 @@ export function ResourceConfigsPage() {
   const [error, setError] = useState("");
   const [form, setForm] = useState({ id: "", name: "", description: "" });
   const [formEnabled, setFormEnabled] = useState(true);
-  const [ptype, setPtype] = useState<PlatformResourceType>("web");
-  const [fields, setFields] = useState<Record<string, string>>(() => emptyFields("web"));
+  const [ptype, setPtype] = useState<PlatformResourceType>("file_store");
+  const [fields, setFields] = useState<Record<string, string>>(() => emptyFields("file_store"));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editUnknownType, setEditUnknownType] = useState<string | null>(null);
   const [connectionRawJson, setConnectionRawJson] = useState("{}");
@@ -67,13 +66,10 @@ export function ResourceConfigsPage() {
 
   const fieldLabels = useMemo(() => labelsFor(ptype), [ptype]);
 
-  const showToolsPanel = isToolsConfigTab(listFilter);
-
   const filteredResources = useMemo(() => {
-    if (showToolsPanel) return [];
     if (listFilter === "other") return resources.filter((r) => !isKnownPlatformResourceType(r.type));
     return resources.filter((r) => r.type === listFilter);
-  }, [resources, listFilter, showToolsPanel]);
+  }, [resources, listFilter]);
 
   const showOtherTab = useMemo(() => resources.some((r) => !isKnownPlatformResourceType(r.type)), [resources]);
 
@@ -101,8 +97,8 @@ export function ResourceConfigsPage() {
       setPtype(listFilter);
       setFields(emptyFields(listFilter));
     } else {
-      setPtype("web");
-      setFields(emptyFields("web"));
+      setPtype("file_store");
+      setFields(emptyFields("file_store"));
     }
   }
 
@@ -110,14 +106,10 @@ export function ResourceConfigsPage() {
     setResources(await listResourceConfigs());
   }
 
-  async function refreshTools() {
-    setTools(await listToolConfigs());
-  }
-
   function selectListFilter(filter: ResourceConfigsTabFilter) {
     setListFilter(filter);
-    if (filter === "tools") {
-      setSearchParams({ tab: "tools" });
+    if (filter !== "other" && isKnownPlatformResourceType(filter)) {
+      setSearchParams({ tab: filter });
     } else {
       setSearchParams({});
     }
@@ -129,18 +121,13 @@ export function ResourceConfigsPage() {
   }, []);
 
   useEffect(() => {
-    if (!showToolsPanel) return;
-    refreshTools().catch((err: unknown) => setError(String(err)));
-  }, [showToolsPanel]);
-
-  useEffect(() => {
-    if (editingId || showToolsPanel) return;
+    if (editingId) return;
     if (listFilter !== "other" && isKnownPlatformResourceType(listFilter)) {
       setPtype(listFilter);
       setFields(emptyFields(listFilter));
       setEditUnknownType(null);
     }
-  }, [listFilter, editingId, showToolsPanel]);
+  }, [listFilter, editingId]);
 
   function beginEdit(resource: ResourceConfig) {
     setError("");
@@ -161,8 +148,8 @@ export function ResourceConfigsPage() {
       setFields(fieldsFromConnection(resource.type, resource.connection_config ?? {}));
     } else {
       setEditUnknownType(resource.type);
-      setPtype("web");
-      setFields(emptyFields("web"));
+      setPtype("file_store");
+      setFields(emptyFields("file_store"));
       try {
         setConnectionRawJson(JSON.stringify(resource.connection_config ?? {}, null, 2));
       } catch {
@@ -336,9 +323,8 @@ export function ResourceConfigsPage() {
         <p className="eyebrow">Platform resources</p>
         <h1>平台资源</h1>
         <p>
-          按类型浏览平台可用的<strong>连接器资源</strong>与<strong>执行工具</strong>。
-          资源条目可登记说明；<strong>文件库</strong> 选择文件后一次保存即完成上传与登记；<strong>执行工具</strong> 为只读目录（
-          <code>tools.yaml</code>），在「场景与 Agent」中通过 <code>tool_ids</code> 引用。
+          按类型登记平台<strong>连接器资源</strong>（文件库、MCP、指标/数仓平台）。
+          <strong>文件库</strong> 选择文件后一次保存即完成上传与登记；在「场景与 Agent」中通过 <code>resource_ids</code> 引用。
         </p>
         <nav className="resource-kind-tabs" aria-label="平台资源类型">
           {PLATFORM_CONFIG_TAB_OPTIONS.map((o) => (
@@ -365,32 +351,6 @@ export function ResourceConfigsPage() {
         </nav>
       </header>
       {error ? <div className="error">{error}</div> : null}
-      {showToolsPanel ? (
-        <SectionCard
-          title="平台工具目录"
-          description={`共 ${tools.length} 个；仅展示，修改请编辑 tools.yaml 或通过运维流程发布。`}
-        >
-          <ul className="list platform-tools-list">
-            {tools.map((tool) => (
-              <li key={tool.id}>
-                <div className="platform-tool-row">
-                  <span className={`status ${tool.enabled ? "published" : "draft"}`}>
-                    {tool.enabled ? "enabled" : "disabled"}
-                  </span>
-                  <div className="platform-tool-row__main">
-                    <strong>{tool.name}</strong>
-                    <code className="platform-tool-row__id">{tool.id}</code>
-                    <p className="muted">{tool.description || "无描述"}</p>
-                    <small className="muted platform-tool-row__impl">{tool.implementation}</small>
-                    {tool.requires_api_key ? <span className="resource-status-badge">需 API Key</span> : null}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-          {tools.length === 0 ? <p className="muted">暂无工具配置。</p> : null}
-        </SectionCard>
-      ) : (
       <div className="grid resource-configs-layout">
         <SectionCard
           title={
@@ -619,7 +579,6 @@ export function ResourceConfigsPage() {
           ) : null}
         </SectionCard>
       </div>
-      )}
     </div>
   );
 }

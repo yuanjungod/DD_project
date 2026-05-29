@@ -31,11 +31,11 @@ import type { ResourceConfig } from "../types/domain";
 type TabFilter = PlatformResourceType | "other";
 
 export function EngagementResourceCatalogPanel({ engagementId }: { engagementId: string }) {
-  const [listFilter, setListFilter] = useState<TabFilter>("web");
+  const [listFilter, setListFilter] = useState<TabFilter>("file_store");
   const [resources, setResources] = useState<ResourceConfig[]>([]);
   const [error, setError] = useState("");
-  const [ptype, setPtype] = useState<PlatformResourceType>("web");
-  const [fields, setFields] = useState<Record<string, string>>(() => emptyFields("web"));
+  const [ptype, setPtype] = useState<PlatformResourceType>("file_store");
+  const [fields, setFields] = useState<Record<string, string>>(() => emptyFields("file_store"));
   const [form, setForm] = useState({ id: "", name: "", description: "" });
   const [formEnabled, setFormEnabled] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -95,8 +95,8 @@ export function EngagementResourceCatalogPanel({ engagementId }: { engagementId:
       setPtype(listFilter);
       setFields(emptyFields(listFilter));
     } else {
-      setPtype("web");
-      setFields(emptyFields("web"));
+      setPtype("file_store");
+      setFields(emptyFields("file_store"));
     }
   }
 
@@ -119,8 +119,8 @@ export function EngagementResourceCatalogPanel({ engagementId }: { engagementId:
       setFields(fieldsFromConnection(resource.type, resource.connection_config ?? {}));
     } else {
       setEditUnknownType(resource.type);
-      setPtype("web");
-      setFields(emptyFields("web"));
+      setPtype("file_store");
+      setFields(emptyFields("file_store"));
       setConnectionRawJson(JSON.stringify(resource.connection_config ?? {}, null, 2));
     }
   }

@@ -13,6 +13,7 @@ from app.services.catalog_yaml_utils import load_yaml_file, utc_now_naive, write
 from app.services.fs_layout import engagement_resource_configs_dir
 from app.services.engagement_uploads_store import unlink_upload_blob
 from app.services.resource_catalog_common import resource_config_read_from_dict
+from shared.platform_resource_types import validate_platform_resource_type
 
 _ID_SAFE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_-]{0,126}$")
 
@@ -60,6 +61,7 @@ def _write_engagement_config(engagement_id: str, data: dict[str, Any]) -> None:
 
 
 def create_engagement_resource_config(engagement_id: str, payload: ResourceConfigCreate) -> ResourceConfigRead:
+    validate_platform_resource_type(payload.type)
     rid = (payload.id or "").strip()
     if not rid:
         rid = new_id("cres")
@@ -108,6 +110,8 @@ def update_engagement_resource_config(
     old_conn = base.get("connection_config") if isinstance(base.get("connection_config"), dict) else {}
     old_file_id = str(old_conn.get("file_id") or "").strip()
     updates = payload.model_dump(exclude_unset=True)
+    if "type" in updates and updates["type"] is not None:
+        validate_platform_resource_type(str(updates["type"]))
     for k, v in updates.items():
         if k in {"id"}:
             continue

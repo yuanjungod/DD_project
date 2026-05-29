@@ -39,29 +39,16 @@ export function buildFileStoreConnection(
 
 export function labelsFor(tp: PlatformResourceType): Record<string, string> {
   switch (tp) {
-    case "web":
-      return {
-        domains: "允许域名范围（每行一条，可含通配，可选）",
-        rate_limit_rpm: "速率上限参考（请求/分钟，可选）",
-        notes: "合规与抓取策略说明（可选）",
-      };
     case "file_store":
       return {
         notes: "文件用途或策略说明（可选）",
       };
-    case "database":
+    case "mcp":
       return {
-        dialect: "方言（postgres / mysql / …，可选登记）",
-        secret_ref: "密钥引用 ID（勿写明文口令，可选登记）",
-        schema: "默认 schema（可选）",
-        notes: "权限与安全说明（可选）",
-      };
-    case "api":
-      return {
-        base_url: "Base URL（可选登记）",
-        auth_type: "认证方式备注（bearer / api_key_header / none）",
-        auth_header_name: "Header 名（若适用，可选）",
-        notes: "环境与限流说明（可选）",
+        server_name: "MCP 服务名称（可选登记）",
+        transport: "传输方式（stdio / sse / http，可选登记）",
+        endpoint: "连接地址或启动命令（可选登记）",
+        notes: "权限与使用说明（可选）",
       };
     case "metrics_platform":
       return {
@@ -85,35 +72,17 @@ export function emptyFields(tp: PlatformResourceType): Record<string, string> {
 export function fieldsFromConnection(tp: PlatformResourceType, c: Record<string, unknown>): Record<string, string> {
   const base = emptyFields(tp);
   switch (tp) {
-    case "web": {
-      const domains = c.allowed_domains;
-      const lines = Array.isArray(domains) ? domains.map((x) => String(x)).join("\n") : "";
-      return {
-        ...base,
-        domains: lines,
-        rate_limit_rpm: c.rate_limit_rpm != null ? String(c.rate_limit_rpm) : "",
-        notes: typeof c.notes === "string" ? c.notes : "",
-      };
-    }
     case "file_store":
       return {
         ...base,
         notes: typeof c.notes === "string" ? c.notes : "",
       };
-    case "database":
+    case "mcp":
       return {
         ...base,
-        dialect: String(c.dialect ?? ""),
-        secret_ref: String(c.secret_ref ?? ""),
-        schema: typeof c.schema === "string" ? c.schema : "",
-        notes: typeof c.notes === "string" ? c.notes : "",
-      };
-    case "api":
-      return {
-        ...base,
-        base_url: String(c.base_url ?? ""),
-        auth_type: typeof c.auth_type === "string" ? c.auth_type : "",
-        auth_header_name: typeof c.auth_header_name === "string" ? c.auth_header_name : "",
+        server_name: String(c.server_name ?? ""),
+        transport: String(c.transport ?? ""),
+        endpoint: String(c.endpoint ?? ""),
         notes: typeof c.notes === "string" ? c.notes : "",
       };
     case "metrics_platform":
@@ -134,33 +103,13 @@ export function fieldsFromConnection(tp: PlatformResourceType, c: Record<string,
 export function buildConnection(tp: PlatformResourceType, f: Record<string, string>): Record<string, unknown> {
   const trim = (s: string) => s.trim();
   switch (tp) {
-    case "web": {
-      const lines = (f.domains ?? "")
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean);
-      const out: Record<string, unknown> = { allowed_domains: lines };
-      if (trim(f.rate_limit_rpm)) {
-        const n = Number(trim(f.rate_limit_rpm));
-        if (!Number.isNaN(n)) out.rate_limit_rpm = n;
-      }
-      if (trim(f.notes)) out.notes = trim(f.notes);
-      return out;
-    }
     case "file_store":
       return trim(f.notes) ? { notes: trim(f.notes) } : {};
-    case "database":
+    case "mcp":
       return {
-        dialect: trim(f.dialect),
-        secret_ref: trim(f.secret_ref),
-        schema: trim(f.schema) || undefined,
-        notes: trim(f.notes) || undefined,
-      };
-    case "api":
-      return {
-        base_url: trim(f.base_url),
-        auth_type: trim(f.auth_type) || "none",
-        auth_header_name: trim(f.auth_header_name) || undefined,
+        server_name: trim(f.server_name),
+        transport: trim(f.transport),
+        endpoint: trim(f.endpoint),
         notes: trim(f.notes) || undefined,
       };
     case "metrics_platform":
@@ -180,13 +129,10 @@ export function buildConnection(tp: PlatformResourceType, f: Record<string, stri
 export function summarizeConnection(row: ResourceConfig): string {
   const c = row.connection_config ?? {};
   switch (row.type) {
-    case "web": {
-      const d = c.allowed_domains;
-      if (Array.isArray(d) && d.length) return `${d.length} 个域名`;
-      break;
+    case "mcp": {
+      const parts = [c.server_name, c.transport, c.endpoint].filter(Boolean).map(String);
+      return parts.join(" · ") || "—";
     }
-    case "api":
-      return String(c.base_url || "—");
     case "metrics_platform":
       return [c.provider, c.grain].filter(Boolean).join(" · ") || "—";
     case "file_store": {
