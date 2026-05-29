@@ -33,6 +33,8 @@ class StepReviewChatModel(BaseModel):
 ToolExecutor = Callable[[str, dict[str, Any]], dict[str, Any]]
 
 
+DEFAULT_MAX_REACT_ITERS = 50
+
 DEFAULT_MODEL_CONFIG = {
     "base_url": os.getenv("DD_MODEL_BASE_URL", "http://127.0.0.1:8080/v1"),
     "api_key": os.getenv("DD_MODEL_API_KEY", "yuanjun"),
@@ -161,7 +163,7 @@ class AgentScopeReActRuntime:
             model=model,
             formatter=formatter,
             toolkit=self.toolkit,
-            max_iters=self.definition.react_config.get("max_iters", 6),
+            max_iters=self.definition.react_config.get("max_iters", DEFAULT_MAX_REACT_ITERS),
             parallel_tool_calls=self.definition.react_config.get("parallel_tool_calls", False),
             enable_rewrite_query=False,
         )
@@ -302,7 +304,7 @@ class AgentScopeReActRuntime:
             ],
             "resources": self.definition.resource_configs,
             "react": {
-                "max_iters": self.definition.react_config.get("max_iters", 6),
+                "max_iters": self.definition.react_config.get("max_iters", DEFAULT_MAX_REACT_ITERS),
                 "parallel_tool_calls": self.definition.react_config.get("parallel_tool_calls", False),
                 "model_configured": True,
                 "execution_mode": "agentscope_react_real_model",

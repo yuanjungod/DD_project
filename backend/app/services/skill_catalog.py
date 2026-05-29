@@ -7,7 +7,11 @@ from fastapi import HTTPException
 from app.models.entities import new_id
 from app.schemas.dto import SkillPackageCreate, SkillPackageUpdate
 from app.services.catalog_records import SkillPackageRecord
-from app.services.skill_files import load_skill_packages_from_disk, sync_skill_package_to_disk
+from app.services.skill_files import (
+    delete_skill_package_directory,
+    load_skill_packages_from_disk,
+    sync_skill_package_to_disk,
+)
 
 
 def list_skill_packages(*, only_enabled: bool = False) -> list[SkillPackageRecord]:
@@ -18,8 +22,9 @@ def list_skill_packages(*, only_enabled: bool = False) -> list[SkillPackageRecor
 
 
 def get_skill_package(skill_id: str) -> SkillPackageRecord:
+    needle = skill_id.strip()
     for row in load_skill_packages_from_disk():
-        if row.id == skill_id:
+        if row.id == needle or row.directory_name == needle:
             return row
     raise HTTPException(status_code=404, detail="Skill package not found")
 
@@ -54,6 +59,12 @@ def update_skill_package(skill_id: str, payload: SkillPackageUpdate) -> SkillPac
     return record
 
 
+def delete_skill_package(skill_id: str) -> None:
+    record = get_skill_package(skill_id)
+    if not delete_skill_package_directory(record.directory_name):
+        raise HTTPException(status_code=404, detail="Skill package not found")
+
+
 def ensure_unique_skill_catalog_fields(payload: SkillPackageCreate) -> SkillPackageCreate:
     existing = load_skill_packages_from_disk()
     names = {row.name for row in existing}
@@ -79,8 +90,12 @@ def ensure_unique_skill_catalog_fields(payload: SkillPackageCreate) -> SkillPack
 
 
 def load_skill_packages_by_ids(skill_package_ids: list[str], *, only_enabled: bool = True) -> list[SkillPackageRecord]:
-    wanted = set(skill_package_ids)
-    rows = [row for row in load_skill_packages_from_disk() if row.id in wanted]
+    wanted = {str(item).strip() for item in skill_package_ids if str(item or "").strip()}
+    rows = [
+        row
+        for row in load_skill_packages_from_disk()
+        if row.id in wanted or row.directory_name in wanted
+    ]
     if only_enabled:
         rows = [row for row in rows if row.enabled]
     return rows

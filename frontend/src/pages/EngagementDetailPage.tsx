@@ -3,6 +3,9 @@ import { NavLink, useParams } from "react-router-dom";
 
 import {
   continueStepGated,
+  downloadAgentStepOutputFile,
+  downloadAgentStepOutputFolder,
+  getAgentStepOutputFile,
   getAgentStepOutputFolder,
   getRun,
   listEngagementRuns,
@@ -17,9 +20,11 @@ import { SectionCard } from "../components/SectionCard";
 import { workflowName } from "../data/workflows";
 import { workflowTemplateIdFromConfig } from "../domain/companyConfig";
 import { engagementIdentityLabel } from "../domain/engagementIdentity";
+import { resolveRunStatus, runStatusLabel, runStatusClassName } from "../domain/runStatus";
 import type {
   AgentRun,
   AgentStep,
+  AgentStepOutputFile,
   AgentStepOutputFolder,
   DiligenceSessionModel,
   Engagement,
@@ -52,78 +57,231 @@ type OutputFileEntry = {
   label: string;
   path: string;
   content: string;
+  contentType: AgentStepOutputFile["content_type"];
+  sizeBytes: number;
+  truncated?: boolean;
+  previewUnavailable?: boolean;
 };
+
+function formatOutputFileSize(sizeBytes: number): string {
+  if (!Number.isFinite(sizeBytes) || sizeBytes < 0) return "—";
+  if (sizeBytes < 1024) return `${sizeBytes} B`;
+  if (sizeBytes < 1024 * 1024) return `${(sizeBytes / 1024).toFixed(1)} KB`;
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function shortFolderPath(fullPath: string): string {
+  const parts = fullPath.split("/").filter(Boolean);
+  if (parts.length <= 4) return fullPath;
+  return `…/${parts.slice(-4).join("/")}`;
+}
 
 function outputFileEntries(folder: AgentStepOutputFolder): OutputFileEntry[] {
   if (!folder.available) return [];
-  const entries: OutputFileEntry[] = [];
-  if (folder.readme) {
-    entries.push({
-      id: "README.md",
-      label: "README.md",
-      path: folder.readme_path ?? "README.md",
-      content: folder.readme,
-    });
+  if (folder.files?.length) {
+    return folder.files.map((file) => ({
+      id: file.path,
+      label: file.path,
+      path: file.path,
+      content: file.content ?? "",
+      contentType: file.content_type,
+      sizeBytes: file.size_bytes,
+      truncated: file.truncated,
+      previewUnavailable: file.preview_unavailable,
+    }));
   }
-  return entries;
+  if (folder.readme) {
+    return [
+      {
+        id: "README.md",
+        label: "README.md",
+        path: folder.readme_path ?? "README.md",
+        content: folder.readme,
+        contentType: "text",
+        sizeBytes: folder.readme.length,
+      },
+    ];
+  }
+  return [];
 }
 
 function AgentOutputFolderPanel({
+  runId,
+  stepId,
   folder,
   loading,
   fallbackPath,
   selectedFileId,
   onSelectFile,
 }: {
+  runId: string;
+  stepId: string;
   folder?: AgentStepOutputFolder;
   loading: boolean;
   fallbackPath: string;
   selectedFileId?: string;
   onSelectFile: (fileId: string) => void;
 }) {
-  if (loading && !folder) return <p className="muted">正在读取输出文件夹…</p>;
+  const [previewByPath, setPreviewByPath] = useState<Record<string, OutputFileEntry>>({});
+  const [previewLoadingPath, setPreviewLoadingPath] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [downloadingPath, setDownloadingPath] = useState("");
+  const [actionError, setActionError] = useState("");
+
+  const entries = folder ? outputFileEntries(folder) : [];
+  const currentFileId = selectedFileId ?? entries[0]?.id;
+  const activeEntry =
+    currentFileId != null
+      ? previewByPath[currentFileId] ?? entries.find((entry) => entry.id === currentFileId)
+      : undefined;
+
+  useEffect(() => {
+    if (!folder?.available || !currentFileId) return;
+    const entry = entries.find((item) => item.id === currentFileId);
+    if (!entry) return;
+    if (entry.contentType === "text" && entry.content) {
+      setPreviewByPath((prev) => (prev[entry.id] ? prev : { ...prev, [entry.id]: entry }));
+      return;
+    }
+    let cancelled = false;
+    setPreviewLoadingPath(entry.path);
+    setActionError("");
+    getAgentStepOutputFile(runId, stepId, entry.path)
+      .then((file) => {
+        if (cancelled) return;
+        setPreviewByPath((prev) => ({
+          ...prev,
+          [file.path]: {
+            id: file.path,
+            label: file.path,
+            path: file.path,
+            content: file.content ?? "",
+            contentType: file.content_type,
+            sizeBytes: file.size_bytes,
+            truncated: file.truncated,
+            previewUnavailable: file.preview_unavailable,
+          },
+        }));
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setActionError(String(err));
+      })
+      .finally(() => {
+        if (!cancelled) setPreviewLoadingPath("");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentFileId, entries, folder, runId, stepId]);
+
+  async function handleExportFolder() {
+    setExporting(true);
+    setActionError("");
+    try {
+      const folderName = folder?.folder_path?.split("/").filter(Boolean).slice(-1)[0] ?? folder?.agent ?? "agent-output";
+      await downloadAgentStepOutputFolder(runId, stepId, folderName);
+    } catch (err: unknown) {
+      setActionError(String(err));
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleDownloadFile(filePath: string, fileName: string) {
+    setDownloadingPath(filePath);
+    setActionError("");
+    try {
+      await downloadAgentStepOutputFile(runId, stepId, filePath, fileName);
+    } catch (err: unknown) {
+      setActionError(String(err));
+    } finally {
+      setDownloadingPath("");
+    }
+  }
+
+  if (loading && !folder) {
+    return <p className="muted">正在读取输出文件夹…</p>;
+  }
   if (!folder) return <p className="muted">输出目录：{fallbackPath}</p>;
   if (!folder.available) {
     return (
-      <div className="agent-output-folder">
-        <strong>输出目录</strong>
-        <code>{folder.folder_path ?? fallbackPath}</code>
+      <div className="agent-output-viewer agent-output-viewer--unavailable">
         <p className="muted">{folder.reason ?? "输出文件夹暂不可读"}</p>
+        <code title={folder.folder_path ?? fallbackPath}>{folder.folder_path ?? fallbackPath}</code>
       </div>
     );
   }
-  const entries = outputFileEntries(folder);
-  const selected = entries.find((entry) => entry.id === selectedFileId);
+
   return (
-    <div className="agent-output-folder">
-      <strong>输出文件夹索引</strong>
-      <div className="agent-output-folder__path">
-        <span>目录</span>
-        <code>{folder.folder_path}</code>
-      </div>
-      <div className="agent-output-folder__index" aria-label="输出目录文件索引">
-        {entries.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            className={entry.id === selectedFileId ? "selected" : ""}
-            onClick={() => onSelectFile(entry.id)}
+    <div className="agent-output-viewer">
+      <div className="agent-output-viewer__controls">
+        <label className="agent-output-viewer__select-field">
+          <span>选择文件</span>
+          <select
+            value={currentFileId ?? ""}
+            onChange={(event) => onSelectFile(event.target.value)}
+            disabled={entries.length === 0}
           >
-            {entry.label}
+            {entries.length === 0 ? <option value="">暂无文件</option> : null}
+            {entries.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.path} ({formatOutputFileSize(entry.sizeBytes)})
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="agent-output-viewer__actions">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() =>
+              activeEntry
+                ? void handleDownloadFile(
+                    activeEntry.path,
+                    activeEntry.path.split("/").pop() ?? activeEntry.path,
+                  )
+                : undefined
+            }
+            disabled={!activeEntry || downloadingPath === activeEntry.path}
+          >
+            {activeEntry && downloadingPath === activeEntry.path ? "下载中…" : "下载当前文件"}
           </button>
-        ))}
-      </div>
-      {selected ? (
-        <div className="agent-output-folder__preview">
-          <div className="agent-output-folder__path">
-            <span>当前文件</span>
-            <code>{selected.path}</code>
-          </div>
-          <pre>{selected.content}</pre>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => void handleExportFolder()}
+            disabled={exporting || entries.length === 0}
+          >
+            {exporting ? "导出中…" : "导出 ZIP"}
+          </button>
         </div>
-      ) : (
-        <p className="muted">点击上方目录文件查看内容。</p>
-      )}
+      </div>
+
+      <p className="agent-output-viewer__path muted" title={folder.folder_path}>
+        目录：<code>{shortFolderPath(folder.folder_path ?? "")}</code>
+      </p>
+
+      {actionError ? <p className="error">{actionError}</p> : null}
+
+      <div
+        className={`agent-output-viewer__content ${
+          activeEntry?.path.toLowerCase().endsWith(".md") ? "is-markdown" : ""
+        }`}
+      >
+        {!activeEntry ? (
+          <p className="muted agent-output-viewer__placeholder">请选择要查看的文件。</p>
+        ) : previewLoadingPath === activeEntry.path ? (
+          <p className="muted agent-output-viewer__placeholder">正在加载文件内容…</p>
+        ) : activeEntry.contentType === "text" && activeEntry.content ? (
+          <pre>{activeEntry.content}</pre>
+        ) : activeEntry.contentType === "binary" || activeEntry.previewUnavailable ? (
+          <p className="muted agent-output-viewer__placeholder">该文件不支持在线预览，请下载后查看。</p>
+        ) : (
+          <p className="muted agent-output-viewer__placeholder">暂无预览内容。</p>
+        )}
+      </div>
+
+      {activeEntry?.truncated ? <p className="muted agent-output-viewer__hint">预览内容已截断，完整内容请下载文件。</p> : null}
     </div>
   );
 }
@@ -149,19 +307,6 @@ function EngagementAppNav({ engagementId }: { engagementId: string }) {
       ))}
     </nav>
   );
-}
-
-const RUN_STATUS_LABELS: Record<string, string> = {
-  completed: "已完成",
-  failed: "失败",
-  paused: "待复核",
-  pending: "排队中",
-  running: "运行中",
-};
-
-function runStatusLabel(status?: string | null): string {
-  if (!status) return "暂无";
-  return RUN_STATUS_LABELS[status] ?? status;
 }
 
 export function EngagementDetailPage({ section = "outputs" }: { section?: EngagementDetailSection }) {
@@ -284,7 +429,15 @@ export function EngagementDetailPage({ section = "outputs" }: { section?: Engage
       if (existing && (existing.folder_path === outputDir || existing.reason)) continue;
       setLoadingOutputStepIds((prev) => ({ ...prev, [step.id]: true }));
       getAgentStepOutputFolder(runId, step.id)
-        .then((folder) => setOutputFoldersByStep((prev) => ({ ...prev, [step.id]: folder })))
+        .then((folder) => {
+          setOutputFoldersByStep((prev) => ({ ...prev, [step.id]: folder }));
+          if (folder.available) {
+            const defaultFile = folder.files?.[0]?.path ?? (folder.readme ? "README.md" : "");
+            if (defaultFile) {
+              setSelectedOutputFileByStep((prev) => (prev[step.id] ? prev : { ...prev, [step.id]: defaultFile }));
+            }
+          }
+        })
         .catch((err: unknown) => {
           setOutputFoldersByStep((prev) => ({
             ...prev,
@@ -380,7 +533,7 @@ export function EngagementDetailPage({ section = "outputs" }: { section?: Engage
           <ul className="list">
             {runs.map((run) => (
               <li key={run.id}>
-                <span>{runStatusLabel(run.status)}</span>
+                <span className={`status ${runStatusClassName(run)}`}>{runStatusLabel(resolveRunStatus(run))}</span>
                 <strong>{run.id}</strong>
                 <p className="muted">session {run.session_id ?? "—"} · attempt {run.attempt_index ?? 1}</p>
                 <p>{formatApiDateTimeLocal(run.started_at)}</p>
@@ -434,7 +587,7 @@ export function EngagementDetailPage({ section = "outputs" }: { section?: Engage
               </span>
             </label>
           </div>
-          <SectionCard title="Agent 输出目录" description="每个 Agent 完成后会生成输出文件夹，可在对应步骤下查看 README。">
+          <SectionCard title="Agent 输出目录" description="下拉选择文件查看内容，也可导出整个输出目录。">
             {activeRun?.status === "paused" ? (
               <p className="notice">
                 已进入「分步门禁」暂停点：可先与<strong>最新完成步骤</strong>对应 Agent 在下方复核对话中沟通，确认后点击「继续下一步」拉起后续链路。
@@ -456,8 +609,10 @@ export function EngagementDetailPage({ section = "outputs" }: { section?: Engage
                     <span className={`status ${step.status}`}>{runStatusLabel(step.status)}</span>
                     <strong>{step.agent}</strong>
                     <p>{step.summary || (step.status === "running" ? "执行中…" : "")}</p>
-                    {stepOutputDir(step) ? (
+                    {stepOutputDir(step) && activeRun?.id ? (
                       <AgentOutputFolderPanel
+                        runId={activeRun.id}
+                        stepId={step.id}
                         folder={outputFoldersByStep[step.id]}
                         loading={Boolean(loadingOutputStepIds[step.id])}
                         fallbackPath={stepOutputDir(step)}

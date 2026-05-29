@@ -8,6 +8,7 @@ from typing import Any
 
 import yaml
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from app.models.entities import new_id
 from app.schemas.dto import AgentTemplateBase, AgentTemplateCreate, AgentTemplateRead, AgentTemplateUpdate
@@ -32,7 +33,10 @@ def _utc_from_mtime(path: Path):
 
 def _write_agent_file(path: Path, payload: dict[str, Any]) -> None:
     norm = normalize_agent_record(copy.deepcopy(payload))
-    AgentTemplateBase.model_validate({k: v for k, v in norm.items() if k != "id"})
+    try:
+        AgentTemplateBase.model_validate({k: v for k, v in norm.items() if k != "id"})
+    except ValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc.errors()[0]["msg"])) from exc
     text = yaml.safe_dump(
         norm,
         sort_keys=False,

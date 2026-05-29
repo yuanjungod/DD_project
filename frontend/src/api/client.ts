@@ -1,6 +1,7 @@
 import { authHeaders, deleteRequest, networkFetchError, uploadRequest } from "./auth";
 import type {
   AgentRun,
+  AgentStepOutputFile,
   AgentStepOutputFolder,
   AgentTemplate,
   AuthSession,
@@ -67,7 +68,21 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const detail = await response.text();
-    throw new Error(detail || `Request failed with ${response.status}`);
+    let message = detail || `Request failed with ${response.status}`;
+    try {
+      const parsed = JSON.parse(detail) as { detail?: unknown };
+      if (typeof parsed.detail === "string") {
+        message = parsed.detail;
+      } else if (Array.isArray(parsed.detail) && parsed.detail.length > 0) {
+        const first = parsed.detail[0] as { msg?: string };
+        if (typeof first?.msg === "string") {
+          message = first.msg;
+        }
+      }
+    } catch {
+      /* plain text body */
+    }
+    throw new Error(message);
   }
 
   return response.json() as Promise<T>;
@@ -295,6 +310,60 @@ export function getAgentStepOutputFolder(runId: string, stepId: string): Promise
   );
 }
 
+export function getAgentStepOutputFile(
+  runId: string,
+  stepId: string,
+  filePath: string,
+): Promise<AgentStepOutputFile> {
+  const params = new URLSearchParams({ path: filePath });
+  return request<AgentStepOutputFile>(
+    `/runs/${encodeURIComponent(runId)}/steps/${encodeURIComponent(stepId)}/output-folder/file?${params.toString()}`,
+  );
+}
+
+function agentStepOutputDownloadUrl(runId: string, stepId: string, filePath?: string): string {
+  const base = `/runs/${encodeURIComponent(runId)}/steps/${encodeURIComponent(stepId)}/output-folder`;
+  if (filePath) {
+    const params = new URLSearchParams({ path: filePath });
+    return `${API_BASE_URL}${base}/download?${params.toString()}`;
+  }
+  return `${API_BASE_URL}${base}/export`;
+}
+
+async function downloadAuthenticatedUrl(url: string, filename: string): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(url, { headers: authHeaders() });
+  } catch (err: unknown) {
+    throw networkFetchError(err, API_BASE_URL);
+  }
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `Download failed with ${response.status}`);
+  }
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(objectUrl);
+}
+
+export function downloadAgentStepOutputFolder(runId: string, stepId: string, folderName: string): Promise<void> {
+  const safeName = folderName.trim() || "agent-output";
+  return downloadAuthenticatedUrl(agentStepOutputDownloadUrl(runId, stepId), `${safeName}.zip`);
+}
+
+export function downloadAgentStepOutputFile(
+  runId: string,
+  stepId: string,
+  filePath: string,
+  fileName: string,
+): Promise<void> {
+  return downloadAuthenticatedUrl(agentStepOutputDownloadUrl(runId, stepId, filePath), fileName);
+}
+
 export function getRun(runId: string): Promise<AgentRun> {
   return request<AgentRun>(`/runs/${runId}`);
 }
@@ -339,6 +408,10 @@ export function createSkill(payload: Partial<SkillPackage>): Promise<SkillPackag
 
 export function updateSkill(skillId: string, payload: Partial<SkillPackage>): Promise<SkillPackage> {
   return request<SkillPackage>(`/skills/${skillId}`, { method: "PATCH", body: JSON.stringify(payload) });
+}
+
+export async function deleteSkill(skillId: string): Promise<void> {
+  return deleteRequest(`/skills/${encodeURIComponent(skillId)}`, API_BASE_URL, "删除 Skill 失败");
 }
 
 export function debugSkillDraft(payload: Partial<SkillPackage>): Promise<SkillDebugResult> {

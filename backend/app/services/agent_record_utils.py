@@ -7,6 +7,9 @@ from typing import Any
 from fastapi import HTTPException
 
 
+MAX_REACT_ITERS = 50
+
+
 def default_model_config() -> dict[str, Any]:
     return {
         "baseUrl": "http://127.0.0.1:8080/v1",
@@ -28,10 +31,25 @@ def default_model_config() -> dict[str, Any]:
 
 def default_react_config() -> dict[str, Any]:
     return {
-        "max_iters": 6,
+        "max_iters": MAX_REACT_ITERS,
         "parallel_tool_calls": False,
         "model": default_model_config(),
     }
+
+
+def normalize_max_iters(value: Any) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = MAX_REACT_ITERS
+    if parsed < 1:
+        raise HTTPException(status_code=400, detail="react_config.max_iters must be at least 1")
+    if parsed > MAX_REACT_ITERS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"react_config.max_iters must be at most {MAX_REACT_ITERS}",
+        )
+    return parsed
 
 
 def merge_react_config(existing: dict[str, Any]) -> dict[str, Any]:
@@ -69,5 +87,6 @@ def normalize_agent_record(raw: dict[str, Any]) -> dict[str, Any]:
         data["react_config"] = merge_react_config(rc if isinstance(rc, dict) else {})
     else:
         data["react_config"] = rc
+    data["react_config"]["max_iters"] = normalize_max_iters(data["react_config"].get("max_iters"))
     data.setdefault("enabled", True)
     return data

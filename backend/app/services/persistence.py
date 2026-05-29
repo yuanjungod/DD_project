@@ -140,6 +140,10 @@ def upsert_incremental_run_progress(
             )
         )
 
+    if step_payload.get("status") == "failed":
+        run.status = "failed"
+        run.completed_at = datetime.utcnow()
+
     db.commit()
 
 

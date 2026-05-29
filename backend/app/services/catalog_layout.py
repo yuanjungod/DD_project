@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from fastapi import HTTPException
+
 from app.core.config import settings
 from app.services.fs_layout import dd_flow_users_dir
 
@@ -31,7 +33,10 @@ def data_root() -> Path:
 
 def assert_safe_workflow_template_id(workflow_template_id: str) -> str:
     if not workflow_template_id or not _WORKFLOW_TEMPLATE_ID_PATTERN.fullmatch(workflow_template_id):
-        raise ValueError("Invalid workflow template id; use alphanumeric, hyphen, underscore only")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid id; use letters, numbers, hyphen, and underscore only",
+        )
     return workflow_template_id
 
 

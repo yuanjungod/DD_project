@@ -41,6 +41,7 @@ from app.services.skill_files import skill_package_disk_path
 from app.services.skill_zip_import import skill_package_create_from_zip
 from app.services.skill_catalog import (
     create_skill_package,
+    delete_skill_package,
     ensure_unique_skill_catalog_fields,
     get_skill_package,
     list_skill_packages,
@@ -128,6 +129,15 @@ def update_skill(
     _: User = Depends(require_roles("admin")),
 ) -> SkillPackageRead:
     return _skill_read(update_skill_package(skill_id, payload))
+
+
+@router.delete("/skills/{skill_id}", status_code=204)
+def delete_skill(
+    skill_id: str,
+    _: User = Depends(require_roles("admin")),
+) -> Response:
+    delete_skill_package(skill_id)
+    return Response(status_code=204)
 
 
 @router.post("/skills/{skill_id}/debug", response_model=SkillDebugRead)

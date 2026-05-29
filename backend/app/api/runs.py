@@ -8,6 +8,7 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi.responses import FileResponse, Response
 from pydantic import ValidationError
 from sqlalchemy.orm import Session, joinedload
 
@@ -24,10 +25,19 @@ from app.schemas import (
     StepReviewChatOut,
     StepReviewChatTurnRead,
 )
+from app.services.agent_step_output_files import (
+    build_output_folder_zip,
+    list_output_files,
+    output_dir_from_step_result,
+    read_output_file,
+    resolve_file_in_folder,
+    resolve_output_folder,
+)
 from app.services.agent_client import AgentServiceClient, AgentServiceError
 from app.services.agent_run_resume import completed_slice_for_agent_service, previous_results_before_step
 from app.services.company_config_merge import merged_company_config_with_engagement_resources
 from app.services.persistence import append_agent_step_chat_message, create_pending_agent_run
+from app.services.run_status import resolve_effective_run_status
 from app.services.engagement_resources_store import engagement_resource_records_for_merge
 from app.services.run_dispatch import dispatch_agent_background
 from app.services.session_context import build_continuation_context, latest_attempt_in_session, next_attempt_index
@@ -35,6 +45,34 @@ from app.services.workflow_snapshots import build_workflow_snapshot
 
 
 router = APIRouter(tags=["runs"])
+
+
+def _agent_run_read(run: AgentRun) -> AgentRunRead:
+    effective = resolve_effective_run_status(
+        status=run.status,
+        steps=run.steps,
+        started_at=run.started_at,
+        raw_result=run.raw_result if isinstance(run.raw_result, dict) else {},
+    )
+    read = AgentRunRead.model_validate(run)
+    if effective == read.status:
+        return read
+    return read.model_copy(update={"status": effective})
+
+
+def _reconcile_stale_run_status(db: Session, run: AgentRun) -> AgentRunRead:
+    effective = resolve_effective_run_status(
+        status=run.status,
+        steps=run.steps,
+        started_at=run.started_at,
+        raw_result=run.raw_result if isinstance(run.raw_result, dict) else {},
+    )
+    if run.status == "running" and effective != run.status:
+        run.status = effective
+        if effective in {"completed", "failed"} and run.completed_at is None:
+            run.completed_at = datetime.utcnow()
+        db.add(run)
+    return _agent_run_read(run)
 
 
 async def parse_start_run_body(request: Request) -> StartAgentRunBody:
@@ -53,13 +91,25 @@ async def parse_start_run_body(request: Request) -> StartAgentRunBody:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-def _read_text_if_exists(path: Path, *, max_chars: int = 20000) -> str:
-    if not path.is_file():
-        return ""
-    text = path.read_text(encoding="utf-8")
-    if len(text) > max_chars:
-        return text[:max_chars] + "\n...(truncated)"
-    return text
+def _load_step_output_folder(step: AgentStep) -> tuple[Path | None, str]:
+    output_dir = output_dir_from_step_result(step.result)
+    if not output_dir:
+        return None, "output_dir is not ready"
+    folder = resolve_output_folder(output_dir)
+    if folder is None:
+        return Path(output_dir).expanduser().resolve(), "output folder does not exist on backend filesystem"
+    return folder, ""
+
+
+def _ensure_step_for_run(db: Session, user: User, run_id: str, step_id: str) -> tuple[AgentRun, AgentStep]:
+    run = db.get(AgentRun, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    ensure_engagement_access(db, user, run.engagement_id)
+    step = db.get(AgentStep, step_id)
+    if step is None or step.run_id != run.id:
+        raise HTTPException(status_code=404, detail="Step not found for this run")
+    return run, step
 
 
 @router.get("/engagements/{engagement_id}/diligence-sessions", response_model=list[DiligenceSessionRead])
@@ -210,7 +260,17 @@ def list_runs(
     engagement_ids = accessible_engagement_ids(db, user)
     if engagement_ids is not None:
         query = query.filter(AgentRun.engagement_id.in_(engagement_ids))
-    return query.all()
+    runs = query.all()
+    changed = False
+    reads: list[AgentRunRead] = []
+    for run in runs:
+        before = run.status
+        reads.append(_reconcile_stale_run_status(db, run))
+        if run.status != before:
+            changed = True
+    if changed:
+        db.commit()
+    return reads
 
 
 @router.get("/engagements/{engagement_id}/runs", response_model=list[AgentRunRead])
@@ -220,13 +280,23 @@ def list_engagement_runs(
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
 ) -> list[AgentRun]:
     ensure_engagement_access(db, user, engagement_id)
-    return (
+    runs = (
         db.query(AgentRun)
         .options(joinedload(AgentRun.steps), joinedload(AgentRun.report))
         .filter(AgentRun.engagement_id == engagement_id)
         .order_by(AgentRun.started_at.desc())
         .all()
     )
+    changed = False
+    reads: list[AgentRunRead] = []
+    for run in runs:
+        before = run.status
+        reads.append(_reconcile_stale_run_status(db, run))
+        if run.status != before:
+            changed = True
+    if changed:
+        db.commit()
+    return reads
 
 
 @router.get("/runs/{run_id}", response_model=AgentRunRead)
@@ -244,7 +314,11 @@ def get_run(
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
     ensure_engagement_access(db, user, run.engagement_id)
-    return run
+    before = run.status
+    read = _reconcile_stale_run_status(db, run)
+    if run.status != before:
+        db.commit()
+    return read
 
 
 @router.get("/runs/{run_id}/steps", response_model=list[AgentStepRead])
@@ -267,37 +341,77 @@ def get_agent_step_output_folder(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
 ) -> dict:
-    run = db.get(AgentRun, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
-    ensure_engagement_access(db, user, run.engagement_id)
-    step = db.get(AgentStep, step_id)
-    if step is None or step.run_id != run.id:
-        raise HTTPException(status_code=404, detail="Step not found for this run")
-
-    result = step.result if isinstance(step.result, dict) else {}
-    output_dir = str(result.get("output_dir") or "").strip()
-    if not output_dir:
-        return {"available": False, "step_id": step.id, "agent": step.agent, "reason": "output_dir is not ready"}
-
-    folder = Path(output_dir).expanduser().resolve()
-    if not folder.is_dir():
+    _, step = _ensure_step_for_run(db, user, run_id, step_id)
+    folder, reason = _load_step_output_folder(step)
+    if folder is None:
+        return {"available": False, "step_id": step.id, "agent": step.agent, "reason": reason}
+    if reason:
         return {
             "available": False,
             "step_id": step.id,
             "agent": step.agent,
             "folder_path": str(folder),
-            "reason": "output folder does not exist on backend filesystem",
+            "reason": reason,
         }
 
+    files = list_output_files(folder)
+    readme_file = next((item for item in files if item["path"] == "README.md"), None)
     return {
         "available": True,
         "step_id": step.id,
         "agent": step.agent,
         "folder_path": str(folder),
         "readme_path": str(folder / "README.md"),
-        "readme": _read_text_if_exists(folder / "README.md"),
+        "readme": readme_file.get("content", "") if readme_file else "",
+        "files": files,
     }
+
+
+@router.get("/runs/{run_id}/steps/{step_id}/output-folder/file")
+def get_agent_step_output_file(
+    run_id: str,
+    step_id: str,
+    path: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("admin", "analyst", "viewer")),
+) -> dict:
+    _, step = _ensure_step_for_run(db, user, run_id, step_id)
+    folder, reason = _load_step_output_folder(step)
+    if folder is None or reason:
+        raise HTTPException(status_code=404, detail=reason or "output folder is not available")
+    return read_output_file(folder, path)
+
+
+@router.get("/runs/{run_id}/steps/{step_id}/output-folder/download")
+def download_agent_step_output_file(
+    run_id: str,
+    step_id: str,
+    path: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("admin", "analyst", "viewer")),
+) -> FileResponse:
+    _, step = _ensure_step_for_run(db, user, run_id, step_id)
+    folder, reason = _load_step_output_folder(step)
+    if folder is None or reason:
+        raise HTTPException(status_code=404, detail=reason or "output folder is not available")
+    target = resolve_file_in_folder(folder, path)
+    return FileResponse(path=target, filename=target.name, media_type="application/octet-stream")
+
+
+@router.get("/runs/{run_id}/steps/{step_id}/output-folder/export")
+def export_agent_step_output_folder(
+    run_id: str,
+    step_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("admin", "analyst", "viewer")),
+) -> Response:
+    _, step = _ensure_step_for_run(db, user, run_id, step_id)
+    folder, reason = _load_step_output_folder(step)
+    if folder is None or reason:
+        raise HTTPException(status_code=404, detail=reason or "output folder is not available")
+    payload, filename = build_output_folder_zip(folder)
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return Response(content=payload, media_type="application/zip", headers=headers)
 
 
 @router.post("/runs/{run_id}/continue-step-gated", response_model=AgentRunRead)

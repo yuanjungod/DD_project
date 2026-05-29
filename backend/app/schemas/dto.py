@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -305,6 +306,18 @@ class AgentTemplateBase(BaseModel):
 
 class AgentTemplateCreate(AgentTemplateBase):
     id: str | None = None
+
+    @field_validator("id")
+    @classmethod
+    def validate_optional_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        if not re.fullmatch(r"[a-zA-Z0-9_-]+", text):
+            raise ValueError("ID 只能包含字母、数字、连字符和下划线")
+        return text
 
 
 class AgentTemplateUpdate(BaseModel):

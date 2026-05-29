@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import yaml
+import frontmatter
 
 from app.services.catalog_records import SkillPackageRecord
 from app.services.fs_layout import engagement_skills_dir
@@ -32,7 +33,7 @@ def sync_skill_package_to_disk(
         shutil.rmtree(skill_dir)
     skill_dir.mkdir(parents=True, exist_ok=True)
 
-    _write_skill_file(skill_dir, "SKILL.md", skill_package.skill_md)
+    _write_skill_file(skill_dir, "SKILL.md", _skill_md_with_catalog_metadata(skill_package))
     for file_name, content in (skill_package.package_files or {}).items():
         if file_name != "SKILL.md":
             _write_skill_file(skill_dir, file_name, content)
@@ -53,7 +54,7 @@ def load_skill_packages_from_disk() -> list[SkillPackageRecord]:
         metadata = _frontmatter_metadata(skill_md)
         directory_name = skill_dir.name
         name = str(metadata.get("name") or directory_name)
-        package_id = str(metadata.get("id") or f"skill_{name.replace('-', '_')}")
+        package_id = _resolve_skill_package_id(metadata, directory_name)
         package_files: dict[str, str] = {}
         file_names = ["SKILL.md"]
         for child in sorted(skill_dir.rglob("*")):
@@ -88,6 +89,15 @@ def load_skill_packages_from_disk() -> list[SkillPackageRecord]:
 
 def skill_package_disk_path(directory_name: str) -> str:
     return str(_safe_skill_dir(directory_name))
+
+
+def delete_skill_package_directory(directory_name: str) -> bool:
+    """Remove a skill package directory from agent_service/skills/."""
+    skill_dir = _safe_skill_dir(directory_name)
+    if not skill_dir.is_dir():
+        return False
+    shutil.rmtree(skill_dir)
+    return True
 
 
 def copy_skill_directories_to_engagement(engagement_id: str, directory_names: list[str]) -> int:
@@ -130,8 +140,29 @@ def _frontmatter_metadata(text: str) -> dict[str, Any]:
     if not text.startswith("---"):
         return {}
     try:
-        _, raw, _ = text.split("---", 2)
-    except ValueError:
+        post = frontmatter.loads(text)
+    except Exception:
         return {}
-    loaded = yaml.safe_load(raw)
-    return loaded if isinstance(loaded, dict) else {}
+    return dict(post.metadata) if isinstance(post.metadata, dict) else {}
+
+
+def _resolve_skill_package_id(metadata: dict[str, Any], directory_name: str) -> str:
+    raw_id = str(metadata.get("id") or "").strip()
+    if raw_id:
+        return raw_id
+    slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", directory_name.strip()).strip("_").replace("-", "_")
+    return f"skill_{slug or 'import'}"
+
+
+def _skill_md_with_catalog_metadata(skill_package: SkillPackageRecord) -> str:
+    """Persist catalog id/name/description/enabled in SKILL.md frontmatter for stable reload."""
+    try:
+        post = frontmatter.loads(skill_package.skill_md or "")
+    except Exception:
+        post = frontmatter.Post("")
+    post.metadata["id"] = skill_package.id
+    post.metadata["name"] = skill_package.name
+    if skill_package.description:
+        post.metadata["description"] = skill_package.description
+    post.metadata["enabled"] = skill_package.enabled
+    return frontmatter.dumps(post)

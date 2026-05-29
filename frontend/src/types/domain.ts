@@ -61,6 +61,16 @@ export type AgentStep = {
   result: Record<string, unknown>;
 };
 
+export type AgentStepOutputFile = {
+  path: string;
+  name: string;
+  size_bytes: number;
+  content_type: "text" | "binary";
+  content?: string;
+  truncated?: boolean;
+  preview_unavailable?: boolean;
+};
+
 export type AgentStepOutputFolder = {
   available: boolean;
   step_id: string;
@@ -68,6 +78,7 @@ export type AgentStepOutputFolder = {
   folder_path?: string;
   readme_path?: string;
   readme?: string;
+  files?: AgentStepOutputFile[];
   reason?: string;
 };
 

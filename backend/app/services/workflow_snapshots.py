@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
-from app.services.agent_record_utils import normalize_tool_ids
+from app.services.agent_record_utils import MAX_REACT_ITERS, normalize_tool_ids
 from app.services.engagement_agent_overrides_store import engagement_agent_override_records
 from app.services.engagement_resource_catalog import load_engagement_resource_configs_by_ids
 from app.services.platform_resource_catalog import load_resource_configs_by_ids
@@ -62,7 +62,7 @@ def build_workflow_snapshot(company_config: dict, *, engagement_id: str | None =
                 "resource_ids": agent.get("resource_ids") or [],
                 "platform_upload_file_ids": agent.get("platform_upload_file_ids") or [],
                 "react_config": agent.get("react_config")
-                or {"max_iters": 6, "parallel_tool_calls": False},
+                or {"max_iters": MAX_REACT_ITERS, "parallel_tool_calls": False},
             }
             for agent in sorted(agents, key=lambda row: agent_ids.index(row["id"]))
         ],

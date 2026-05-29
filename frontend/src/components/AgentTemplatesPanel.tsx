@@ -30,7 +30,7 @@ function formatLibraryBytes(n: number): string {
 
 const defaultReActConfig = JSON.stringify(
   {
-    max_iters: 6,
+    max_iters: 50,
     parallel_tool_calls: false,
     model: {
       baseUrl: "http://127.0.0.1:8080/v1",
@@ -221,6 +221,13 @@ function ResourceBindingsSummary(props: { ids: string[]; catalog: ResourceConfig
 type AgentTemplatesPanelProps = {
   onAgentsChanged?: () => void;
 };
+
+const AGENT_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+function normalizeOptionalAgentId(raw: string): string | undefined {
+  const text = raw.trim();
+  return text ? text : undefined;
+}
 
 export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProps) {
   const [agents, setAgents] = useState<AgentTemplate[]>([]);
@@ -489,6 +496,11 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
     event.preventDefault();
     setError("");
     try {
+      const optionalId = normalizeOptionalAgentId(form.id);
+      if (!editingAgentId && optionalId && !AGENT_ID_PATTERN.test(optionalId)) {
+        setError("ID 只能包含字母、数字、连字符和下划线；留空则自动生成。");
+        return;
+      }
       const payload = {
         name: form.name,
         role: form.role,
@@ -504,7 +516,7 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
         await updateAgentTemplate(editingAgentId, payload);
       } else {
         await createAgentTemplate({
-          id: form.id || undefined,
+          id: optionalId,
           ...payload,
           enabled: true,
         });
@@ -560,7 +572,7 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
                     value={form.id}
                     disabled={Boolean(editingAgentId)}
                     onChange={(event) => setForm({ ...form, id: event.target.value })}
-                    placeholder="留空则自动生成"
+                    placeholder="留空则自动生成；仅字母、数字、-、_"
                   />
                 </label>
                 <label>
@@ -710,7 +722,7 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
                     </div>
                   ) : null}
                   <p className="agent-catalog-react muted">
-                    ReAct · max_iters={(agent.react_config?.max_iters as number | undefined) ?? 6}
+                    ReAct · max_iters={(agent.react_config?.max_iters as number | undefined) ?? 50}
                   </p>
                   <div className="row-actions">
                     <button type="button" className="secondary-button" onClick={() => beginEditAgent(agent)}>

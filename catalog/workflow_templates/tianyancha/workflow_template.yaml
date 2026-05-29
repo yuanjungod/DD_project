@@ -1,0 +1,19 @@
+# Workflow template folder — workflow graph and metadata. Agent definitions for this workflow template live in ./agents/.
+
+version: 1
+workflow:
+  id: tianyancha
+  name: 天眼查数据处理
+  description: ''
+  workflow_template: custom
+  graph:
+    nodes:
+    - id: node_1
+      agent_template_id: tianyancha
+      sub_agent_template_ids: []
+      stage: coordination
+    edges: []
+    entry_node: node_1
+    report_node: node_1
+  status: published
+  version: 2

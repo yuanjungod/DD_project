@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
-import { createSkill, debugSkillDraft, getSkill, importSkillZip, listSkills, updateSkill } from "../api/client";
+import { createSkill, debugSkillDraft, deleteSkill, getSkill, importSkillZip, listSkills, updateSkill } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
 import type { SkillDebugResult, SkillPackage } from "../types/domain";
 
@@ -26,6 +26,7 @@ export function SkillsPage() {
   const zipInputRef = useRef<HTMLInputElement>(null);
   const [zipDirOverride, setZipDirOverride] = useState("");
   const [zipUploading, setZipUploading] = useState(false);
+  const [deletingSkillId, setDeletingSkillId] = useState("");
   const [skills, setSkills] = useState<SkillPackage[]>([]);
   const [selectedSkillId, setSelectedSkillId] = useState("");
   const [view, setView] = useState<"list" | "editor">("list");
@@ -143,6 +144,29 @@ export function SkillsPage() {
     setView("editor");
   }
 
+  async function handleDeleteSkill(skill: SkillPackage) {
+    const ok = window.confirm(
+      `确定删除 Skill「${skill.name}」（${skill.directory_name}）吗？将删除 agent_service/skills/${skill.directory_name}/ 下的全部文件，且不可恢复。`,
+    );
+    if (!ok) return;
+    setError("");
+    setNotice("");
+    setDeletingSkillId(skill.id);
+    try {
+      await deleteSkill(skill.id);
+      if (selectedSkillId === skill.id) {
+        setSelectedSkillId("");
+        setView("list");
+      }
+      setNotice(`已删除 Skill「${skill.name}」`);
+      await refresh();
+    } catch (err: unknown) {
+      setError(String(err));
+    } finally {
+      setDeletingSkillId("");
+    }
+  }
+
   function filePaths(): string[] {
     return ["SKILL.md", ...Object.keys(form.package_files).sort()];
   }
@@ -233,7 +257,6 @@ export function SkillsPage() {
                     setNotice(`已从 ZIP 创建 Skill「${saved.name}」(${saved.directory_name})`);
                     setZipDirOverride("");
                     await refresh();
-                    await handleSelect(saved.id);
                   } catch (err: unknown) {
                     setError(String(err));
                   } finally {
@@ -272,9 +295,19 @@ export function SkillsPage() {
                   <p>{skill.description}</p>
                   <small>agent_service/skills/{skill.directory_name}/</small>
                 </div>
-                <button type="button" className="secondary-button" onClick={() => handleSelect(skill.id)}>
-                  进入配置
-                </button>
+                <div className="skill-card-actions">
+                  <button type="button" className="secondary-button" onClick={() => handleSelect(skill.id)}>
+                    进入配置
+                  </button>
+                  <button
+                    type="button"
+                    className="danger-button"
+                    disabled={deletingSkillId === skill.id}
+                    onClick={() => void handleDeleteSkill(skill)}
+                  >
+                    {deletingSkillId === skill.id ? "删除中…" : "删除"}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -290,6 +323,19 @@ export function SkillsPage() {
               <strong>{form.name || form.id || "未命名 Skill"}</strong>
               <small>agent_service/skills/{form.directory_name || "<directory>"}/</small>
             </div>
+            {selectedSkillId ? (
+              <button
+                type="button"
+                className="danger-button"
+                disabled={Boolean(deletingSkillId)}
+                onClick={() => {
+                  const skill = skills.find((item) => item.id === selectedSkillId);
+                  if (skill) void handleDeleteSkill(skill);
+                }}
+              >
+                {deletingSkillId === selectedSkillId ? "删除中…" : "删除 Skill"}
+              </button>
+            ) : null}
           </div>
           <SectionCard title="基础信息">
             <form className="form" onSubmit={handleSubmit}>
