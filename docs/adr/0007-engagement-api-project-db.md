@@ -20,4 +20,4 @@ The product domain object was originally named "Project" in the database while t
 
 - No `project_id` JSON aliases on API responses.
 - Internal module names use `engagement_*` (not `project_*`).
-- Developers with old local SQLite files get automatic table renames on startup, or may delete `.dd_project/data/platform/dd_platform.db` for a clean schema.
+- Developers with old local SQLite files get automatic table renames on startup, or may delete `.harness_project/data/platform/harness_platform.db` (or legacy `dd_platform.db` in the same directory) for a clean schema.

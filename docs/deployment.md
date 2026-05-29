@@ -1,6 +1,6 @@
 # Deployment
 
-Single-node Docker Compose deployment with a **shared filesystem** for `.harness_project/` (legacy `.dd_project/` still supported) and `agent_service/skills/`. See [ADR-0006](../docs/adr/0006-docker-shared-filesystem.md).
+Single-node Docker Compose deployment with a **shared filesystem** for `.harness_project/` and `agent_service/skills/`. See [ADR-0006](../docs/adr/0006-docker-shared-filesystem.md).
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ Services (profile `full`):
 | backend | 8010 | FastAPI platform API |
 | frontend | 5173 | Static preview via nginx (production build) |
 
-Shared volume `harness_runtime` mounts at `/data` inside containers. Set `HARNESS_DATA_ROOT=/data` so backend and agent_service share session output paths (legacy `DD_DATA_ROOT` still accepted).
+Shared volume `harness_runtime` mounts at `/data` inside containers. Set `HARNESS_DATA_ROOT=/data` so backend and agent_service share session output paths.
 
 ## Environment (production checklist)
 
@@ -39,8 +39,8 @@ Shared volume `harness_runtime` mounts at `/data` inside containers. Set `HARNES
 - `AUTH_SECRET_KEY` — non-default JWT secret
 - `AGENT_API_KEY` — shared between backend and agent_service
 - `AGENT_CALLBACK_SECRET` — progress callback HMAC
-- `HARNESS_SEED_DEFAULT_USERS=false` — disable default passwords (legacy `DD_SEED_DEFAULT_USERS` still accepted)
-- Model provider URLs via `HARNESS_MODEL_BASE_URL` / `HARNESS_MODEL_API_KEY` on agent host (legacy `DD_MODEL_*` still accepted)
+- `HARNESS_SEED_DEFAULT_USERS=false` — disable default passwords
+- Model provider URLs via `HARNESS_MODEL_BASE_URL` / `HARNESS_MODEL_API_KEY` on agent host
 
 ## Health checks
 

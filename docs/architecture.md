@@ -36,7 +36,7 @@ The browser usually talks to the backend through the Vite dev **`/api` proxy** (
 
 ### Generic Agent Configuration
 
-Generic workflow configuration lives under **`catalog/`** (published templates), **`.harness_project/users/{user_id}/workflows/`** (drafts; legacy **`.dd_project/`** still supported), **`agent_service/configs/tools.yaml`**, **`agent_service/skills/`**, and **`shared/schemas/`**.
+Generic workflow configuration lives under **`catalog/`** (published templates), **`.harness_project/users/{user_id}/workflows/`** (drafts), **`agent_service/configs/tools.yaml`**, **`agent_service/skills/`**, and **`shared/schemas/`**.
 
 It defines:
 
@@ -74,7 +74,7 @@ The backend owns durable entities:
 
 Configuration catalogs are file-first where practical. **Global agent templates** live under **`catalog/agents/{agent_id}.yaml`** (published), while user saves land in **`.harness_project/users/{user_id}/workflows/_agent_templates/{agent_id}.yaml`** before publish. **Workflow template folders** live under **`catalog/workflow_templates/{workflow_template_id}/`** (published) or **`.harness_project/users/{user_id}/workflows/{workflow_template_id}/`** (user drafts/saves). Each workflow template folder contains **`workflow_template.yaml`** plus an **`agents/`** subdirectory. Run/session/output runtime data is centralized under **`.harness_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/`** (`{run_id}.json` plus `outputs/`). **`GET/POST/PATCH /workflow-templates`** and **`GET/POST/PATCH /agent-templates`** save into user workflows, while **`POST /workflow-templates/{id}/publish`** and **`POST /agent-templates/{id}/publish`** publish into `catalog/`.
 
-For local development the backend defaults to SQLite at **`HARNESS_DATA_ROOT/platform/harness_platform.db`** (`HARNESS_DATA_ROOT` defaults to repo-root **`.harness_project/data`**; legacy **`DD_DATA_ROOT`** / **`.dd_project`** and **`dd_platform.db`** are still read when present). Set **`DATABASE_URL`** to use PostgreSQL or another explicit database.
+For local development the backend defaults to SQLite at **`HARNESS_DATA_ROOT/platform/harness_platform.db`** (`HARNESS_DATA_ROOT` defaults to repo-root **`.harness_project/data`**; legacy **`dd_platform.db`** in that directory is still opened when **`harness_platform.db`** is absent). Set **`DATABASE_URL`** to use PostgreSQL or another explicit database.
 
 ### Agent Service
 

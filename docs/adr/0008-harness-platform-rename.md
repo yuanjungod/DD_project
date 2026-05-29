@@ -23,10 +23,11 @@ The repository began as a due-diligence MVP (`DD_project`, `.dd_project/`, `DueD
 
 ## Compatibility
 
-- Environment variables: read **`HARNESS_*` first**, fall back to **`DD_*`** with deprecation warning.
-- Runtime home: use **`.harness_project`** when present; otherwise continue using **`.dd_project`** if that is the only existing tree.
+- Environment variables: **`HARNESS_*` only** (`DD_*` aliases removed in 2026 compat shrink).
+- Runtime home: **`.harness_project/`** only at runtime; copy legacy **`.dd_project/`** via `scripts/migrate_dd_project_to_harness_project.py` (not auto-read).
 - Auth token (frontend): migrate **`dd_access_token`** → **`harness_access_token`** once on boot.
 - Platform must **not** default to `standard_due_diligence`; callers must choose a published workflow template explicitly.
+- Platform SQLite: prefer **`harness_platform.db`**; still open **`dd_platform.db`** in the same directory when the new file is absent.
 
 ## Migration
 

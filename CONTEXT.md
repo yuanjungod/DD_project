@@ -42,6 +42,6 @@ See [docs/adr/0008-harness-platform-rename.md](docs/adr/0008-harness-platform-re
 
 - `catalog/workflow_templates/*_due_diligence/` template ids and agent prompts
 - `instance_config.extensions.due_diligence` for DD-shaped subject blocks
-- Legacy API/DB fields: `company_config`, `diligence_session_id`, `diligence-sessions` route (deprecated aliases)
+- Legacy API/DB fields: `company_config` (response/create alias for `instance_config`), `diligence_session_id` (read/coalesce on requests; disk JSON writes `workflow_session_id` only)
 - Agent HTTP wire field `company_config` with `target_company` (synthesized run subject at dispatch)
 - Skill packages may mention 尽调 in domain-specific copy under `agent_service/skills/`

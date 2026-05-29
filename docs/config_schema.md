@@ -113,7 +113,35 @@ Skill packages follow the same engagement-localization principle:
 - On engagement creation, only skill packages referenced by the selected workflow snapshot are copied into `.harness_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/shared/skills/{directory_name}`.
 - On engagement updates (`PATCH /engagements/{engagement_id}` with `company_config`), the backend incrementally copies newly referenced skill package directories into the same engagement-local skills directory.
 
-## Company Configuration
+## Instance configuration (canonical)
+
+New engagements should send **`instance_config`** (alias **`company_config`** on the wire for one release). The UI collects a single **workflow task**; the backend materializes stored JSON (including `extensions.subject` for non–due-diligence templates per ADR-0010).
+
+```json
+{
+  "workflow_template_id": "standard_due_diligence",
+  "workflow_template_version": 1,
+  "resources": {
+    "uploaded_files": [],
+    "trusted_sources": ["official website", "exchange filings"],
+    "blocked_sources": [],
+    "competitors": ["Peer Robotics"]
+  },
+  "extensions": {
+    "workflow_task": {
+      "description": "Complete a due diligence review of Example Robotics and summarize legal and financial risks."
+    }
+  }
+}
+```
+
+`extensions.workflow_task.description` is **required** on create (`require_workflow_task` in `shared/instance_config.py`). After materialization, due-diligence templates also persist root **`target_company`** derived from the task; other templates persist **`extensions.subject`**.
+
+See `shared/schemas/instance_config.schema.json` and `shared/schemas/example_task_first_instance_config.json`.
+
+## Legacy company configuration shape
+
+Older clients may still send root **`target_company`** instead of `extensions.workflow_task`:
 
 ```json
 {

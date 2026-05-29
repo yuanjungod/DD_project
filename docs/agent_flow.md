@@ -41,7 +41,7 @@ At run time, the backend sends an immutable **workflow snapshot** to the agent s
 
 The agent service writes a **session JSON** for each `POST /runs` (on by default):
 
-`.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<run_id>.json`
+`.harness_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<run_id>.json`
 
 Step outputs live under the same session branch in `runs/outputs/{run_id}_outputs/{step}_{agent}/`.
 
@@ -52,9 +52,11 @@ Each agent template can bind:
 - `resource_ids`: data resources exposed in the AgentScope ReAct system prompt.
 - `react_config`: AgentScope ReAct settings such as `max_iters` and `parallel_tool_calls`.
 
-Skill packages are file-backed under `agent_service/skills/<directory_name>/`. Tool configs are file-backed under `agent_service/configs/tools.yaml`. On engagement creation/update, referenced skill packages are copied into the engagement-local directory `.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/shared/skills/` for mount-friendly deployments.
+Skill packages are file-backed under `agent_service/skills/<directory_name>/`. Tool configs are file-backed under `agent_service/configs/tools.yaml`. On engagement creation/update, referenced skill packages are copied into the engagement-local directory `.harness_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/shared/skills/` for mount-friendly deployments.
 
 The Agent service builds an AgentScope ReAct runtime for every agent from this snapshot. The runtime creates an AgentScope `Toolkit`, registers the selected tool functions, materializes selected `SKILL.md` packages and package files as AgentScope agent skills, injects bound resources into the ReAct system prompt, and calls the configured real model through an Anthropic Messages-compatible provider.
+
+When `company_config.workflow_task` is present (materialized from `instance_config.extensions.workflow_task`), each step’s user message includes a **workflow goal** block. The legacy **`run_subject`** JSON block is omitted in that case to avoid duplicating the same content.
 
 Default model config:
 

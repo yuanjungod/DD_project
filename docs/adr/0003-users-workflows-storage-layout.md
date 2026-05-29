@@ -1,8 +1,10 @@
-# ADR-0003: `.dd_project/users/workflows/` storage layout
+# ADR-0003: `.harness_project/users/workflows/` storage layout
 
 ## Status
 
-Accepted (2026-05-29)
+Accepted
+
+> **Note:** This ADR was written when the runtime root was named `.dd_project/`. Current code uses **`.harness_project/`** with the same tree shape below.
 
 ## Context
 

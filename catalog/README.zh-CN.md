@@ -67,18 +67,18 @@ catalog/
 
 - 这里是“模板配置层”；
 - 运行时 runs/outputs 不应写到这里；
-- 运行时数据统一落在 `.dd_project/`（例如 `.dd_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/`）。
+- 运行时数据统一落在 `.harness_project/`（例如 `.harness_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/`）。
 
 ### `resource_configs/`
 
 内置平台资源连接器配置。  
 例如公开网页、文件库、数据库类连接器等。
 
-项目运行时覆盖配置应写入 `.dd_project/data/platform/resource_configs`（或你配置的数据根目录），而不是修改这里的基线文件。
+项目运行时覆盖配置应写入 `.harness_project/data/platform/resource_configs`（或你配置的数据根目录），而不是修改这里的基线文件。
 
 ## 维护规则（建议）
 
 - 基线模板变更：修改 `catalog/` 并走 Git 提交评审；
-- 项目/用户/运行态数据：写入 `.dd_project/`；
+- 项目/用户/运行态数据：写入 `.harness_project/`；
 - 避免把模板和运行态产物混放在同一路径。
 

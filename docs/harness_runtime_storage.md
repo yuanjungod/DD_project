@@ -74,9 +74,9 @@ Canonical layout: [docs/adr/0003-users-workflows-storage-layout.md](adr/0003-use
 
 ## Migrating from `.dd_project/`
 
-If your workspace still uses legacy **`.dd_project/`**, the platform continues to read it automatically until **`.harness_project/`** exists.
+Runtime code **only** uses **`.harness_project/`** (or `HARNESS_DATA_ROOT`). A legacy **`.dd_project/`** directory is **not** read automatically; copy it explicitly:
 
-To copy data explicitly:
+To copy data:
 
 ```bash
 python scripts/migrate_dd_project_to_harness_project.py --dry-run
@@ -85,4 +85,4 @@ python scripts/migrate_dd_project_to_harness_project.py
 
 Use `--merge` when `.harness_project/` already exists and you want to combine trees. The script renames `data/platform/dd_platform.db` to `harness_platform.db` when safe. It does **not** delete `.dd_project/`; remove it manually after verifying the migration.
 
-Set **`HARNESS_DATA_ROOT`** (legacy alias: `DD_DATA_ROOT`) to point at a custom absolute path instead of the repo-root directory.
+Set **`HARNESS_DATA_ROOT`** to point at a custom absolute path instead of the repo-root directory.

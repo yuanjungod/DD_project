@@ -44,7 +44,7 @@ catalog/
 
 ### `.harness_project/` (runtime/engagement state)
 
-Preferred runtime root. Legacy installs may still use `.dd_project/` (see ADR-0008).
+Preferred runtime root is **`.harness_project/`** (see ADR-0008). Legacy **`.dd_project/`** trees are not read at runtime; migrate with the script below.
 
 ```text
 .harness_project/
@@ -70,7 +70,7 @@ Preferred runtime root. Legacy installs may still use `.dd_project/` (see ADR-00
   channels/                             # Reserved for channel mapping expansion
 ```
 
-See **[docs/harness_runtime_storage.md](docs/harness_runtime_storage.md)** for the full runtime storage guide. Legacy **`.dd_project/`** installs keep working until you migrate (ADR-0008).
+See **[docs/harness_runtime_storage.md](docs/harness_runtime_storage.md)** for the full runtime storage guide.
 
 ### Migrating from `.dd_project/`
 
@@ -118,7 +118,7 @@ npm run dev
 
 开发模式下请求默认走 **`http://127.0.0.1:5173/api/*`**，由 Vite **代理到** `http://127.0.0.1:8010`，避免浏览器直连跨域端口失败。若要改后端地址，可在启动前设置 **`VITE_DEV_PROXY_TARGET`**（仅 dev 代理目标），或设置 **`VITE_API_BASE_URL`** 为完整后端 URL（将跳过 `/api` 代理）。
 
-Writable runtime data defaults to `.harness_project/data/` from the repository root (legacy: `.dd_project/data/`):
+Writable runtime data defaults to `.harness_project/data/` from the repository root:
 
 - SQLite: `.harness_project/data/platform/harness_platform.db` (set `DATABASE_URL` to use PostgreSQL or another explicit database).
 - Engagement resources: `.harness_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/shared/resources` + `.../shared/resource_configs`.
@@ -129,7 +129,7 @@ Writable runtime data defaults to `.harness_project/data/` from the repository r
 - Agent run sessions and per-step outputs: `.harness_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<run_id>.json` and `.../runs/outputs/{run_id}_outputs/...`.
 - Engagement runtime config home: `.harness_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/meta/agent_overrides.json`.
 
-Set `HARNESS_DATA_ROOT` to move all writable file data together (legacy alias: `DD_DATA_ROOT`).
+Set `HARNESS_DATA_ROOT` to move all writable file data together.
 
 ## Docker (optional)
 

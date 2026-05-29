@@ -15,9 +15,9 @@ Adopt **`WorkflowSession`** as the canonical name:
 | Layer | New | Legacy (compat) |
 |-------|-----|-----------------|
 | ORM / table | `WorkflowSession` / `workflow_sessions` | read old table name via startup patch + Alembic `002` |
-| API route | `GET /engagements/{id}/workflow-sessions` | `GET .../diligence-sessions` (deprecated alias) |
-| Request field | `workflow_session_id` | `diligence_session_id` (accepted on read/write) |
-| Session JSON on disk | writes both fields | reads either field |
+| API route | `GET /engagements/{id}/workflow-sessions` | ~~`GET .../diligence-sessions`~~ removed (2026 compat shrink) |
+| Request field | `workflow_session_id` | `diligence_session_id` (accepted on read/coalesce) |
+| Session JSON on disk | writes `workflow_session_id` only | reads either field |
 
 Disk path layout under `.harness_project/users/.../sessions/` is unchanged.
 
