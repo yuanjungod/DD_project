@@ -184,12 +184,29 @@ class AgentScopeReActRuntime:
         sections: list[str] = [
             "## 任务说明",
             "",
-            "请使用已配置的 AgentScope ReAct 工具、技能与资源完成本步骤。",
-            "需要额外来源材料时请调用工具。",
-            "上游 Agent 通过 **output_dir** 交接产物；可用 `view_text_file`、`execute_shell_command`",
-            "完成后请用简短中文总结你所写或所做的工作,总结工作和产出都写在README.md中。",
-            "",
         ]
+        task_text = (company_config.workflow_task or "").strip()
+        if task_text:
+            sections.extend(
+                [
+                    "## 本次工作流最终目标",
+                    "",
+                    task_text,
+                    "",
+                    "你是该工作流中的一环。以上描述是**全体 Agent 的共同最终目的**；"
+                    "请围绕此目标完成你负责的部分，并与上游产物衔接。",
+                    "",
+                ]
+            )
+        sections.extend(
+            [
+                "请使用已配置的 AgentScope ReAct 工具、技能与资源完成本步骤。",
+                "需要额外来源材料时请调用工具。",
+                "上游 Agent 通过 **output_dir** 交接产物；可用 `view_text_file`、`execute_shell_command`",
+                "完成后请用简短中文总结你所写或所做的工作,总结工作和产出都写在README.md中。",
+                "",
+            ]
+        )
         sections.extend(
             _markdown_json_section(
                 "run_subject（运行主体）",
@@ -250,8 +267,10 @@ class AgentScopeReActRuntime:
             "instruction_zh": (
                 "步骤复核对话：用户对当前这一步 Agent 的输出进行校验或要求修订。"
                 "用清晰中文回复（除非用户用其他语言）。可指出逻辑/来源缺口、建议如何修订输出目录中的内容，不要编造未出现的来源。"
+                "修订建议须与本次工作流的最终目标一致。"
             ),
             "target_company": company_config.target_company.model_dump(mode="json"),
+            "workflow_task": (company_config.workflow_task or "").strip(),
             "previous_agent_results": [
                 {
                     "agent": result.agent,

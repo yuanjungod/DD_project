@@ -23,7 +23,21 @@ class InstanceConfigTests(unittest.TestCase):
         self.assertEqual(view["target_company"]["name"], "Acme Corp")
         self.assertEqual(view["extensions"]["due_diligence"]["target_company"]["name"], "Acme Corp")
 
-    def test_generic_subject_round_trip(self) -> None:
+    def test_workflow_task_round_trip_and_agent_injection(self) -> None:
+        task = "对 Acme Robotics 完成全面尽职调查，并输出投资备忘录与主要风险清单。"
+        payload = {
+            "workflow_template_id": "workflow_research_demo",
+            "resources": {"uploaded_files": []},
+            "extensions": {"workflow_task": {"description": task}},
+        }
+        stored = materialize_stored_config(payload)
+        self.assertEqual(stored["extensions"]["workflow_task"]["description"], task)
+        self.assertEqual(resolve_subject_name(stored), "对 Acme Robotics 完成全面尽职调查，并输出投资备忘录与主要风险清单。")
+        agent_cfg = to_agent_company_config(stored)
+        self.assertEqual(agent_cfg["workflow_task"], task)
+        self.assertIn("Acme Robotics", agent_cfg["target_company"]["name"])
+
+    def test_legacy_subject_becomes_workflow_task_fallback(self) -> None:
         payload = {
             "workflow_template_id": "workflow_research_demo",
             "resources": {"uploaded_files": ["file_a"]},

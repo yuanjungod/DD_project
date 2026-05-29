@@ -51,6 +51,16 @@
             "aliases": { "type": "array", "items": { "type": "string" }, "default": [] },
             "kind": { "type": "string" }
           }
+        },
+        "workflow_task": {
+          "type": "object",
+          "description": "Natural-language goal for this workflow run; injected into every agent step.",
+          "required": ["description"],
+          "properties": {
+            "description": { "type": "string", "minLength": 1 },
+            "task": { "type": "string" },
+            "goal": { "type": "string" }
+          }
         }
       },
       "additionalProperties": true

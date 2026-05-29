@@ -10,6 +10,7 @@ LEGACY_COMPANY_CONFIG_FIELD = "company_config"
 EXTENSIONS_FIELD = "extensions"
 DUE_DILIGENCE_EXTENSION = "due_diligence"
 SUBJECT_EXTENSION = "subject"
+WORKFLOW_TASK_EXTENSION = "workflow_task"
 
 
 def _as_dict(value: Any) -> dict[str, Any]:
@@ -33,7 +34,27 @@ def resolve_target_company(stored: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
+def resolve_workflow_task(stored: dict[str, Any]) -> str:
+    direct = str(stored.get("workflow_task") or "").strip()
+    if direct:
+        return direct
+    extensions = _as_dict(stored.get(EXTENSIONS_FIELD))
+    task_block = _as_dict(extensions.get(WORKFLOW_TASK_EXTENSION))
+    for key in ("description", "task", "goal"):
+        text = str(task_block.get(key) or "").strip()
+        if text:
+            return text
+    target = resolve_target_company(stored)
+    if target and target.get("name"):
+        return str(target["name"]).strip()
+    return ""
+
+
 def resolve_subject_name(stored: dict[str, Any]) -> str:
+    task = resolve_workflow_task(stored)
+    if task:
+        first_line = task.splitlines()[0].strip()
+        return first_line[:120] if first_line else task[:120]
     target = resolve_target_company(stored)
     if target and target.get("name"):
         return str(target["name"]).strip()
@@ -55,6 +76,9 @@ def instance_config_view(stored: dict[str, Any]) -> dict[str, Any]:
         return {}
     view = copy.deepcopy(stored)
     extensions = _as_dict(view.get(EXTENSIONS_FIELD))
+    task = resolve_workflow_task(view)
+    if task:
+        extensions.setdefault(WORKFLOW_TASK_EXTENSION, {"description": task})
     target = resolve_target_company(view)
     if target:
         dd = _as_dict(extensions.get(DUE_DILIGENCE_EXTENSION))
@@ -78,6 +102,11 @@ def materialize_stored_config(payload: dict[str, Any]) -> dict[str, Any]:
     """Persistable JSON for engagements.company_config (legacy-safe)."""
 
     stored = copy.deepcopy(payload)
+    extensions = _as_dict(stored.get(EXTENSIONS_FIELD))
+    task = resolve_workflow_task(stored)
+    if task:
+        extensions[WORKFLOW_TASK_EXTENSION] = {"description": task}
+    stored[EXTENSIONS_FIELD] = extensions
     target = resolve_target_company(stored)
     template_id = resolve_workflow_template_id(stored)
     if target and is_due_diligence_template_id(template_id):
@@ -101,10 +130,13 @@ def to_agent_company_config(stored: dict[str, Any]) -> dict[str, Any]:
     """Legacy agent wire shape (company_config with target_company)."""
 
     cfg = copy.deepcopy(stored) if stored else {}
+    task = resolve_workflow_task(cfg)
     target = resolve_target_company(cfg)
     if not target:
-        target = {"name": "Unknown Subject", "aliases": []}
+        label = (task.splitlines()[0].strip() if task else "") or "Workflow Task"
+        target = {"name": label[:120], "aliases": []}
     cfg["target_company"] = target
+    cfg["workflow_task"] = task
     cfg.setdefault("resources", _as_dict(cfg.get("resources")))
     return cfg
 

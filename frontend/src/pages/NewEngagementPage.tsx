@@ -6,20 +6,21 @@ import { EngagementAgentOverridesPanel } from "../components/EngagementAgentOver
 import { EngagementResourceCatalogPanel } from "../components/EngagementResourceCatalogPanel";
 import { SectionCard } from "../components/SectionCard";
 import { defaultApplicationId, engagementIdentityLabel } from "../domain/engagementIdentity";
-import { normalizeCompanyConfig, workflowTemplateIdFromConfig } from "../domain/companyConfig";
+import { workflowTemplateIdFromConfig } from "../domain/companyConfig";
 import {
   instanceConfigToForm,
-  isDueDiligenceTemplate,
   subjectNameFromConfig,
   toInstanceConfigPayload,
+  type EngagementSetupForm,
 } from "../domain/instanceConfig";
-import type { CompanyConfig, Engagement, WorkflowTemplate } from "../types/domain";
+import type { Engagement, WorkflowTemplate } from "../types/domain";
 
-function defaultConfig(workflowTemplateId: string): CompanyConfig {
+function defaultConfig(workflowTemplateId: string): EngagementSetupForm {
   return {
+    workflow_task: "",
     target_company: {
-      name: "Example Robotics",
-      aliases: ["ExampleBot"],
+      name: "",
+      aliases: [],
     },
     workflow_template_id: workflowTemplateId,
     workflow_template_version: 1,
@@ -36,10 +37,10 @@ function defaultConfig(workflowTemplateId: string): CompanyConfig {
 
 type WizardStep = "identity" | "resources" | "agents";
 
-const WIZARD_STEPS: Array<{ step: WizardStep; label: string; short: string }> = [
-  { step: "identity", label: "实例与应用", short: "Step 1" },
-  { step: "resources", label: "实例资源", short: "Step 2" },
-  { step: "agents", label: "Agent 配置", short: "Step 3" },
+const WIZARD_STEPS: Array<{ step: WizardStep; label: string; short: string; hint: string }> = [
+  { step: "identity", label: "任务定义", short: "1", hint: "描述要完成的工作" },
+  { step: "resources", label: "实例资源", short: "2", hint: "文件与来源" },
+  { step: "agents", label: "Agent 配置", short: "3", hint: "步骤级覆盖" },
 ];
 
 function parseWizardStep(value: string | null): WizardStep | null {
@@ -58,19 +59,23 @@ function CreateAppWizardNav({
 }) {
   return (
     <nav className="create-app-wizard-nav" aria-label="创建 Engagement 步骤">
-      {WIZARD_STEPS.map((item) => {
+      {WIZARD_STEPS.map((item, index) => {
         const locked = !engagementCreated && item.step !== "identity";
+        const done = engagementCreated && index === 0;
         return (
           <button
             key={item.step}
             type="button"
-            className={`create-app-wizard-nav__item ${currentStep === item.step ? "is-active" : ""}`}
+            className={`create-app-wizard-nav__item ${currentStep === item.step ? "is-active" : ""} ${done && currentStep !== item.step ? "is-done" : ""}`}
             disabled={locked}
             aria-current={currentStep === item.step ? "step" : undefined}
             onClick={() => onStep(item.step)}
           >
             <span className="create-app-wizard-nav__short">{item.short}</span>
-            <span>{item.label}</span>
+            <span className="create-app-wizard-nav__text">
+              <span className="create-app-wizard-nav__label">{item.label}</span>
+              <span className="create-app-wizard-nav__hint">{item.hint}</span>
+            </span>
           </button>
         );
       })}
@@ -83,7 +88,7 @@ export function NewEngagementPage() {
   const initialWorkflow = searchParams.get("workflow") ?? "";
   const resumeEngagementId = searchParams.get("engagement")?.trim() ?? "";
 
-  const [form, setForm] = useState<CompanyConfig>(() => defaultConfig(initialWorkflow));
+  const [form, setForm] = useState<EngagementSetupForm>(() => defaultConfig(initialWorkflow));
   const [applicationId, setApplicationId] = useState("");
   const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([]);
   const [createdEngagement, setCreatedEngagement] = useState<Engagement | null>(null);
@@ -100,9 +105,6 @@ export function NewEngagementPage() {
   const workflowTemplateId = createdEngagement
     ? workflowTemplateIdFromConfig(createdEngagement.instance_config ?? createdEngagement.company_config)
     : workflowTemplateIdFromConfig(form);
-
-  const dueDiligenceMode = isDueDiligenceTemplate(workflowTemplateIdFromConfig(form));
-  const subjectFieldLabel = dueDiligenceMode ? "目标公司名称" : "实例主体名称";
 
   useEffect(() => {
     listWorkflowTemplates()
@@ -143,10 +145,11 @@ export function NewEngagementPage() {
   }, [resumeEngagementId]);
 
   useEffect(() => {
-    if (!applicationId && form.target_company.name.trim() && !createdEngagement) {
-      setApplicationId(defaultApplicationId(form.target_company.name));
+    const taskLine = form.workflow_task.trim().split(/\r?\n/)[0]?.trim() ?? "";
+    if (!applicationId && taskLine && !createdEngagement) {
+      setApplicationId(defaultApplicationId(taskLine));
     }
-  }, [form.target_company.name, applicationId, createdEngagement]);
+  }, [form.workflow_task, applicationId, createdEngagement]);
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
@@ -185,8 +188,13 @@ export function NewEngagementPage() {
       setLoading(false);
       return;
     }
-    const displayName = `${subjectNameFromConfig(form) || form.target_company.name} - ${selectedWorkflow?.name ?? "应用"}`;
-    const instance_config = toInstanceConfigPayload(normalizeCompanyConfig(form));
+    if (!form.workflow_task.trim()) {
+      setError("请填写需要完成的任务。");
+      setLoading(false);
+      return;
+    }
+    const displayName = `${subjectNameFromConfig(form)} - ${selectedWorkflow?.name ?? "应用"}`;
+    const instance_config = toInstanceConfigPayload(form);
     try {
       if (createdEngagement) {
         const engagement = await updateEngagement(createdEngagement.id, {
@@ -226,40 +234,67 @@ export function NewEngagementPage() {
   }
 
   return (
-    <div className="page-stack">
-      <header className="page-hero">
-        <p className="eyebrow">{createdEngagement ? "创建 Engagement · 可随时修改" : "创建 Engagement"}</p>
-        <h1>{createdEngagement ? engagementIdentityLabel(createdEngagement) : "工作流模板的具体 Engagement"}</h1>
-        <p>
+    <div className="page-stack engagement-wizard-page">
+      <header className={`page-hero ${createdEngagement ? "" : "page-hero--compact"}`}>
+        <p className="eyebrow">{createdEngagement ? "Engagement · 可随时修改" : "新建 Engagement"}</p>
+        <h1>{createdEngagement ? engagementIdentityLabel(createdEngagement) : "定义一次工作流运行"}</h1>
+        <p className="page-hero__lede">
           {createdEngagement ? (
             <>
-              应用标识符 <code>{createdEngagement.application_id}</code> · 技术 ID <code>{createdEngagement.id}</code>
-              。通过上方步骤栏切换各配置页，修改后保存即可；Run 请至「Engagements」启动。
+              应用标识 <code>{createdEngagement.application_id}</code> · 技术 ID{" "}
+              <code>{createdEngagement.id}</code>。可在下方步骤间切换并保存；启动 Run 请至 Engagements 列表。
             </>
           ) : (
-            "填写实例标识并创建后，可在实例资源与 Agent 配置之间来回调整，无需按固定顺序完成。"
+            "先写清楚要完成什么，再选模板与标识。创建后可在资源与 Agent 配置之间自由调整。"
           )}
         </p>
       </header>
 
       <CreateAppWizardNav currentStep={wizardStep} engagementCreated={Boolean(createdEngagement)} onStep={goToStep} />
 
-      {error ? <div className="error">{error}</div> : null}
+      {error ? <div className="error engagement-wizard-error">{error}</div> : null}
 
       {wizardStep === "identity" ? (
-        <SectionCard
-          title={`${stepMeta.short} · ${stepMeta.label}`}
-          description={
-            createdEngagement
-              ? `更新工作流模板与应用标识（${selectedWorkflow?.name ?? "未选择"}）；保存后不影响已登记的资源与 Agent 配置。`
-              : `选择工作流模板并填写应用标识（${selectedWorkflow?.name ?? "未选择"}）。`
-          }
-        >
-          <form className="form split-form" onSubmit={(e) => void handleSaveIdentity(e)}>
-            <div className="form-section">
-              <h3 className="form-section__title">基础配置</h3>
-              <label>
-                工作流模板
+        <section className="engagement-setup-card">
+          <header className="engagement-setup-card__header">
+            <div>
+              <p className="engagement-setup-card__eyebrow">{stepMeta.short} · {stepMeta.label}</p>
+              <h2>{createdEngagement ? "更新任务与标识" : "描述任务并创建"}</h2>
+              <p>
+                已选模板 <strong>{selectedWorkflow?.name ?? "未选择"}</strong>
+                {selectedWorkflow ? ` · v${selectedWorkflow.version}` : null}
+              </p>
+            </div>
+            {selectedWorkflow?.description ? (
+              <p className="engagement-setup-card__template-desc">{selectedWorkflow.description}</p>
+            ) : null}
+          </header>
+
+          <form className="engagement-setup-form" onSubmit={(e) => void handleSaveIdentity(e)}>
+            <div className="engagement-task-panel">
+              <div className="engagement-task-panel__head">
+                <label htmlFor="engagement-workflow-task" className="engagement-field-label">
+                  需要完成的任务
+                </label>
+                <span className="engagement-task-panel__badge">注入全部 Agent</span>
+              </div>
+              <textarea
+                id="engagement-workflow-task"
+                className="engagement-task-panel__input"
+                value={form.workflow_task}
+                onChange={(event) => setForm({ ...form, workflow_task: event.target.value })}
+                placeholder={"用自然语言描述本次工作流要完成的具体任务。\n\n例如：对某某公司完成成长能力分析，梳理近三年营收结构、核心竞争壁垒与主要风险，并输出可交付的分析报告。"}
+                rows={6}
+                required
+              />
+              <p className="engagement-field-hint">
+                这段描述会作为<strong>最终目标</strong>写入每个 Agent 的任务上下文，请尽量具体、可执行。
+              </p>
+            </div>
+
+            <div className="engagement-meta-grid">
+              <label className="engagement-meta-field">
+                <span className="engagement-field-label">工作流模板</span>
                 <select
                   value={workflowTemplateIdFromConfig(form)}
                   onChange={(event) => {
@@ -274,39 +309,41 @@ export function NewEngagementPage() {
                 >
                   {workflowTemplates.map((workflow) => (
                     <option key={workflow.id} value={workflow.id}>
-                      {workflow.name} v{workflow.version}
+                      {workflow.name} · v{workflow.version}
                     </option>
                   ))}
                 </select>
               </label>
-              <label>
-                {subjectFieldLabel}
-                <input
-                  value={form.target_company.name}
-                  onChange={(event) => setForm({ ...form, target_company: { ...form.target_company, name: event.target.value } })}
-                  required
-                />
-              </label>
-              <label>
-                应用 ID（唯一标识符，小写英文/数字/连字符）
+
+              <label className="engagement-meta-field">
+                <span className="engagement-field-label">应用 ID</span>
                 <input
                   value={applicationId}
                   onChange={(event) => setApplicationId(event.target.value)}
-                  placeholder="mashang-standard-dd"
+                  placeholder="growth-analysis-acme"
                   required
                   pattern="[a-z][a-z0-9_-]{0,62}"
                   title="以小写字母开头，仅含小写字母、数字、下划线或连字符"
+                  spellCheck={false}
+                  autoCapitalize="off"
+                  autoCorrect="off"
                 />
+                <span className="engagement-field-hint">唯一标识符，小写英文 / 数字 / 连字符</span>
               </label>
             </div>
 
-            <div className="inline-form" style={{ flexWrap: "wrap" }}>
-              <button type="submit" disabled={loading}>
-                {loading ? "保存中…" : createdEngagement ? "保存 Engagement" : "创建 Engagement"}
+            <div className="engagement-form-actions">
+              <p className="engagement-form-actions__note">
+                {createdEngagement
+                  ? "保存后不影响已登记的资源与 Agent 覆盖。"
+                  : "创建后可继续配置资源与 Agent，无需按顺序完成。"}
+              </p>
+              <button type="submit" className="engagement-form-actions__submit" disabled={loading}>
+                {loading ? "保存中…" : createdEngagement ? "保存更改" : "创建 Engagement"}
               </button>
             </div>
           </form>
-        </SectionCard>
+        </section>
       ) : null}
 
       {wizardStep === "resources" && createdEngagement ? (

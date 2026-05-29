@@ -36,6 +36,10 @@ class RunInstanceConfig(BaseModel):
     workflow_template_id: str
     workflow_template_version: int | None = None
     resources: Resources = Field(default_factory=Resources)
+    workflow_task: str = Field(
+        default="",
+        description="Natural-language goal for this workflow run; injected into every agent step.",
+    )
 
 
 CompanyConfig = RunInstanceConfig

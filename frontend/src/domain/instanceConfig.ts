@@ -1,5 +1,9 @@
 import type { CompanyConfig, InstanceConfig } from "../types/domain";
 
+export type EngagementSetupForm = CompanyConfig & {
+  workflow_task: string;
+};
+
 export function isDueDiligenceTemplate(templateId: string): boolean {
   return templateId.includes("due_diligence");
 }
@@ -8,7 +12,41 @@ export function workflowTemplateIdFromInstance(config: Pick<InstanceConfig, "wor
   return (config.workflow_template_id ?? "").trim();
 }
 
+export function workflowTaskFromConfig(config: CompanyConfig | InstanceConfig): string {
+  const instance = config as InstanceConfig;
+  const taskBlock = instance.extensions?.workflow_task;
+  if (taskBlock && typeof taskBlock === "object") {
+    for (const key of ["description", "task", "goal"] as const) {
+      const text = taskBlock[key];
+      if (typeof text === "string" && text.trim()) {
+        return text.trim();
+      }
+    }
+  }
+  if ("workflow_task" in config && typeof (config as { workflow_task?: string }).workflow_task === "string") {
+    const direct = (config as { workflow_task: string }).workflow_task.trim();
+    if (direct) return direct;
+  }
+  if ("target_company" in config && config.target_company?.name) {
+    return config.target_company.name.trim();
+  }
+  const subject = instance.extensions?.subject;
+  if (subject && typeof subject.name === "string" && subject.name.trim()) {
+    return subject.name.trim();
+  }
+  const dd = instance.extensions?.due_diligence?.target_company;
+  if (dd && typeof dd.name === "string" && dd.name.trim()) {
+    return dd.name.trim();
+  }
+  return "";
+}
+
 export function subjectNameFromConfig(config: CompanyConfig | InstanceConfig): string {
+  const task = workflowTaskFromConfig(config);
+  if (task) {
+    const firstLine = task.split(/\r?\n/)[0]?.trim() ?? "";
+    return (firstLine || task).slice(0, 120);
+  }
   if ("target_company" in config && config.target_company?.name) {
     return config.target_company.name.trim();
   }
@@ -43,43 +81,42 @@ export function normalizeInstanceConfig(raw: InstanceConfig): InstanceConfig {
 }
 
 /** Map wizard form state to API instance_config payload. */
-export function toInstanceConfigPayload(form: CompanyConfig): InstanceConfig {
+export function toInstanceConfigPayload(form: EngagementSetupForm): InstanceConfig {
   const templateId = form.workflow_template_id.trim();
+  const task = form.workflow_task.trim();
+  const label = (task.split(/\r?\n/)[0]?.trim() || task || "Untitled").slice(0, 120);
+  const targetCompany = { name: label, aliases: form.target_company.aliases };
   const base = {
     workflow_template_id: templateId,
     workflow_template_version: form.workflow_template_version ?? null,
     resources: form.resources,
+    extensions: {
+      workflow_task: { description: task },
+    },
   };
   if (isDueDiligenceTemplate(templateId)) {
     return {
       ...base,
-      target_company: form.target_company,
+      target_company: targetCompany,
       extensions: {
-        due_diligence: { target_company: form.target_company },
+        ...base.extensions,
+        due_diligence: { target_company: targetCompany },
       },
     };
   }
-  return {
-    ...base,
-    extensions: {
-      subject: {
-        name: form.target_company.name,
-        aliases: form.target_company.aliases,
-        kind: "generic",
-      },
-    },
-  };
+  return base;
 }
 
-export function instanceConfigToForm(config: InstanceConfig): CompanyConfig {
-  const name = subjectNameFromConfig(config);
+export function instanceConfigToForm(config: InstanceConfig): EngagementSetupForm {
+  const task = workflowTaskFromConfig(config);
   const aliases =
     config.target_company?.aliases ??
     config.extensions?.subject?.aliases ??
     config.extensions?.due_diligence?.target_company?.aliases ??
     [];
   return {
-    target_company: { name: name || "Untitled", aliases: [...aliases] },
+    workflow_task: task,
+    target_company: { name: subjectNameFromConfig(config) || "Untitled", aliases: [...aliases] },
     workflow_template_id: workflowTemplateIdFromInstance(config),
     workflow_template_version: config.workflow_template_version ?? null,
     resources: {

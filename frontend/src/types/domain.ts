@@ -23,6 +23,7 @@ export type InstanceConfig = {
   extensions?: {
     due_diligence?: { target_company?: CompanyConfig["target_company"] };
     subject?: { name: string; aliases?: string[]; kind?: string };
+    workflow_task?: { description?: string; task?: string; goal?: string };
     [key: string]: unknown;
   };
   /** @deprecated Legacy due-diligence root field */

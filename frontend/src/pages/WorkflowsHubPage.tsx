@@ -259,27 +259,33 @@ export function WorkflowsHubPage() {
           ) : (
             <div className="published-template-list" aria-label="已发布模板列表">
               <div className="published-template-list__row published-template-list__row--head">
-                <span>模板</span>
-                <span>Agent 链</span>
-                <span>类型</span>
-                <span>操作</span>
+                <span className="published-template-list__cell published-template-list__cell--head">模板</span>
+                <span className="published-template-list__cell published-template-list__cell--head">Agent 链</span>
+                <span className="published-template-list__cell published-template-list__cell--head published-template-list__cell--center">
+                  类型
+                </span>
+                <span className="published-template-list__cell published-template-list__cell--head published-template-list__cell--center">
+                  操作
+                </span>
               </div>
               {publishedWorkflowTemplates.map((workflowTemplate) => (
                 <article key={workflowTemplate.id} className="published-template-list__row">
-                  <div className="published-template-list__name">
+                  <div className="published-template-list__cell published-template-list__name">
                     <strong>{workflowTemplate.name}</strong>
-                    <small>
-                      <code>{workflowTemplate.id}</code>
-                      {workflowTemplate.description ? ` · ${workflowTemplate.description}` : null}
-                    </small>
+                    <code className="published-template-list__id">{workflowTemplate.id}</code>
+                    {workflowTemplate.description ? (
+                      <p className="published-template-list__desc">{workflowTemplate.description}</p>
+                    ) : null}
                   </div>
-                  <p className="published-template-list__agents" title={workflowTemplate.agents.join(" → ")}>
+                  <p className="published-template-list__cell published-template-list__agents" title={workflowTemplate.agents.join(" → ")}>
                     {workflowTemplate.agents.join(" → ")}
                   </p>
-                  <span className="published-template-list__type">{workflowTemplate.workflow_template}</span>
-                  <Link className="button-link published-template-list__action" to={`/engagements/new?workflow=${workflowTemplate.id}`}>
-                    应用
-                  </Link>
+                  <span className="published-template-list__cell published-template-list__type">{workflowTemplate.workflow_template}</span>
+                  <div className="published-template-list__cell published-template-list__action-cell">
+                    <Link className="button-link published-template-list__action" to={`/engagements/new?workflow=${workflowTemplate.id}`}>
+                      应用
+                    </Link>
+                  </div>
                 </article>
               ))}
             </div>
