@@ -26,8 +26,8 @@ from app.services.company_identity import company_key_from_name, normalize_appli
 
 
 def create_app() -> FastAPI:
-    Base.metadata.create_all(bind=engine)
     ensure_schema_patches(engine)
+    Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:
         seed_default_users(db)
         _backfill_engagement_identity(db)

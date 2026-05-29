@@ -12,6 +12,7 @@ Index of significant design decisions for Harness_Project.
 | [0006](0006-docker-shared-filesystem.md) | Single-node Docker with shared filesystem | Accepted |
 | [0007](0007-engagement-api-project-db.md) | Engagement in API, Project in database | Accepted |
 | [0008](0008-harness-platform-rename.md) | Harness platform rename (`.harness_project`, `WorkflowEngine`) | Accepted |
+| [0009](0009-workflow-session-rename.md) | `WorkflowSession` rename (Phase D) | Accepted |
 
 ## Template
 

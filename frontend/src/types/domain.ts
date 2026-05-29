@@ -132,7 +132,7 @@ export type AgentRunBrief = {
   started_at: string;
 };
 
-export type DiligenceSessionModel = {
+export type WorkflowSessionModel = {
   id: string;
   engagement_id: string;
   status: string;
@@ -140,6 +140,9 @@ export type DiligenceSessionModel = {
   updated_at: string;
   runs: AgentRunBrief[];
 };
+
+/** @deprecated Use WorkflowSessionModel */
+export type DiligenceSessionModel = WorkflowSessionModel;
 
 export type User = {
   id: string;

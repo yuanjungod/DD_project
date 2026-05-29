@@ -56,7 +56,7 @@ def run_workflow(request: RunRequest) -> RunResult:
             workflow_snapshot=request.workflow_snapshot,
             run_id_override=request.run_id,
             user_id=request.user_id,
-            diligence_session_id=request.diligence_session_id,
+            workflow_session_id=request.resolved_workflow_session_id,
             attempt_index=request.attempt_index,
             continuation_context=request.continuation_context,
             pause_after_each_step=request.pause_after_each_step,

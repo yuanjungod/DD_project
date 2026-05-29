@@ -1,6 +1,7 @@
 from app.schemas.dto import (
     AgentRunBriefRead,
     AgentRunRead,
+    WorkflowSessionRead,
     DiligenceSessionRead,
     StartAgentRunBody,
     StepReviewChatIn,
@@ -43,6 +44,7 @@ from app.schemas.dto import (
 __all__ = [
     "AgentRunBriefRead",
     "AgentRunRead",
+    "WorkflowSessionRead",
     "DiligenceSessionRead",
     "StartAgentRunBody",
     "StepReviewChatIn",

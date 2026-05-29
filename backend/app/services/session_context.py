@@ -8,7 +8,7 @@ from app.models.entities import AgentRun
 
 
 def build_continuation_context(db: Session, previous_run_id: str) -> dict[str, Any]:
-    """Structured digest from the last completed/failed attempt in a diligence session (for agent prompt)."""
+    """Structured digest from the last completed/failed attempt in a workflow session (for agent prompt)."""
     run = (
         db.query(AgentRun)
         .options(joinedload(AgentRun.steps), joinedload(AgentRun.report))

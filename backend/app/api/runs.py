@@ -14,16 +14,16 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.auth import accessible_engagement_ids, ensure_engagement_access, ensure_engagement_write_access, require_roles
 from app.core.database import get_db
-from app.models.entities import AgentRun, AgentStep, AgentStepChatMessage, DiligenceSession, Engagement, User
+from app.models.entities import AgentRun, AgentStep, AgentStepChatMessage, Engagement, User, WorkflowSession
 from app.schemas import (
     AgentRunBriefRead,
     AgentRunRead,
     AgentStepRead,
-    DiligenceSessionRead,
     StartAgentRunBody,
     StepReviewChatIn,
     StepReviewChatOut,
     StepReviewChatTurnRead,
+    WorkflowSessionRead,
 )
 from app.services.agent_step_output_files import (
     build_output_folder_zip,
@@ -112,26 +112,13 @@ def _ensure_step_for_run(db: Session, user: User, run_id: str, step_id: str) -> 
     return run, step
 
 
-@router.get("/engagements/{engagement_id}/diligence-sessions", response_model=list[DiligenceSessionRead])
-def list_diligence_sessions(
-    engagement_id: str,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "analyst", "viewer")),
-) -> list[DiligenceSessionRead]:
-    ensure_engagement_access(db, user, engagement_id)
-    sessions = (
-        db.query(DiligenceSession)
-        .options(joinedload(DiligenceSession.runs))
-        .filter(DiligenceSession.engagement_id == engagement_id)
-        .order_by(DiligenceSession.created_at.desc())
-        .all()
-    )
-    out: list[DiligenceSessionRead] = []
+def _workflow_session_reads(sessions: list[WorkflowSession]) -> list[WorkflowSessionRead]:
+    out: list[WorkflowSessionRead] = []
     for sess in sessions:
         runs_sorted = sorted(sess.runs, key=lambda r: (r.attempt_index or 1, r.started_at))
         briefs = [AgentRunBriefRead.model_validate(r) for r in runs_sorted]
         out.append(
-            DiligenceSessionRead(
+            WorkflowSessionRead(
                 id=sess.id,
                 engagement_id=sess.engagement_id,
                 status=sess.status,
@@ -141,6 +128,37 @@ def list_diligence_sessions(
             )
         )
     return out
+
+
+@router.get("/engagements/{engagement_id}/workflow-sessions", response_model=list[WorkflowSessionRead])
+def list_workflow_sessions(
+    engagement_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("admin", "analyst", "viewer")),
+) -> list[WorkflowSessionRead]:
+    ensure_engagement_access(db, user, engagement_id)
+    sessions = (
+        db.query(WorkflowSession)
+        .options(joinedload(WorkflowSession.runs))
+        .filter(WorkflowSession.engagement_id == engagement_id)
+        .order_by(WorkflowSession.created_at.desc())
+        .all()
+    )
+    return _workflow_session_reads(sessions)
+
+
+@router.get(
+    "/engagements/{engagement_id}/diligence-sessions",
+    response_model=list[WorkflowSessionRead],
+    deprecated=True,
+    summary="Deprecated alias for /workflow-sessions",
+)
+def list_diligence_sessions(
+    engagement_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("admin", "analyst", "viewer")),
+) -> list[WorkflowSessionRead]:
+    return list_workflow_sessions(engagement_id=engagement_id, db=db, user=user)
 
 
 async def _execute_start_agent_run(
@@ -157,18 +175,18 @@ async def _execute_start_agent_run(
     run_id = f"run_{uuid4().hex[:12]}"
 
     continuation_context: dict | None = None
-    diligence_sess: DiligenceSession
+    workflow_sess: WorkflowSession
     attempt_ix: int
 
     if body.session_mode == "continue":
-        if not body.diligence_session_id:
-            raise HTTPException(status_code=400, detail="diligence_session_id required when session_mode is continue")
-        diligence_sess = db.get(DiligenceSession, body.diligence_session_id)
-        if diligence_sess is None or diligence_sess.engagement_id != engagement.id:
-            raise HTTPException(status_code=404, detail="Diligence session not found for this engagement")
+        if not body.workflow_session_id:
+            raise HTTPException(status_code=400, detail="workflow_session_id required when session_mode is continue")
+        workflow_sess = db.get(WorkflowSession, body.workflow_session_id)
+        if workflow_sess is None or workflow_sess.engagement_id != engagement.id:
+            raise HTTPException(status_code=404, detail="Workflow session not found for this engagement")
         inflight = (
             db.query(AgentRun)
-            .filter(AgentRun.session_id == diligence_sess.id, AgentRun.status == "running")
+            .filter(AgentRun.session_id == workflow_sess.id, AgentRun.status == "running")
             .first()
         )
         if inflight is not None:
@@ -176,17 +194,17 @@ async def _execute_start_agent_run(
                 status_code=409,
                 detail=f"Another attempt is already running for this session ({inflight.id}).",
             )
-        prev_run = latest_attempt_in_session(db, diligence_sess.id)
+        prev_run = latest_attempt_in_session(db, workflow_sess.id)
         if prev_run is None:
             raise HTTPException(status_code=400, detail="Session has no previous attempt to continue from")
         continuation_context = build_continuation_context(db, prev_run.id)
-        attempt_ix = next_attempt_index(db, diligence_sess.id)
-        diligence_sess.updated_at = datetime.utcnow()
-        db.add(diligence_sess)
+        attempt_ix = next_attempt_index(db, workflow_sess.id)
+        workflow_sess.updated_at = datetime.utcnow()
+        db.add(workflow_sess)
         db.flush()
     else:
-        diligence_sess = DiligenceSession(engagement_id=engagement.id)
-        db.add(diligence_sess)
+        workflow_sess = WorkflowSession(engagement_id=engagement.id)
+        db.add(workflow_sess)
         db.flush()
         attempt_ix = 1
 
@@ -194,7 +212,7 @@ async def _execute_start_agent_run(
         db,
         engagement.id,
         run_id,
-        session_id=diligence_sess.id,
+        session_id=workflow_sess.id,
         attempt_index=attempt_ix,
         started_by_user_id=user.id,
     )
@@ -220,7 +238,7 @@ async def _execute_start_agent_run(
         user.id,
         company_dict,
         snapshot_dict,
-        diligence_session_id=diligence_sess.id,
+        workflow_session_id=workflow_sess.id,
         attempt_index=attempt_ix,
         continuation_context=continuation_context,
         pause_after_each_step=pause_gate,
@@ -426,7 +444,7 @@ async def continue_step_gated(
         raise HTTPException(status_code=404, detail="Run not found")
     ensure_engagement_write_access(db, user, row.engagement_id)
     if row.session_id is None:
-        raise HTTPException(status_code=400, detail="Step-gated mode requires diligence session linkage on this run")
+        raise HTTPException(status_code=400, detail="Step-gated mode requires workflow session linkage on this run")
     if row.status != "paused":
         raise HTTPException(status_code=400, detail="Run is not paused for step review")
     conflict = (
@@ -467,7 +485,7 @@ async def continue_step_gated(
         owner_user_id,
         company_merged,
         snapshot,
-        diligence_session_id=sess_id,
+        workflow_session_id=sess_id,
         attempt_index=int(attempt_ix),
         continuation_context=None,
         pause_after_each_step=True,
@@ -605,7 +623,7 @@ async def retry_run(
         raise HTTPException(status_code=404, detail="Run not found")
     retry_body = StartAgentRunBody()
     if run.session_id:
-        retry_body = StartAgentRunBody(session_mode="continue", diligence_session_id=run.session_id)
+        retry_body = StartAgentRunBody(session_mode="continue", workflow_session_id=run.session_id)
     return await _execute_start_agent_run(
         engagement_id=run.engagement_id,
         db=db,

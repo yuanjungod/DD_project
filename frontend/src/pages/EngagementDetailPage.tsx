@@ -10,7 +10,7 @@ import {
   getRun,
   listEngagementRuns,
   listEngagements,
-  listDiligenceSessions,
+  listWorkflowSessions,
   listStepReviewChatTurns,
   listWorkflowTemplates,
   postStepReviewChat,
@@ -26,7 +26,7 @@ import type {
   AgentStep,
   AgentStepOutputFile,
   AgentStepOutputFolder,
-  DiligenceSessionModel,
+  WorkflowSessionModel,
   Engagement,
   StepReviewChatTurn,
   WorkflowTemplate,
@@ -314,7 +314,7 @@ export function EngagementDetailPage({ section = "outputs" }: { section?: Engage
   const [engagement, setEngagement] = useState<Engagement | null>(null);
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([]);
-  const [sessions, setSessions] = useState<DiligenceSessionModel[]>([]);
+  const [sessions, setSessions] = useState<WorkflowSessionModel[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [activeRun, setActiveRun] = useState<AgentRun | null>(null);
   const [error, setError] = useState("");
@@ -333,7 +333,7 @@ export function EngagementDetailPage({ section = "outputs" }: { section?: Engage
     const [engagements, runItems, sessionItems, workflowItems] = await Promise.all([
       listEngagements(),
       listEngagementRuns(engagementId),
-      listDiligenceSessions(engagementId),
+      listWorkflowSessions(engagementId),
       listWorkflowTemplates(),
     ]);
     setEngagement(engagements.find((item) => item.id === engagementId) ?? null);
@@ -456,7 +456,7 @@ export function EngagementDetailPage({ section = "outputs" }: { section?: Engage
     try {
       const base =
         mode === "continue" && selectedSessionId.trim()
-          ? { session_mode: "continue" as const, diligence_session_id: selectedSessionId.trim() }
+          ? { session_mode: "continue" as const, workflow_session_id: selectedSessionId.trim() }
           : { session_mode: "new" as const };
       const started = await startRun(engagementId, {
         ...base,
@@ -545,11 +545,11 @@ export function EngagementDetailPage({ section = "outputs" }: { section?: Engage
       ) : null}
       {section === "outputs" ? (
         <>
-          <div className="run-controls-panel hero-run-controls" aria-label="运行 diligence">
+          <div className="run-controls-panel hero-run-controls" aria-label="运行 workflow">
             <div className="hero-run-controls__primary-row">
               <div className="hero-run-controls__session-field">
                 <span id="run-session-caption" className="muted hero-run-controls__caption">
-                  当前 diligence session
+                  当前 workflow session
                 </span>
                 <select
                   aria-labelledby="run-session-caption"

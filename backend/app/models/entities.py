@@ -33,15 +33,15 @@ class Engagement(Base):
     access_entries: Mapped[list["EngagementAccess"]] = relationship(
         back_populates="engagement", cascade="all, delete-orphan"
     )
-    diligence_sessions: Mapped[list["DiligenceSession"]] = relationship(
+    workflow_sessions: Mapped[list["WorkflowSession"]] = relationship(
         back_populates="engagement", cascade="all, delete-orphan"
     )
 
 
-class DiligenceSession(Base):
-    """One product-level diligence session: may contain multiple run attempts (AgentRun)."""
+class WorkflowSession(Base):
+    """One product-level workflow session: may contain multiple run attempts (AgentRun)."""
 
-    __tablename__ = "diligence_sessions"
+    __tablename__ = "workflow_sessions"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("sess"))
     engagement_id: Mapped[str] = mapped_column(ForeignKey("engagements.id"), nullable=False)
@@ -49,8 +49,11 @@ class DiligenceSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    engagement: Mapped["Engagement"] = relationship(back_populates="diligence_sessions")
-    runs: Mapped[list["AgentRun"]] = relationship(back_populates="diligence_session")
+    engagement: Mapped["Engagement"] = relationship(back_populates="workflow_sessions")
+    runs: Mapped[list["AgentRun"]] = relationship(back_populates="workflow_session")
+
+
+DiligenceSession = WorkflowSession
 
 
 class User(Base):
@@ -88,7 +91,7 @@ class AgentRun(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     engagement_id: Mapped[str] = mapped_column(ForeignKey("engagements.id"), nullable=False)
     started_by_user_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id"), nullable=True)
-    session_id: Mapped[str | None] = mapped_column(String, ForeignKey("diligence_sessions.id"), nullable=True)
+    session_id: Mapped[str | None] = mapped_column(String, ForeignKey("workflow_sessions.id"), nullable=True)
     attempt_index: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -96,7 +99,7 @@ class AgentRun(Base):
     raw_result: Mapped[dict] = mapped_column(JSON, default=dict)
 
     engagement: Mapped[Engagement] = relationship(back_populates="runs")
-    diligence_session: Mapped["DiligenceSession | None"] = relationship(back_populates="runs")
+    workflow_session: Mapped["WorkflowSession | None"] = relationship(back_populates="runs")
     steps: Mapped[list["AgentStep"]] = relationship(back_populates="run", cascade="all, delete-orphan")
     report: Mapped["Report | None"] = relationship(back_populates="run", cascade="all, delete-orphan")
 

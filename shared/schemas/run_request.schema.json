@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://dd-platform.local/schemas/run_request.schema.json",
+  "$id": "https://harness-platform.local/schemas/run_request.schema.json",
   "title": "RunRequest",
   "type": "object",
   "required": ["engagement_id", "user_id", "company_config"],
@@ -10,7 +10,12 @@
     "company_config": { "$ref": "company_config.schema.json" },
     "workflow_snapshot": { "$ref": "workflow_snapshot.schema.json" },
     "run_id": { "type": "string" },
-    "diligence_session_id": { "type": "string" },
+    "workflow_session_id": { "type": "string" },
+    "diligence_session_id": {
+      "type": "string",
+      "deprecated": true,
+      "description": "Deprecated alias for workflow_session_id."
+    },
     "attempt_index": { "type": "integer" },
     "continuation_context": { "type": "object" },
     "pause_after_each_step": { "type": "boolean" },

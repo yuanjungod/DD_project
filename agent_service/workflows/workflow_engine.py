@@ -17,6 +17,7 @@ from agent_service.api.schemas import (
 )
 from agent_service.callback_client import notify_run_progress
 from agent_service.session_history import build_session_recorder, open_session_recorder_for_resume
+from shared.session_fields import dual_write_session_id_fields
 from agent_service.workflows.agent_outputs import agent_step_output_dir, ensure_step_output_handoff
 from agent_service.workflows.config_loader import AgentDefinition, WorkflowDefinition
 from agent_service.workflows.graph_order import (
@@ -58,6 +59,7 @@ class WorkflowEngine:
         run_id_override: str | None = None,
         *,
         user_id: str,
+        workflow_session_id: str | None = None,
         diligence_session_id: str | None = None,
         attempt_index: int | None = None,
         continuation_context: dict[str, Any] | None = None,
@@ -102,14 +104,15 @@ class WorkflowEngine:
         if not user_id.strip():
             raise ValueError("user_id is required")
         safe_user_id = user_id.strip()
-        safe_session_id = (diligence_session_id or run_id).strip()
+        resolved_session_id = (workflow_session_id or diligence_session_id or "").strip() or None
+        safe_session_id = (resolved_session_id or run_id).strip()
 
         recorder: object
         start_payload = {
             "run_id": run_id,
             "user_id": safe_user_id,
             "engagement_id": engagement_id,
-            "diligence_session_id": diligence_session_id,
+            **dual_write_session_id_fields(resolved_session_id),
             "attempt_index": attempt_index,
             "company_config": company_config.model_dump(mode="json"),
             "workflow_meta": self._workflow_session_meta(workflow_snapshot, workflow),

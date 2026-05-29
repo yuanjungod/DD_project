@@ -72,7 +72,24 @@ def ensure_schema_patches(engine) -> None:
 
     inspector = inspect(engine)
     with engine.begin() as conn:
-        for table in ("agent_runs", "reports", "diligence_sessions", "engagement_access"):
+        tables = set(inspector.get_table_names())
+        if "diligence_sessions" in tables and "workflow_sessions" in tables:
+            legacy_count = conn.execute(text("SELECT COUNT(*) FROM diligence_sessions")).scalar_one()
+            harness_count = conn.execute(text("SELECT COUNT(*) FROM workflow_sessions")).scalar_one()
+            if legacy_count and not harness_count:
+                conn.execute(text("DROP TABLE workflow_sessions"))
+                conn.execute(text("ALTER TABLE diligence_sessions RENAME TO workflow_sessions"))
+            elif not legacy_count and harness_count:
+                conn.execute(text("DROP TABLE diligence_sessions"))
+            tables.discard("diligence_sessions")
+        elif "diligence_sessions" in tables and "workflow_sessions" not in tables:
+            conn.execute(text("ALTER TABLE diligence_sessions RENAME TO workflow_sessions"))
+            tables.discard("diligence_sessions")
+            tables.add("workflow_sessions")
+
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        for table in ("agent_runs", "reports", "workflow_sessions", "diligence_sessions", "engagement_access"):
             _rename_column_if_needed(conn, inspector, table, "project_id", "engagement_id")
 
     inspector = inspect(engine)

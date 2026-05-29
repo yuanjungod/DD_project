@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from shared.session_fields import coalesce_workflow_session_id
 
 
 RunStatus = Literal["pending", "running", "completed", "failed", "paused"]
@@ -71,11 +73,16 @@ class RunRequest(BaseModel):
         default=None,
         description="Optional id to correlate with backend-persisted AgentRun.",
     )
+    workflow_session_id: str | None = Field(
+        default=None,
+        description="Product workflow session container (pairs with backend WorkflowSession).",
+    )
     diligence_session_id: str | None = Field(
         default=None,
-        description="Product diligence session container (pairs with backend DiligenceSession).",
+        deprecated=True,
+        description="Deprecated alias for workflow_session_id.",
     )
-    attempt_index: int | None = Field(default=None, description="1-based attempt number within diligence_session_id.")
+    attempt_index: int | None = Field(default=None, description="1-based attempt number within workflow_session_id.")
     continuation_context: dict[str, Any] | None = Field(
         default=None,
         description="Digest from the previous attempt in this session; injected into the first agent prompt.",
@@ -90,6 +97,19 @@ class RunRequest(BaseModel):
         description="Skip the first N agents; pass completed_steps of length N when resuming.",
     )
     completed_steps: list[AgentStep] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coalesce_session_id(cls, data: object) -> object:
+        if isinstance(data, dict):
+            resolved = coalesce_workflow_session_id(data)
+            if resolved:
+                data["workflow_session_id"] = resolved
+        return data
+
+    @property
+    def resolved_workflow_session_id(self) -> str | None:
+        return self.workflow_session_id
 
 
 class RunResult(BaseModel):

@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 
 from app.core.config import settings
+from shared.session_fields import dual_write_session_id_fields
 
 
 class AgentServiceError(RuntimeError):
@@ -25,6 +26,7 @@ class AgentServiceClient:
         *,
         user_id: str,
         client_run_id: str | None = None,
+        workflow_session_id: str | None = None,
         diligence_session_id: str | None = None,
         attempt_index: int | None = None,
         continuation_context: dict | None = None,
@@ -42,8 +44,9 @@ class AgentServiceClient:
         }
         if client_run_id:
             payload["run_id"] = client_run_id
-        if diligence_session_id:
-            payload["diligence_session_id"] = diligence_session_id
+        session_id = (workflow_session_id or diligence_session_id or "").strip() or None
+        if session_id:
+            payload.update(dual_write_session_id_fields(session_id))
         if attempt_index is not None:
             payload["attempt_index"] = attempt_index
         if continuation_context is not None:

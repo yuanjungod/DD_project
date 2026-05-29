@@ -450,17 +450,32 @@ def utc_datetime_to_iso_z(v: datetime) -> str:
 
 
 class StartAgentRunBody(BaseModel):
-    """Start a full-chain agent run attached to a diligence session."""
+    """Start a full-chain agent run attached to a workflow session."""
 
     session_mode: Literal["new", "continue"] = "new"
-    diligence_session_id: str | None = Field(
+    workflow_session_id: str | None = Field(
         default=None,
         description="Existing session id; required when session_mode is continue",
+    )
+    diligence_session_id: str | None = Field(
+        default=None,
+        deprecated="Use workflow_session_id instead.",
+        description="Deprecated alias for workflow_session_id.",
     )
     interaction_mode: Literal["batch", "step_gated"] = Field(
         default="batch",
         description="step_gated pauses after each agent for human chat + continue",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coalesce_session_id(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            primary = str(data.get("workflow_session_id") or "").strip()
+            legacy = str(data.get("diligence_session_id") or "").strip()
+            resolved = primary or legacy or None
+            data["workflow_session_id"] = resolved
+        return data
 
 
 class StepReviewChatTurnRead(BaseModel):
@@ -501,7 +516,7 @@ class AgentRunBriefRead(BaseModel):
         return utc_datetime_to_iso_z(v)
 
 
-class DiligenceSessionRead(BaseModel):
+class WorkflowSessionRead(BaseModel):
     id: str
     engagement_id: str
     status: str
@@ -518,6 +533,9 @@ class DiligenceSessionRead(BaseModel):
     @field_serializer("updated_at", when_used="json")
     def _serialize_updated_at(self, v: datetime) -> str:
         return utc_datetime_to_iso_z(v)
+
+
+DiligenceSessionRead = WorkflowSessionRead
 
 
 class AgentRunRead(BaseModel):
