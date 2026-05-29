@@ -31,6 +31,10 @@ import type { AgentTemplate, PublishedWorkflowTemplate, WorkflowGraph, WorkflowT
 
 type HubTab = "templates" | "builder" | "agents";
 type BuilderSubTab = "create" | "agents" | "saved";
+const DEFAULT_DOCKER_IDLE_TTL_MINUTES = 20;
+const MIN_DOCKER_IDLE_TTL_MINUTES = 1;
+const MAX_DOCKER_IDLE_TTL_MINUTES = 24 * 60;
+
 const PROTECTED_WORKFLOW_TEMPLATE_IDS = new Set([
   "standard_due_diligence",
   "financial_investment_due_diligence",
@@ -70,6 +74,7 @@ export function WorkflowsHubPage() {
     description: "",
     workflow_template: "custom",
     command_execution: "host" as "host" | "docker",
+    idle_ttl_minutes: DEFAULT_DOCKER_IDLE_TTL_MINUTES,
   });
   const [workflowGraph, setWorkflowGraph] = useState<WorkflowGraph>(createEmptyWorkflowGraph());
   const [editingWorkflowId, setEditingWorkflowId] = useState<string | null>(null);
@@ -109,7 +114,14 @@ export function WorkflowsHubPage() {
 
   function resetWorkflowForm() {
     setEditingWorkflowId(null);
-    setForm({ id: "", name: "", description: "", workflow_template: "custom", command_execution: "host" });
+    setForm({
+      id: "",
+      name: "",
+      description: "",
+      workflow_template: "custom",
+      command_execution: "host",
+      idle_ttl_minutes: DEFAULT_DOCKER_IDLE_TTL_MINUTES,
+    });
     setWorkflowGraph(createEmptyWorkflowGraph());
   }
 
@@ -121,6 +133,9 @@ export function WorkflowsHubPage() {
       description: workflow.description,
       workflow_template: workflow.workflow_template,
       command_execution: workflow.runtime?.command_execution === "docker" ? "docker" : "host",
+      idle_ttl_minutes: Math.round(
+        (workflow.runtime?.docker?.idle_ttl_seconds ?? DEFAULT_DOCKER_IDLE_TTL_MINUTES * 60) / 60,
+      ),
     });
     setWorkflowGraph(workflow.graph ?? createEmptyWorkflowGraph());
     setBuilderSubTab("create");
@@ -140,6 +155,10 @@ export function WorkflowsHubPage() {
         }
         throw err;
       }
+      const idleMinutes = Math.min(
+        MAX_DOCKER_IDLE_TTL_MINUTES,
+        Math.max(MIN_DOCKER_IDLE_TTL_MINUTES, Math.round(form.idle_ttl_minutes) || DEFAULT_DOCKER_IDLE_TTL_MINUTES),
+      );
       const payload = {
         name: form.name,
         description: form.description,
@@ -149,7 +168,7 @@ export function WorkflowsHubPage() {
           command_execution: form.command_execution,
           docker: {
             image: "harness-exec:0.1.0",
-            idle_ttl_seconds: 3600,
+            idle_ttl_seconds: idleMinutes * 60,
             workspace_mount: "workflow_tree",
           },
         },
@@ -443,6 +462,27 @@ export function WorkflowsHubPage() {
                               </span>
                             </button>
                           </div>
+                          {form.command_execution === "docker" ? (
+                            <label className="workflow-field workflow-field--inline">
+                              <span className="workflow-field__label">空闲自动停止（分钟）</span>
+                              <input
+                                type="number"
+                                min={MIN_DOCKER_IDLE_TTL_MINUTES}
+                                max={MAX_DOCKER_IDLE_TTL_MINUTES}
+                                step={1}
+                                value={form.idle_ttl_minutes}
+                                onChange={(event) =>
+                                  setForm({
+                                    ...form,
+                                    idle_ttl_minutes: Number(event.target.value) || DEFAULT_DOCKER_IDLE_TTL_MINUTES,
+                                  })
+                                }
+                              />
+                              <span className="workflow-field__hint">
+                                无 Shell/Python/读文件活动超过该时间后，agent_service 将停止对应执行容器（至少 1 分钟）。
+                              </span>
+                            </label>
+                          ) : null}
                           <p className="workflow-field__hint">
                             Docker 模式需预先构建镜像{" "}
                             <code className="workflow-inline-code">harness-exec:0.1.0</code>

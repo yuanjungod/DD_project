@@ -17,6 +17,7 @@ from agent_service.workflows.config_loader import (
     load_workflow_template_catalog,
     load_tool_config,
 )
+from agent_service.execution.idle_sweeper import start_idle_container_sweeper, stop_idle_container_sweeper
 from agent_service.workflows.workflow_engine import WorkflowEngine
 
 
@@ -28,6 +29,12 @@ _require_agent_key = [Depends(require_agent_api_key)]
 @app.on_event("startup")
 def startup() -> None:
     initialize_agentscope()
+    start_idle_container_sweeper()
+
+
+@app.on_event("shutdown")
+def shutdown() -> None:
+    stop_idle_container_sweeper()
 
 
 @app.get("/health")

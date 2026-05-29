@@ -51,6 +51,7 @@ When a workflow template sets `runtime.command_execution: docker` (see [ADR-0011
 3. Each `user_id` + `workflow_template_id` gets a long-lived `harness-exec-*` container with a single bind mount:  
    `.harness_project/users/{user_id}/workflows/{workflow_template_id}` → `/workspace/workflow`
 4. LLM / ReAct stay in the host process; `execute_shell_command`, `execute_python_code`, and `view_text_file` run inside the container via `docker exec`.
+5. Idle containers are stopped automatically after `runtime.docker.idle_ttl_seconds` (default **1200** / 20 minutes) with no tool activity. Configure per template in the workflow builder or YAML (minimum 60 seconds).
 
 Docker socket access is privileged—use only on trusted single-tenant hosts.
 

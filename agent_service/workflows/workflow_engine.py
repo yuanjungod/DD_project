@@ -7,7 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 from agent_service.agents.runner import ConfiguredAgentRunner
-from agent_service.execution.container_manager import ContainerManager
+from agent_service.execution.container_manager import get_container_manager
 from agent_service.execution.context import build_run_execution_context
 from agent_service.api.schemas import (
     AgentResult,
@@ -52,7 +52,7 @@ class WorkflowEngine:
             session_id=str(payload.resolved_workflow_session_id or payload.engagement_id or "review"),
         )
         if execution_context.is_docker:
-            ContainerManager().ensure_container(execution_context)
+            get_container_manager().ensure_container(execution_context)
         runner = ConfiguredAgentRunner(definition, execution_context=execution_context)
         cur = payload.current_step
         reply = runner.run_step_review_chat(
@@ -129,9 +129,8 @@ class WorkflowEngine:
             engagement_id=engagement_id,
             session_id=safe_session_id,
         )
-        container_manager = ContainerManager()
         if execution_context.is_docker:
-            container_manager.ensure_container(execution_context)
+            get_container_manager().ensure_container(execution_context)
 
         recorder: object
         start_payload = {

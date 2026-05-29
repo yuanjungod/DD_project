@@ -84,7 +84,7 @@ def _normalize_bundle(doc: dict[str, Any]) -> dict[str, Any]:
     wf.setdefault("status", "draft")
     wf.setdefault("version", 1)
     if not isinstance(wf.get("runtime"), dict):
-        wf["runtime"] = {"command_execution": "host", "docker": {"image": "harness-exec:0.1.0", "idle_ttl_seconds": 3600}}
+        wf["runtime"] = {"command_execution": "host", "docker": {"image": "harness-exec:0.1.0", "idle_ttl_seconds": 1200}}
     if "graph" not in wf or not wf["graph"]:
         raise HTTPException(status_code=400, detail="Workflow missing graph")
     if "id" not in wf or not wf["id"]:

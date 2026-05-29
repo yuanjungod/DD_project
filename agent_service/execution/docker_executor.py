@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_service.execution.context import RunExecutionContext
-from agent_service.execution.container_manager import ContainerManager
+from agent_service.execution.container_manager import ContainerManager, get_container_manager
 from agent_service.execution.path_translator import CONTAINER_WORKFLOW_ROOT
 
 DEFAULT_TIMEOUT_SECONDS = 300
@@ -22,7 +22,7 @@ class DockerExecutor:
         container_manager: ContainerManager | None = None,
     ) -> None:
         self.ctx = ctx
-        self.container_manager = container_manager or ContainerManager()
+        self.container_manager = container_manager or get_container_manager()
         self.container_manager.ensure_container(ctx)
 
     def execute_shell(self, command: str, *, timeout: int = DEFAULT_TIMEOUT_SECONDS) -> dict[str, Any]:

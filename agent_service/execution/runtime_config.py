@@ -6,7 +6,7 @@ from typing import Any, Literal
 CommandExecutionMode = Literal["host", "docker"]
 
 DEFAULT_EXEC_IMAGE = "harness-exec:0.1.0"
-DEFAULT_IDLE_TTL_SECONDS = 3600
+DEFAULT_IDLE_TTL_SECONDS = 20 * 60  # 20 minutes
 
 
 @dataclass(frozen=True)

@@ -12,6 +12,7 @@ Harness runs `agent_service` on the host. Agents use AgentScope built-ins (`exec
 
 - Add `workflow.runtime.command_execution`: `host` (default) or `docker`.
 - One long-lived container per **`user_id` + `workflow_template_id`**, named `harness-exec-{user}-{template}`.
+- **Idle auto-stop:** if no command/file activity for `workflow.runtime.docker.idle_ttl_seconds` (default **1200** = 20 minutes), `agent_service` stops the container. A background sweeper runs every 60s; activity is also checked on each `ensure_container` / `docker exec`.
 - Bind mount only the workflow tree:  
   `.harness_project/users/{user_id}/workflows/{workflow_template_id}` → `/workspace/workflow`.
 - Image **`harness-exec:0.1.0`** (`docker/harness-exec/Dockerfile`): Python 3.12 slim + bash/coreutils; no AgentScope/LLM.
