@@ -6,7 +6,7 @@ Accepted (2026-05-29)
 
 ## Context
 
-The database and API expose a `Report` entity. The agent workflow currently produces per-step handoff folders (`README.md`, `result.json`) but does not return a top-level `report` field in `RunResult`.
+The database and API expose a `Report` entity. The agent workflow produces per-step handoff folders (at minimum platform-managed `README.md`; agents may add other files such as optional `result.json`) but does not return a top-level `report` field in `RunResult`.
 
 ## Decision
 

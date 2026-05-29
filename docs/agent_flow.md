@@ -43,7 +43,11 @@ The agent service writes a **session JSON** for each `POST /runs` (on by default
 
 `.harness_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<run_id>.json`
 
-Step outputs live under the same session branch in `runs/outputs/{run_id}_outputs/{step}_{agent}/`.
+Step outputs live under the same session branch:
+
+`runs/outputs/{run_id}_outputs/{run_id}_step_{NNN}_{agent_name}/`
+
+Each agent step has **its own folder** (not a single shared `outputs/` directory). See **[run_outputs.md](run_outputs.md)** for layout, handoff, and multi-agent rules.
 
 Each agent template can bind:
 
@@ -78,7 +82,7 @@ Default model config:
 }
 ```
 
-When the workflow graph comes from the snapshot, agent identifiers follow the resolved **linear node order** (see [ADR-0005](adr/0005-linear-workflow-graph.md)). The diagram below illustrates logical roles in the standard template, not parallel runtime execution.
+When the workflow graph comes from the snapshot, agents execute by **DAG level** (`shared/workflow_graph.resolve_graph_execution_levels`): nodes at the same depth may run **in parallel**; within one node, master then `sub_agent_template_ids` run sequentially. The diagram below illustrates logical roles in the standard due-diligence template (mostly a chain); it is not a guarantee of strict serial runtime when the graph has parallel branches.
 
 ```mermaid
 flowchart LR
@@ -104,3 +108,14 @@ The **frontend workbench polls** the run (`GET /runs/{id}`) while status is `run
 ## Tool Groups
 
 Every ReAct agent receives AgentScope built-ins: `view_text_file`, `execute_python_code`, and `execute_shell_command`. Prior-agent handoff folders are listed in the run prompt (`previous_agent_output_folders`) with README text inlined (`previous_agent_handoff_readmes`). Add platform-specific catalog tools in `agent_service/configs/tools.yaml` when needed.
+
+### Command execution: host vs Docker
+
+Workflow templates may set `workflow.runtime.command_execution`:
+
+| Mode | Shell / Python / read file | LLM / ReAct |
+| --- | --- | --- |
+| `host` (default) | Same process as `agent_service` | Host |
+| `docker` | Per `user_id` + `workflow_template_id` container via `docker exec` | Host |
+
+Docker mode bind-mounts `.harness_project/users/{user_id}/workflows/{workflow_template_id}/` → `/workspace/workflow`. Idle containers stop after `runtime.docker.idle_ttl_seconds` (default **1200**). See [ADR-0011](adr/0011-workflow-docker-execution.md) and [deployment.md](deployment.md).

@@ -68,7 +68,7 @@ catalog/
             shared/skills/{directory_name}/
             sessions/{session_id}/runs/
               {run_id}.json
-              outputs/{run_id}_outputs/{step}_{agent}/
+              outputs/{run_id}_outputs/{run_id}_step_{NNN}_{agent}/
   data/platform/                             # sqlite/db + platform-level overlays/uploads
   channels/                                  # reserved
 ```
@@ -88,7 +88,7 @@ catalog/workflow_templates/{workflow_template_id}/ # built-in workflow templates
 
 .harness_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/
   {run_id}.json
-  outputs/{run_id}_outputs/{step}_{agent}/
+  outputs/{run_id}_outputs/{run_id}_step_{NNN}_{agent}/
 ```
 
 Built-in workflow templates and user-created workflow templates only store templates (`workflow_template.yaml` + `agents/`). Runtime run/session artifacts are centralized under **`.harness_project/users/{user}/{workflow}/{engagement}/sessions/.../runs/`**.
@@ -179,7 +179,22 @@ Workflow graph nodes support both flat and hierarchical execution definitions:
 - Flat (existing): `agent_template_id: CoordinatorAgent`
 - Master/Sub (new): `agent_template_id: CoordinatorAgent`, `sub_agent_template_ids: [CompanyProfileAgent, WebResearchAgent]`
 
-Execution order stays graph-driven by node order; within one node, the `agent_template_id` (master) runs first, then each `sub_agent_template_ids` entry in list order.
+Execution order is **graph-driven by DAG level** (`resolve_graph_execution_levels`): all nodes in a level may run concurrently; within one node, the `agent_template_id` (master) runs first, then each `sub_agent_template_ids` entry in list order.
+
+### Workflow runtime (host vs Docker)
+
+Optional block on `workflow_template.yaml` / snapshot `workflow.runtime`:
+
+```yaml
+runtime:
+  command_execution: host   # or docker
+  docker:
+    image: harness-exec:0.1.0
+    idle_ttl_seconds: 1200   # default 20 minutes; minimum 60
+    workspace_mount: workflow_tree
+```
+
+When `command_execution: docker`, only the three AgentScope file/shell builtins run inside the execution container; LLM calls stay on the host. See [ADR-0011](adr/0011-workflow-docker-execution.md).
 
 ## Run and time fields
 
@@ -196,7 +211,7 @@ Execution order stays graph-driven by node order; within one node, the `agent_te
 }
 ```
 
-Each completed agent step also writes a filesystem handoff folder next to the run session JSON. The folder contains **`README.md`** (step metadata) and **`result.json`** (structured `AgentResult`). Downstream agents receive prior folder paths in `previous_agent_output_folders`, with README text inlined in `previous_agent_handoff_readmes`; they read further files via AgentScope `view_text_file`.
+Each completed agent step gets a dedicated filesystem handoff folder (see [run_outputs.md](run_outputs.md)). The platform ensures **`README.md`** exists (placeholder or agent-written summary). Agents may add any other files under that folder; **`result.json`** is optional and is not written automatically by the platform. Downstream agents receive prior folder paths in `previous_agent_output_folders`, with README text inlined in `previous_agent_handoff_readmes`; they read further files via AgentScope `view_text_file`.
 
 ## Report Section
 

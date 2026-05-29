@@ -34,7 +34,7 @@ Canonical layout: [docs/adr/0003-users-workflows-storage-layout.md](adr/0003-use
               {session_id}/
                 runs/
                   {run_id}.json
-                  outputs/{run_id}_outputs/{step}_{agent}/...
+                  outputs/{run_id}_outputs/{run_id}_step_{NNN}_{agent}/...
   data/
     platform/
       harness_platform.db
@@ -56,7 +56,7 @@ Canonical layout: [docs/adr/0003-users-workflows-storage-layout.md](adr/0003-use
 
 - `users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/`
   - Session-scoped run records and step outputs.
-  - One `run_id.json` per run, plus corresponding `outputs/`.
+  - One `{run_id}.json` per run, plus `outputs/{run_id}_outputs/` containing **one subdirectory per agent step** (`{run_id}_step_{NNN}_{agent_name}/`). Multi-agent runs do not share a single flat output folder. Details: **[run_outputs.md](run_outputs.md)**.
 
 - `users/{user_id}/workflows/{workflow_template_id}/` (template draft only, no `{engagement_id}` sibling)
   - User-owned workflow templates (`workflow_template.yaml` + `agents/`).

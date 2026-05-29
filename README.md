@@ -65,7 +65,7 @@ Preferred runtime root is **`.harness_project/`** (see ADR-0008). Legacy **`.dd_
               skills/{directory_name}/
             sessions/{session_id}/runs/
               {run_id}.json
-              outputs/{run_id}_outputs/{step}_{agent}/
+              outputs/{run_id}_outputs/{run_id}_step_{NNN}_{agent}/
   data/platform/                        # SQLite, platform overlays, library uploads
   channels/                             # Reserved for channel mapping expansion
 ```
@@ -87,6 +87,7 @@ The script copies the runtime tree into `.harness_project/` and renames `dd_plat
 - **[docs/architecture.md](docs/architecture.md)** — services, async run lifecycle, incremental callbacks, ports, Vite `/api` proxy.
 - **[docs/agent_flow.md](docs/agent_flow.md)** — agents, workflow snapshots, `run_id` handoff, observability.
 - **[docs/config_schema.md](docs/config_schema.md)** — JSON shapes, environment variables, UTC timestamps for runs.
+- **[docs/run_outputs.md](docs/run_outputs.md)** — per-step output folders and multi-agent handoff layout.
 - **[docs/deployment.md](docs/deployment.md)** — Docker Compose and environment setup.
 - **[docs/adr/README.md](docs/adr/README.md)** — architecture decision records.
 - **[catalog/README.md](catalog/README.md)** — built-in template catalog layout.
@@ -126,7 +127,7 @@ Writable runtime data defaults to `.harness_project/data/` from the repository r
 - Engagement-local copied skills: `.harness_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/shared/skills/<directory_name>`.
 - Platform uploads (binary blobs): `.harness_project/data/platform/uploads/<file_id>`.
 - Platform upload manifest: `.harness_project/data/platform/uploads_manifest.json`.
-- Agent run sessions and per-step outputs: `.harness_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<run_id>.json` and `.../runs/outputs/{run_id}_outputs/...`.
+- Agent run sessions and per-step outputs: `.harness_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<run_id>.json` and `.../runs/outputs/{run_id}_outputs/{run_id}_step_{NNN}_{agent}/` (one folder per agent step; see [docs/run_outputs.md](docs/run_outputs.md)).
 - Engagement runtime config home: `.harness_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/meta/agent_overrides.json`.
 
 Set `HARNESS_DATA_ROOT` to move all writable file data together.
@@ -171,4 +172,7 @@ python -m unittest agent_service/tools/test_registry.py
 
 # Backend tests (from repo root)
 python -m unittest discover -s backend/tests -p 'test_*.py'
+
+# Agent execution / Docker idle prune (from repo root)
+python -m pytest agent_service/tests/test_container_manager_idle.py agent_service/tests/test_execution_router.py -q
 ```

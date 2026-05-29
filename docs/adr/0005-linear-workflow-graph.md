@@ -2,20 +2,25 @@
 
 ## Status
 
-Accepted (2026-05-29)
+**Superseded** (2026-05-29) — runtime now executes **DAG levels** with parallelism within each level (`WorkflowEngine` + `shared/workflow_graph.py`). Kept for historical context.
 
 ## Context
 
-Architecture diagrams show coordinator fan-out to parallel research agents. The execution engine in `shared/workflow_graph.py` and **`WorkflowEngine`** resolve **DAG execution levels** from `entry_node` and `edges` (see ADR-0008; linear MVP described here is superseded).
+Early MVP documentation described strictly sequential execution. The platform later added level-based DAG execution so independent branches at the same depth can run concurrently.
 
-## Decision
+## Decision (historical)
 
-- MVP execution is **strictly sequential** along the resolved graph order.
-- Master/sub-agent within one node (`sub_agent_template_ids`) runs master first, then subs in list order.
-- Parallel graph branches (fan-out/fan-in) are **not** implemented in the current engine.
+- Original MVP was sequential along resolved graph order only.
+- Parallel fan-out was deferred.
+
+## Current behavior (supersedes this ADR)
+
+- **`resolve_graph_execution_levels`** builds topological levels from `entry_node` and `edges`.
+- **`WorkflowEngine`** runs all nodes in a level concurrently (thread pool), then advances to the next level.
+- Within one graph node, **`agent_template_id`** (master) runs first, then each **`sub_agent_template_ids`** entry in list order.
+- Handoff to downstream nodes uses completed predecessor **`AgentResult`** rows (`output_dir`, README).
 
 ## Consequences
 
-- Documentation and diagrams must distinguish template topology from runtime parallelism.
-- Workflow templates should use a linear chain (or sequential nodes) for correct ordering.
-- Fan-out parallelism requires a future ADR and engine changes to `resolve_graph_node_ids`.
+- Diagrams that show only a single chain are illustrative; templates may use parallel branches when edges permit.
+- Ordering within a node (master → subs) is unchanged.

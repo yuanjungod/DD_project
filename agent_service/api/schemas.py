@@ -50,7 +50,7 @@ class AgentResult(BaseModel):
     status: RunStatus
     output_dir: str = Field(
         default="",
-        description="Filesystem handoff folder for this agent step. Contains README.md and result.json.",
+        description="Filesystem handoff folder for this agent step (README.md plus agent-written files).",
     )
     output_readme_path: str = Field(default="", description="README.md inside output_dir.")
 

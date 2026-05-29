@@ -16,7 +16,7 @@ Harness runs `agent_service` on the host. Agents use AgentScope built-ins (`exec
 - Bind mount only the workflow tree:  
   `.harness_project/users/{user_id}/workflows/{workflow_template_id}` → `/workspace/workflow`.
 - Image **`harness-exec:0.1.0`** (`docker/harness-exec/Dockerfile`): Python 3.12 slim + bash/coreutils; no AgentScope/LLM.
-- Host `agent_service` uses Docker Engine API + `docker exec` for shell, Python, and file reads under the mount.
+- Host `agent_service` uses the **Docker CLI** (`docker run` / `docker exec`; no Python `docker` SDK required) for shell, Python, and file reads under the mount.
 - `ReActAgent` and model calls remain on the host; only the three builtins are wrapped in docker mode.
 - Catalog `ToolRegistry` tools stay on the host in phase 1.
 

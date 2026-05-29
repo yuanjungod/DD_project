@@ -32,6 +32,9 @@ Reusable process definition (`workflow_template_id`) with graph and agent templa
 **WorkflowEngine**:
 Graph orchestration runtime in `agent_service/workflows/workflow_engine.py` (executes agents by DAG levels, parallel within a level).
 
+**Step output folder**:
+Per-agent directory under `sessions/.../runs/outputs/{run_id}_outputs/{run_id}_step_{NNN}_{agent_name}/` with platform `README.md` handoff. See [docs/run_outputs.md](docs/run_outputs.md).
+
 See [docs/adr/0008-harness-platform-rename.md](docs/adr/0008-harness-platform-rename.md) for platform rename decisions.
 
 ## Naming: platform vs due-diligence templates

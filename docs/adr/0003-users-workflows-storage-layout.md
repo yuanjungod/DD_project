@@ -10,14 +10,14 @@ Accepted
 
 Earlier documentation described engagement state under `.dd_project/projects/{engagement_id}/`. Runtime code resolves paths via `engagement_index.json` and the tree:
 
-`.dd_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/`
+`.harness_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/`
 
 ## Decision
 
 Canonical layout:
 
 ```text
-.dd_project/
+.harness_project/
   engagement_index.json
   users/
     {user_id}/
@@ -31,12 +31,16 @@ Canonical layout:
             shared/{resources,uploads,skills,resource_configs}/
             sessions/{session_id}/runs/
               {run_id}.json
-              outputs/{run_id}_outputs/{step}_{agent}/
+              outputs/
+                {run_id}_outputs/
+                  {run_id}_step_{NNN}_{agent_name}/   # one folder per agent step
+                    README.md
+                    …                                 # agent-written artifacts
   data/platform/                          # SQLite, platform overlays, library uploads
   channels/                               # reserved
 ```
 
-The legacy `.dd_project/projects/` tree is **not** used by current code.
+The legacy `.dd_project/projects/` tree and repo-root `.dd_project/users/...` paths are **not** read by current code (migrate with `scripts/migrate_dd_project_to_harness_project.py`).
 
 ## Consequences
 

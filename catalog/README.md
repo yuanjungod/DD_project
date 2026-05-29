@@ -64,7 +64,7 @@ Each workflow template directory represents one workflow template:
 Important boundary:
 
 - This folder is template configuration only.
-- Runtime runs/outputs are stored under `.harness_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/`, not here.
+- Runtime runs/outputs are stored under `.harness_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/` (`outputs/{run_id}_outputs/{run_id}_step_{NNN}_{agent}/` per step), not here. See [docs/run_outputs.md](../docs/run_outputs.md).
 
 ### `resource_configs/`
 

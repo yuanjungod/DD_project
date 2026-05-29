@@ -89,7 +89,7 @@ flowchart TD
   LevelN --> Respond[HTTP_RunResult]
 ```
 
-ReAct agents use AgentScope built-in file and code execution tools; optional platform catalog tools extend the same `ToolRegistry` interface when listed in `tools.yaml`.
+ReAct agents use AgentScope built-in file and code execution tools; optional platform catalog tools extend the same `ToolRegistry` interface when listed in `tools.yaml`. Templates may set `workflow.runtime.command_execution: docker` so shell/Python/file reads run in a per-user workflow container while the model stays on the host ([ADR-0011](adr/0011-workflow-docker-execution.md)). Per-step artifacts are written under `sessions/.../runs/outputs/{run_id}_outputs/{run_id}_step_{NNN}_{agent}/` ([run_outputs.md](run_outputs.md)).
 
 ### Frontend
 
