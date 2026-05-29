@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import logging
+
 from app.core.database import SessionLocal
 from app.services.agent_client import AgentServiceClient
 from app.services.persistence import finalize_agent_run, mark_agent_run_failed
+
+logger = logging.getLogger(__name__)
 
 
 async def dispatch_agent_background(
     engagement_id: str,
     run_id: str,
     user_id: str,
-    company_config: dict,
+    instance_config: dict,
     workflow_snapshot: dict,
     *,
     workflow_session_id: str,
@@ -25,7 +29,7 @@ async def dispatch_agent_background(
         engagement_id,
         run_id,
         user_id,
-        company_config,
+        instance_config,
         workflow_snapshot,
         workflow_session_id=workflow_session_id,
         attempt_index=attempt_index,
@@ -40,7 +44,7 @@ async def execute_agent_pipeline(
     engagement_id: str,
     run_id: str,
     user_id: str,
-    company_config: dict,
+    instance_config: dict,
     workflow_snapshot: dict,
     *,
     workflow_session_id: str,
@@ -56,7 +60,7 @@ async def execute_agent_pipeline(
         try:
             result = await client.start_run(
                 engagement_id,
-                company_config,
+                instance_config,
                 workflow_snapshot=workflow_snapshot,
                 user_id=user_id,
                 client_run_id=run_id,
@@ -68,6 +72,7 @@ async def execute_agent_pipeline(
                 completed_steps=completed_steps,
             )
         except Exception as exc:  # noqa: BLE001
+            logger.exception("Agent pipeline failed for run %s engagement %s", run_id, engagement_id)
             mark_agent_run_failed(db, run_id, str(exc))
             return
         if result.get("run_id") != run_id:

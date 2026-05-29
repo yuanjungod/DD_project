@@ -6,7 +6,7 @@ import { EngagementAgentOverridesPanel } from "../components/EngagementAgentOver
 import { EngagementResourceCatalogPanel } from "../components/EngagementResourceCatalogPanel";
 import { SectionCard } from "../components/SectionCard";
 import { defaultApplicationId, engagementIdentityLabel } from "../domain/engagementIdentity";
-import { workflowTemplateIdFromConfig } from "../domain/companyConfig";
+import { workflowTemplateIdFromInstance } from "../domain/instanceConfig";
 import {
   instanceConfigToForm,
   subjectNameFromConfig,
@@ -94,13 +94,13 @@ export function NewEngagementPage() {
   const [booting, setBooting] = useState(Boolean(resumeEngagementId));
 
   const selectedWorkflow = useMemo(
-    () => workflowTemplates.find((workflow) => workflow.id === workflowTemplateIdFromConfig(form)) ?? workflowTemplates[0],
+    () => workflowTemplates.find((workflow) => workflow.id === workflowTemplateIdFromInstance(form)) ?? workflowTemplates[0],
     [form, workflowTemplates],
   );
 
   const workflowTemplateId = createdEngagement
-    ? workflowTemplateIdFromConfig(createdEngagement.instance_config ?? createdEngagement.company_config)
-    : workflowTemplateIdFromConfig(form);
+    ? workflowTemplateIdFromInstance(createdEngagement.instance_config)
+    : workflowTemplateIdFromInstance(form);
 
   useEffect(() => {
     listWorkflowTemplates()
@@ -130,7 +130,7 @@ export function NewEngagementPage() {
     getEngagement(resumeEngagementId)
       .then((engagement) => {
         setCreatedEngagement(engagement);
-        setForm(instanceConfigToForm(engagement.instance_config ?? engagement.company_config));
+        setForm(instanceConfigToForm(engagement.instance_config));
         setApplicationId(engagement.application_id);
         const step = parseWizardStep(searchParams.get("step")) ?? "identity";
         setWizardStep(step);
@@ -162,7 +162,7 @@ export function NewEngagementPage() {
   }, [createdEngagement?.id, wizardStep]);
 
   function hydrateIdentityFromEngagement(engagement: Engagement) {
-    setForm(instanceConfigToForm(engagement.instance_config ?? engagement.company_config));
+    setForm(instanceConfigToForm(engagement.instance_config));
     setApplicationId(engagement.application_id);
   }
 
@@ -179,7 +179,7 @@ export function NewEngagementPage() {
     event.preventDefault();
     setLoading(true);
     setError("");
-    if (!workflowTemplateIdFromConfig(form)) {
+    if (!workflowTemplateIdFromInstance(form)) {
       setError("请先选择已发布的 Workflow 模板。");
       setLoading(false);
       return;
@@ -292,7 +292,7 @@ export function NewEngagementPage() {
               <label className="engagement-meta-field">
                 <span className="engagement-field-label">工作流模板</span>
                 <select
-                  value={workflowTemplateIdFromConfig(form)}
+                  value={workflowTemplateIdFromInstance(form)}
                   onChange={(event) => {
                     const workflow = workflowTemplates.find((item) => item.id === event.target.value);
                     if (!workflow) return;

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import or_
 
 from app.api import (
     auth,
@@ -17,13 +20,21 @@ from app.api import (
     runs,
     uploads,
 )
+from app.api.exception_handlers import register_exception_handlers
 from app.core.auth import seed_default_users
 from app.core.config import settings
 from app.core.config_seed import seed_configuration_catalog
 from app.core.database import Base, SessionLocal, engine, ensure_schema_patches
 from app.models.entities import Engagement
-from app.services.company_identity import company_key_from_name, normalize_application_id
+from app.services.subject_identity import subject_key_from_name
+from app.services.http_client import close_async_http_client
 from shared.instance_config import resolve_subject_name
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    yield
+    await close_async_http_client()
 
 
 def create_app() -> FastAPI:
@@ -33,7 +44,8 @@ def create_app() -> FastAPI:
         seed_default_users(db)
         _backfill_engagement_identity(db)
     seed_configuration_catalog()
-    app = FastAPI(title=settings.app_name, version="0.1.0")
+    app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
+    register_exception_handlers(app)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -62,21 +74,35 @@ def create_app() -> FastAPI:
 
 
 def _backfill_engagement_identity(db) -> None:
+    if not settings.backfill_engagement_identity_on_startup:
+        return
+    candidates = (
+        db.query(Engagement)
+        .filter(
+            or_(
+                Engagement.application_id.in_(["", "default"]),
+                Engagement.version < 1,
+            )
+        )
+        .all()
+    )
+    if not candidates:
+        return
     changed = False
-    for engagement in db.query(Engagement).all():
-        cfg = engagement.company_config if isinstance(engagement.company_config, dict) else {}
-        name = resolve_subject_name(cfg) or str(engagement.name or "company")
-        key = company_key_from_name(name)
-        if engagement.company_key != key:
-            engagement.company_key = key
+    for engagement in candidates:
+        cfg = engagement.instance_config if isinstance(engagement.instance_config, dict) else {}
+        name = resolve_subject_name(cfg) or str(engagement.name or "subject")
+        key = subject_key_from_name(name)
+        if engagement.subject_key != key:
+            engagement.subject_key = key
             changed = True
-        if not getattr(engagement, "application_id", None) or engagement.application_id in ("default", ""):
+        if not engagement.application_id or engagement.application_id in ("default", ""):
             short_id = engagement.id
             if short_id.startswith("eng_"):
                 short_id = short_id.replace("eng_", "", 1)
             engagement.application_id = f"app-{short_id[:20]}"
             changed = True
-        if not getattr(engagement, "version", None) or engagement.version < 1:
+        if not engagement.version or engagement.version < 1:
             engagement.version = 1
             changed = True
     if changed:

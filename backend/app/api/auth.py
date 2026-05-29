@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.auth import VALID_USER_ROLES, get_current_user, require_roles
@@ -30,8 +30,10 @@ def me(user: User = Depends(get_current_user)) -> User:
 def list_users(
     db: Session = Depends(get_db),
     _: User = Depends(require_roles("admin")),
+    limit: int = Query(default=500, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ) -> list[User]:
-    return db.query(User).order_by(User.created_at.desc()).all()
+    return db.query(User).order_by(User.created_at.desc()).offset(offset).limit(limit).all()
 
 
 @router.post("/users", response_model=UserRead)

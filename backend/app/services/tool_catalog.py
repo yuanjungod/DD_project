@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import HTTPException
-
+from app.exceptions import ConflictError, NotFoundError
 from app.models.entities import new_id
 from app.schemas.dto import ToolConfigCreate, ToolConfigUpdate
 from app.services.catalog_records import ToolConfigRecord
@@ -21,16 +20,16 @@ def get_tool_config(tool_id: str) -> ToolConfigRecord:
     for row in load_tool_configs_from_disk():
         if row.id == tool_id:
             return row
-    raise HTTPException(status_code=404, detail="Tool config not found")
+    raise NotFoundError("Tool config not found")
 
 
 def create_tool_config(payload: ToolConfigCreate) -> ToolConfigRecord:
     rows = load_tool_configs_from_disk()
     tool_id = payload.id or new_id("tool")
     if any(row.id == tool_id for row in rows):
-        raise HTTPException(status_code=409, detail="Tool config id already exists")
+        raise ConflictError("Tool config id already exists")
     if any(row.name == payload.name for row in rows):
-        raise HTTPException(status_code=409, detail="Tool config name already exists")
+        raise ConflictError("Tool config name already exists")
     now = datetime.utcnow()
     record = ToolConfigRecord(
         id=tool_id,
@@ -53,10 +52,10 @@ def update_tool_config(tool_id: str, payload: ToolConfigUpdate) -> ToolConfigRec
     rows = load_tool_configs_from_disk()
     record = next((row for row in rows if row.id == tool_id), None)
     if record is None:
-        raise HTTPException(status_code=404, detail="Tool config not found")
+        raise NotFoundError("Tool config not found")
     updates = payload.model_dump(exclude_unset=True)
     if "name" in updates and any(row.name == updates["name"] and row.id != tool_id for row in rows):
-        raise HTTPException(status_code=409, detail="Tool config name already exists")
+        raise ConflictError("Tool config name already exists")
     for key, value in updates.items():
         setattr(record, key, value)
     record.updated_at = datetime.utcnow()

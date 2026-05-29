@@ -13,7 +13,7 @@ from agent_service.execution.context import build_run_execution_context
 from agent_service.api.schemas import (
     AgentResult,
     AgentStep,
-    CompanyConfig,
+    RunInstanceConfig,
     RunResult,
     StepReviewChatRequest,
     StepReviewChatResponse,
@@ -47,7 +47,7 @@ class WorkflowEngine:
             workflow_runtime=workflow_section.get("runtime"),
             user_id=str(payload.user_id or "").strip(),
             workflow_template_id=str(
-                payload.resolved_company_config.workflow_template_id or workflow_section.get("id") or ""
+                payload.resolved_instance_config.workflow_template_id or workflow_section.get("id") or ""
             ),
             engagement_id=str(payload.engagement_id or ""),
             session_id=str(payload.resolved_workflow_session_id or payload.engagement_id or "review"),
@@ -57,7 +57,7 @@ class WorkflowEngine:
         runner = ConfiguredAgentRunner(definition, execution_context=execution_context)
         cur = payload.current_step
         reply = runner.run_step_review_chat(
-            payload.resolved_company_config,
+            payload.resolved_instance_config,
             payload.previous_results,
             current_step_summary=cur.summary or "",
             current_output_dir=cur.result.output_dir if cur.result else "",
@@ -69,13 +69,12 @@ class WorkflowEngine:
     def run(
         self,
         engagement_id: str,
-        company_config: CompanyConfig,
+        instance_config: RunInstanceConfig,
         workflow_snapshot: dict | None = None,
         run_id_override: str | None = None,
         *,
         user_id: str,
         workflow_session_id: str | None = None,
-        diligence_session_id: str | None = None,
         attempt_index: int | None = None,
         continuation_context: dict[str, Any] | None = None,
         pause_after_each_step: bool = False,
@@ -92,7 +91,7 @@ class WorkflowEngine:
         if not workflow_snapshot:
             raise ValueError("workflow_snapshot is required")
         workflow = self._workflow_from_snapshot(workflow_snapshot)
-        workflow_template_id = company_config.workflow_template_id
+        workflow_template_id = instance_config.workflow_template_id
         agent_definitions = self._agent_definitions_from_snapshot(workflow_snapshot)
         steps: list[AgentStep] = list(done_steps)
         results: list[AgentResult] = []
@@ -119,7 +118,7 @@ class WorkflowEngine:
         if not user_id.strip():
             raise ValueError("user_id is required")
         safe_user_id = user_id.strip()
-        resolved_session_id = (workflow_session_id or diligence_session_id or "").strip() or None
+        resolved_session_id = (workflow_session_id or "").strip() or None
         safe_session_id = (resolved_session_id or run_id).strip()
 
         workflow_section = workflow_snapshot.get("workflow") if workflow_snapshot else {}
@@ -140,7 +139,7 @@ class WorkflowEngine:
             "engagement_id": engagement_id,
             **dual_write_session_id_fields(resolved_session_id),
             "attempt_index": attempt_index,
-            "company_config": company_config.model_dump(mode="json"),
+            "instance_config": instance_config.model_dump(mode="json"),
             "workflow_meta": self._workflow_session_meta(workflow_snapshot, workflow),
             "agents_ordered": ordered_agents,
             "execution_levels": execution_levels,
@@ -234,7 +233,7 @@ class WorkflowEngine:
                 Path(planned_output_dir).mkdir(parents=True, exist_ok=True)
                 try:
                     result = runner.run(
-                        company_config,
+                        instance_config,
                         handoff + node_agent_results,
                         continuation_context=inject_ctx,
                         agent_output_dir=planned_output_dir,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import shutil
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -38,12 +39,25 @@ def sync_skill_package_to_disk(
         if file_name != "SKILL.md":
             _write_skill_file(skill_dir, file_name, content)
 
+    invalidate_skill_packages_disk_cache()
     return skill_dir
 
 
-def load_skill_packages_from_disk() -> list[SkillPackageRecord]:
-    """Load skill packages from agent_service/skills/."""
+def invalidate_skill_packages_disk_cache() -> None:
+    _cached_skill_packages.cache_clear()
 
+
+@lru_cache(maxsize=1)
+def _cached_skill_packages() -> tuple[SkillPackageRecord, ...]:
+    return tuple(_load_skill_packages_from_disk_uncached())
+
+
+def load_skill_packages_from_disk() -> list[SkillPackageRecord]:
+    """Load skill packages from agent_service/skills/ (cached until disk changes)."""
+    return list(_cached_skill_packages())
+
+
+def _load_skill_packages_from_disk_uncached() -> list[SkillPackageRecord]:
     if not SKILLS_DIR.is_dir():
         return []
 
@@ -97,6 +111,7 @@ def delete_skill_package_directory(directory_name: str) -> bool:
     if not skill_dir.is_dir():
         return False
     shutil.rmtree(skill_dir)
+    invalidate_skill_packages_disk_cache()
     return True
 
 

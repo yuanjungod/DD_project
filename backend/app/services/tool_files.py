@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -12,9 +13,21 @@ ROOT = Path(__file__).resolve().parents[3]
 TOOLS_YAML = ROOT / "agent_service" / "configs" / "tools.yaml"
 
 
-def load_tool_configs_from_disk() -> list[ToolConfigRecord]:
-    """Load tool configs from agent_service/configs/tools.yaml."""
+def invalidate_tool_configs_disk_cache() -> None:
+    _cached_tool_configs.cache_clear()
 
+
+@lru_cache(maxsize=1)
+def _cached_tool_configs() -> tuple[ToolConfigRecord, ...]:
+    return tuple(_load_tool_configs_from_disk_uncached())
+
+
+def load_tool_configs_from_disk() -> list[ToolConfigRecord]:
+    """Load tool configs from agent_service/configs/tools.yaml (cached until disk changes)."""
+    return list(_cached_tool_configs())
+
+
+def _load_tool_configs_from_disk_uncached() -> list[ToolConfigRecord]:
     if not TOOLS_YAML.exists():
         return []
     with TOOLS_YAML.open("r", encoding="utf-8") as file:
@@ -65,6 +78,7 @@ def sync_tool_configs_to_disk(tool_configs: list[ToolConfigRecord]) -> Path:
     text = yaml.safe_dump(document, sort_keys=False, allow_unicode=True, default_flow_style=False, width=4096)
     header = "# Tool config catalog — file-backed source of truth for the platform.\n\n"
     TOOLS_YAML.write_text(header + text, encoding="utf-8")
+    invalidate_tool_configs_disk_cache()
     return TOOLS_YAML
 
 

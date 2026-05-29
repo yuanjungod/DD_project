@@ -23,6 +23,7 @@ from app.services.catalog_layout import (
     is_protected_workflow_template,
     list_workflow_template_config_dirs,
     protected_workflow_template_ids,
+    workflow_template_is_builtin,
     workflow_template_agents_dir,
     workflow_template_agents_write_dir,
     workflow_template_config_root,
@@ -149,8 +150,9 @@ def _bundle_to_read(path: Path, bundle: dict[str, Any]) -> WorkflowTemplateRead:
     wf = bundle["workflow"]
     mt = _utc_from_mtime(path)
     nas = mt.replace(tzinfo=None)
+    template_id = str(wf["id"])
     return WorkflowTemplateRead(
-        id=wf["id"],
+        id=template_id,
         created_at=nas,
         updated_at=nas,
         name=wf["name"],
@@ -160,6 +162,7 @@ def _bundle_to_read(path: Path, bundle: dict[str, Any]) -> WorkflowTemplateRead:
         runtime=wf.get("runtime") or {"command_execution": "host"},
         status=wf.get("status", "draft"),
         version=int(wf.get("version", 1)),
+        is_builtin=workflow_template_is_builtin(template_id),
     )
 
 

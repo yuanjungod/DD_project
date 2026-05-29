@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { cloneEngagementVersion, deleteEngagement, getMe, listEngagements, listWorkflowTemplates } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
 import { workflowName } from "../data/workflows";
-import { workflowTemplateIdFromConfig } from "../domain/companyConfig";
+import { workflowTemplateIdFromInstance } from "../domain/instanceConfig";
 import { engagementConfig, engagementIdentityLabel } from "../domain/engagementIdentity";
 import { subjectNameFromConfig } from "../domain/instanceConfig";
 import type { Engagement, User, WorkflowTemplate } from "../types/domain";
@@ -123,7 +123,7 @@ export function EngagementsPage() {
             <div className="summary-box">
               <strong>{engagement.application_id}</strong>
               <span>
-                {workflowName(workflowTemplateIdFromConfig(engagementConfig(engagement)), workflowTemplates)} · {engagement.id}
+                {workflowName(workflowTemplateIdFromInstance(engagementConfig(engagement)), workflowTemplates)} · {engagement.id}
               </span>
             </div>
             <div className="row-actions">

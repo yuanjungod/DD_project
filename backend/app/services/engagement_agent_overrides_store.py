@@ -7,13 +7,13 @@ snapshots after the workflow template is copied, and never mutate templates.
 from __future__ import annotations
 
 import json
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from app.schemas import EngagementAgentOverrideRead, EngagementAgentOverrideUpsert
 from app.services.fs_layout import engagement_agent_overrides_manifest_path
+from app.utils.atomic_io import atomic_write_text
 
 _MANIFEST_VERSION = 1
 
@@ -31,21 +31,6 @@ def _parse_dt(value: str | None) -> datetime | None:
         return datetime.fromisoformat(value)
     except ValueError:
         return None
-
-
-def _atomic_write(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".agent_overrides_", suffix=".tmp")
-    try:
-        with open(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-        Path(tmp).replace(path)
-    except Exception:
-        try:
-            Path(tmp).unlink(missing_ok=True)
-        except OSError:
-            pass
-        raise
 
 
 def _load_raw(engagement_id: str) -> dict[str, Any]:
@@ -101,9 +86,10 @@ def upsert_engagement_agent_override(
             items.append(row)
     if not replaced:
         items.append(next_row)
-    _atomic_write(
+    atomic_write_text(
         engagement_agent_overrides_manifest_path(engagement_id),
         json.dumps({"version": _MANIFEST_VERSION, "items": items}, ensure_ascii=False, indent=2) + "\n",
+        tmp_prefix=".agent_overrides_",
     )
     return _row_to_read(next_row)
 
@@ -121,8 +107,9 @@ def delete_engagement_agent_override(engagement_id: str, agent_id: str) -> bool:
         items.append(row)
     if not removed:
         return False
-    _atomic_write(
+    atomic_write_text(
         engagement_agent_overrides_manifest_path(engagement_id),
         json.dumps({"version": _MANIFEST_VERSION, "items": items}, ensure_ascii=False, indent=2) + "\n",
+        tmp_prefix=".agent_overrides_",
     )
     return True

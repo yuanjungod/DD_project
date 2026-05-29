@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+from app.utils.repo_path import ensure_repo_on_path
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
+ensure_repo_on_path()
 
 from shared.workflow_graph import (
     WorkflowGraphError,

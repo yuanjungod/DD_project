@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import shutil
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -11,7 +11,7 @@ from app.core.auth import accessible_engagement_ids, ensure_engagement_access, e
 from app.core.database import get_db
 from app.models.entities import Engagement, EngagementAccess, User
 from app.schemas import EngagementCreate, EngagementRead, EngagementUpdate
-from app.services.company_identity import company_key_from_name, normalize_application_id
+from app.services.subject_identity import normalize_application_id, subject_key_from_name
 from app.services.engagement_resource_catalog import copy_engagement_resource_configs_tree
 from app.services.engagement_access import engagement_owner_user_id
 from app.services.engagement_resources_store import append_resources as append_engagement_resources_fs
@@ -36,8 +36,8 @@ from app.services.workflow_snapshots import build_workflow_snapshot
 router = APIRouter(prefix="/engagements", tags=["engagements"])
 
 
-def _selected_platform_file_ids_from_company_config(company_config: dict) -> list[str]:
-    resources = company_config.get("resources", {}) if isinstance(company_config, dict) else {}
+def _selected_platform_file_ids_from_instance_config(instance_config: dict) -> list[str]:
+    resources = instance_config.get("resources", {}) if isinstance(instance_config, dict) else {}
     selected: list[str] = []
     selected.extend(resources.get("uploaded_files") or [])
     for scope in resources.get("agent_resource_scopes") or []:
@@ -59,11 +59,11 @@ def _selected_platform_file_ids_from_company_config(company_config: dict) -> lis
 
 
 def _selected_platform_file_ids_for_engagement_create(payload: EngagementCreate) -> list[str]:
-    return _selected_platform_file_ids_from_company_config(stored_config_from_create(payload))
+    return _selected_platform_file_ids_from_instance_config(stored_config_from_create(payload))
 
 
-def _selected_skill_directories_from_company_config(company_config: dict) -> list[str]:
-    snapshot = build_workflow_snapshot(company_config, engagement_id=None)
+def _selected_skill_directories_from_instance_config(instance_config: dict) -> list[str]:
+    snapshot = build_workflow_snapshot(instance_config, engagement_id=None)
     rows = snapshot.get("skill_packages", [])
     out: list[str] = []
     seen: set[str] = set()
@@ -78,13 +78,13 @@ def _selected_skill_directories_from_company_config(company_config: dict) -> lis
 
 
 def _selected_skill_directories_for_engagement_create(payload: EngagementCreate) -> list[str]:
-    return _selected_skill_directories_from_company_config(stored_config_from_create(payload))
+    return _selected_skill_directories_from_instance_config(stored_config_from_create(payload))
 
 
-def _next_version(db: Session, company_key: str, application_id: str) -> int:
+def _next_version(db: Session, subject_key: str, application_id: str) -> int:
     current = (
         db.query(func.max(Engagement.version))
-        .filter(Engagement.company_key == company_key, Engagement.application_id == application_id)
+        .filter(Engagement.subject_key == subject_key, Engagement.application_id == application_id)
         .scalar()
     )
     return int(current or 0) + 1
@@ -97,18 +97,18 @@ def create_engagement(
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> Engagement:
     stored_config = stored_config_from_create(payload)
-    company_name = subject_name_from_stored(stored_config) or payload.name
-    company_key = company_key_from_name(company_name)
+    subject_name = subject_name_from_stored(stored_config) or payload.name
+    subject_key = subject_key_from_name(subject_name)
     try:
         application_id = normalize_application_id(payload.application_id)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    version = payload.version if payload.version and payload.version > 0 else _next_version(db, company_key, application_id)
+    version = payload.version if payload.version and payload.version > 0 else _next_version(db, subject_key, application_id)
 
     exists = (
         db.query(Engagement.id)
         .filter(
-            Engagement.company_key == company_key,
+            Engagement.subject_key == subject_key,
             Engagement.application_id == application_id,
             Engagement.version == version,
         )
@@ -117,15 +117,15 @@ def create_engagement(
     if exists:
         raise HTTPException(
             status_code=409,
-            detail=f"Application already exists: {company_name} · {application_id} · v{version}",
+            detail=f"Application already exists: {subject_name} · {application_id} · v{version}",
         )
 
     engagement = Engagement(
         name=payload.name,
-        company_key=company_key,
+        subject_key=subject_key,
         application_id=application_id,
         version=version,
-        company_config=stored_config,
+        instance_config=stored_config,
     )
     db.add(engagement)
     db.flush()
@@ -144,12 +144,14 @@ def create_engagement(
 def list_engagements(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
+    limit: int = Query(default=500, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ) -> list[Engagement]:
     query = db.query(Engagement)
     engagement_ids = accessible_engagement_ids(db, user)
     if engagement_ids is not None:
         query = query.filter(Engagement.id.in_(engagement_ids))
-    return query.order_by(Engagement.created_at.desc()).all()
+    return query.order_by(Engagement.created_at.desc()).offset(offset).limit(limit).all()
 
 
 @router.get("/{engagement_id}", response_model=EngagementRead)
@@ -169,7 +171,7 @@ def update_engagement(
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> Engagement:
     engagement = ensure_engagement_write_access(db, user, engagement_id)
-    cfg0 = engagement.company_config if isinstance(engagement.company_config, dict) else {}
+    cfg0 = engagement.instance_config if isinstance(engagement.instance_config, dict) else {}
     owner_id = engagement_owner_user_id(db, engagement.id) or user.id
     register_engagement_tree(
         engagement.id,
@@ -178,26 +180,26 @@ def update_engagement(
     )
     if payload.name is not None:
         engagement.name = payload.name
-    if payload.instance_config is not None or payload.company_config is not None:
-        company_config = stored_config_from_update(payload)
-        if company_config is None:
-            raise HTTPException(status_code=400, detail="instance_config or company_config required")
+    if payload.instance_config is not None:
+        instance_config = stored_config_from_update(payload)
+        if instance_config is None:
+            raise HTTPException(status_code=400, detail="instance_config required")
         register_engagement_tree(
             engagement.id,
             owner_id,
-            str(company_config.get("workflow_template_id") or "_default_workflow"),
+            str(instance_config.get("workflow_template_id") or "_default_workflow"),
         )
-        engagement.company_config = company_config
-        subject_name = subject_name_from_stored(company_config)
+        engagement.instance_config = instance_config
+        subject_name = subject_name_from_stored(instance_config)
         if subject_name:
-            engagement.company_key = company_key_from_name(subject_name)
+            engagement.subject_key = subject_key_from_name(subject_name)
         copy_platform_uploads_to_engagement(
             engagement.id,
-            _selected_platform_file_ids_from_company_config(company_config),
+            _selected_platform_file_ids_from_instance_config(instance_config),
         )
         copy_skill_directories_to_engagement(
             engagement.id,
-            _selected_skill_directories_from_company_config(company_config),
+            _selected_skill_directories_from_instance_config(instance_config),
         )
     if payload.application_id is not None:
         try:
@@ -216,18 +218,18 @@ def clone_engagement_version(
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> Engagement:
     source = ensure_engagement_write_access(db, user, engagement_id)
-    version = _next_version(db, source.company_key, source.application_id)
-    company_name = subject_name_from_stored(source.company_config if isinstance(source.company_config, dict) else {}) or source.name
+    version = _next_version(db, source.subject_key, source.application_id)
+    subject_name = subject_name_from_stored(source.instance_config if isinstance(source.instance_config, dict) else {}) or source.name
     clone = Engagement(
-        name=f"{company_name} · {source.application_id} · v{version}",
-        company_key=source.company_key,
+        name=f"{subject_name} · {source.application_id} · v{version}",
+        subject_key=source.subject_key,
         application_id=source.application_id,
         version=version,
-        company_config=copy.deepcopy(source.company_config),
+        instance_config=copy.deepcopy(source.instance_config),
     )
     db.add(clone)
     db.flush()
-    source_cfg = source.company_config if isinstance(source.company_config, dict) else {}
+    source_cfg = source.instance_config if isinstance(source.instance_config, dict) else {}
     register_engagement_tree(
         clone.id,
         user.id,

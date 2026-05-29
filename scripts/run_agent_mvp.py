@@ -10,14 +10,16 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 path.insert(0, str(ROOT))
 
-from agent_service.api.schemas import CompanyConfig  # noqa: E402
+from agent_service.api.schemas import RunInstanceConfig  # noqa: E402
+from shared.instance_config import to_agent_run_config  # noqa: E402
 from agent_service.workflows.workflow_engine import WorkflowEngine  # noqa: E402
 
 
 def main() -> None:
-    config_path = ROOT / "shared" / "schemas" / "example_company_config.json"
-    config = CompanyConfig.model_validate_json(config_path.read_text(encoding="utf-8"))
-    result = WorkflowEngine().run("eng_demo", config, workflow_snapshot=_load_workflow_snapshot(config))
+    config_path = ROOT / "shared" / "schemas" / "example_instance_config.json"
+    stored = json.loads(config_path.read_text(encoding="utf-8"))
+    config = RunInstanceConfig.model_validate(to_agent_run_config(stored))
+    result = WorkflowEngine().run("eng_demo", config, workflow_snapshot=_load_workflow_snapshot(config), user_id="user_demo")
     print(
         json.dumps(
             {
@@ -43,8 +45,8 @@ def _workflow_template_root(workflow_template_id: str) -> Path | None:
     return None
 
 
-def _load_workflow_snapshot(company_config: CompanyConfig) -> dict:
-    workflow_template_id = company_config.workflow_template_id
+def _load_workflow_snapshot(instance_config: RunInstanceConfig) -> dict:
+    workflow_template_id = instance_config.workflow_template_id
     workflow_template_root = _workflow_template_root(workflow_template_id)
     if workflow_template_root is None:
         raise FileNotFoundError(f"Workflow template not found: {workflow_template_id}")

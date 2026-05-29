@@ -16,15 +16,15 @@ def new_id(prefix: str) -> str:
 class Engagement(Base):
     __tablename__ = "engagements"
     __table_args__ = (
-        UniqueConstraint("company_key", "application_id", "version", name="uq_engagement_company_app_version"),
+        UniqueConstraint("subject_key", "application_id", "version", name="uq_engagement_subject_app_version"),
     )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("eng"))
     name: Mapped[str] = mapped_column(String, nullable=False)
-    company_key: Mapped[str] = mapped_column(String, nullable=False, default="company")
+    subject_key: Mapped[str] = mapped_column(String, nullable=False, default="subject")
     application_id: Mapped[str] = mapped_column(String, nullable=False, default="default")
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    company_config: Mapped[dict] = mapped_column(JSON, nullable=False)
+    instance_config: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

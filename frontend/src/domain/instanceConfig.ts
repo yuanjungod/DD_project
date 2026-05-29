@@ -1,11 +1,10 @@
-import type { InstanceConfig } from "../types/domain";
-import type { CompanyConfig } from "../types/domain";
+import type { InstanceConfig, InstanceResources } from "../types/domain";
 
 export type EngagementSetupForm = {
   workflow_task: string;
   workflow_template_id: string;
   workflow_template_version?: number | null;
-  resources: CompanyConfig["resources"];
+  resources: InstanceResources;
 };
 
 export function workflowTemplateIdFromInstance(config: Pick<InstanceConfig, "workflow_template_id">): string {
@@ -22,16 +21,9 @@ export function workflowTaskFromConfig(config: InstanceConfig): string {
       }
     }
   }
-  if (config.target_company?.name) {
-    return config.target_company.name.trim();
-  }
   const subject = config.extensions?.subject;
   if (subject && typeof subject.name === "string" && subject.name.trim()) {
     return subject.name.trim();
-  }
-  const dd = config.extensions?.due_diligence?.target_company;
-  if (dd && typeof dd.name === "string" && dd.name.trim()) {
-    return dd.name.trim();
   }
   return "";
 }

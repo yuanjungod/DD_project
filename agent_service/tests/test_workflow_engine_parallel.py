@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
 
-from agent_service.api.schemas import AgentResult, CompanyConfig, TargetCompany
+from agent_service.api.schemas import AgentResult, RunInstanceConfig, Subject
 from agent_service.workflows.workflow_engine import WorkflowEngine
 
 
@@ -66,15 +66,15 @@ class WorkflowEngineParallelTests(unittest.TestCase):
             "report_node": "n2",
         }
         snapshot = _minimal_snapshot(graph=graph)
-        company = CompanyConfig(
-            target_company=TargetCompany(name="Co"),
+        instance_config = RunInstanceConfig(
+            subject=Subject(name="Co"),
             workflow_template_id="wf_test",
             workflow_task="task",
         )
         engine = WorkflowEngine()
         result = engine.run(
             "eng_1",
-            company,
+            instance_config,
             workflow_snapshot=snapshot,
             user_id="user_1",
             run_id_override="run_parallel_test",

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response
 from pydantic import ValidationError
 from sqlalchemy.orm import Session, joinedload
@@ -228,7 +228,7 @@ async def _execute_start_agent_run(
         engagement.id,
         run_id,
         user.id,
-        dispatch_ctx.company_config,
+        dispatch_ctx.instance_config,
         dispatch_ctx.workflow_snapshot,
         workflow_session_id=workflow_sess.id,
         attempt_index=attempt_ix,
@@ -261,6 +261,8 @@ async def start_run(
 def list_runs(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
+    limit: int = Query(default=500, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ) -> list[AgentRun]:
     query = (
         db.query(AgentRun)
@@ -270,7 +272,7 @@ def list_runs(
     engagement_ids = accessible_engagement_ids(db, user)
     if engagement_ids is not None:
         query = query.filter(AgentRun.engagement_id.in_(engagement_ids))
-    return _reconcile_run_reads(db, query.all())
+    return _reconcile_run_reads(db, query.offset(offset).limit(limit).all())
 
 
 @router.get("/engagements/{engagement_id}/runs", response_model=list[AgentRunRead])
@@ -278,6 +280,8 @@ def list_engagement_runs(
     engagement_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
+    limit: int = Query(default=500, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ) -> list[AgentRun]:
     ensure_engagement_access(db, user, engagement_id)
     runs = (
@@ -285,6 +289,8 @@ def list_engagement_runs(
         .options(joinedload(AgentRun.steps), joinedload(AgentRun.report))
         .filter(AgentRun.engagement_id == engagement_id)
         .order_by(AgentRun.started_at.desc())
+        .offset(offset)
+        .limit(limit)
         .all()
     )
     return _reconcile_run_reads(db, runs)
@@ -454,7 +460,7 @@ async def continue_step_gated(
         row.engagement_id,
         run_id,
         owner_user_id,
-        dispatch_ctx.company_config,
+        dispatch_ctx.instance_config,
         dispatch_ctx.workflow_snapshot,
         workflow_session_id=sess_id,
         attempt_index=int(attempt_ix),
@@ -530,7 +536,7 @@ async def agent_step_review_chat(
         "engagement_id": row.engagement_id,
         "user_id": str(row.started_by_user_id or user.id),
         "workflow_session_id": row.session_id,
-        "company_config": dispatch_ctx.company_config,
+        "instance_config": dispatch_ctx.instance_config,
         "workflow_snapshot": dispatch_ctx.workflow_snapshot,
         "agent_name": step.agent,
         "previous_results": previous_results_before_step(db, row.id, step_id),

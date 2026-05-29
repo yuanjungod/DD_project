@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -11,6 +10,7 @@ from typing import Any
 from app.models.entities import new_id
 from app.schemas import ResourceCreate, ResourceRead
 from app.services.fs_layout import engagement_resources_manifest_path
+from app.utils.atomic_io import atomic_write_text
 
 _MANIFEST_VERSION = 1
 
@@ -40,21 +40,6 @@ def _load_raw(engagement_id: str) -> dict[str, Any]:
     if not isinstance(data, dict) or not isinstance(data.get("items"), list):
         return {"version": _MANIFEST_VERSION, "items": []}
     return data
-
-
-def _atomic_write(path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".manifest_", suffix=".tmp")
-    try:
-        with open(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-        Path(tmp).replace(path)
-    except Exception:
-        try:
-            Path(tmp).unlink(missing_ok=True)
-        except OSError:
-            pass
-        raise
 
 
 def list_engagement_resources(engagement_id: str) -> list[ResourceRead]:
@@ -115,7 +100,7 @@ def add_resource(engagement_id: str, payload: ResourceCreate) -> ResourceRead:
     items.append(row)
     path = engagement_resources_manifest_path(engagement_id)
     blob = {"version": _MANIFEST_VERSION, "items": items}
-    _atomic_write(path, json.dumps(blob, ensure_ascii=False, indent=2) + "\n")
+    atomic_write_text(path, json.dumps(blob, ensure_ascii=False, indent=2) + "\n", tmp_prefix=".manifest_")
     return ResourceRead(
         id=rid,
         engagement_id=engagement_id,
@@ -145,7 +130,7 @@ def append_resources(engagement_id: str, payloads: list[ResourceCreate]) -> None
         )
     path = engagement_resources_manifest_path(engagement_id)
     blob = {"version": _MANIFEST_VERSION, "items": items}
-    _atomic_write(path, json.dumps(blob, ensure_ascii=False, indent=2) + "\n")
+    atomic_write_text(path, json.dumps(blob, ensure_ascii=False, indent=2) + "\n", tmp_prefix=".manifest_")
 
 
 def delete_file_references_by_file_id(engagement_id: str, file_id: str) -> None:
@@ -165,7 +150,7 @@ def delete_file_references_by_file_id(engagement_id: str, file_id: str) -> None:
         return
     path = engagement_resources_manifest_path(engagement_id)
     blob = {"version": _MANIFEST_VERSION, "items": kept}
-    _atomic_write(path, json.dumps(blob, ensure_ascii=False, indent=2) + "\n")
+    atomic_write_text(path, json.dumps(blob, ensure_ascii=False, indent=2) + "\n", tmp_prefix=".manifest_")
 
 
 def delete_resource(engagement_id: str, resource_id: str) -> bool:
@@ -190,7 +175,7 @@ def delete_resource(engagement_id: str, resource_id: str) -> bool:
                 unlink_upload_blob(engagement_id, fid)
     path = engagement_resources_manifest_path(engagement_id)
     blob = {"version": _MANIFEST_VERSION, "items": items}
-    _atomic_write(path, json.dumps(blob, ensure_ascii=False, indent=2) + "\n")
+    atomic_write_text(path, json.dumps(blob, ensure_ascii=False, indent=2) + "\n", tmp_prefix=".manifest_")
     return True
 
 

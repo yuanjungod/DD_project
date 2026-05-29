@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_service.api.schemas import AgentResult, CompanyConfig
+from agent_service.api.schemas import AgentResult, RunInstanceConfig
 from agent_service.agents.react_runtime import AgentScopeReActRuntime, build_react_system_prompt
 from agent_service.execution.context import RunExecutionContext
 from agent_service.tools.base import ToolExecutionContext
@@ -22,7 +22,7 @@ class ConfiguredAgentRunner:
         self.prompt = (definition.prompt_text or definition.prompt or "").strip()
         if not self.prompt:
             raise ValueError(f"Agent {definition.name} is missing prompt content")
-        self.current_company_config: CompanyConfig | None = None
+        self.current_instance_config: RunInstanceConfig | None = None
         self.tool_registry = ToolRegistry.for_agent_definition(definition)
         self.react_runtime = AgentScopeReActRuntime(
             definition,
@@ -33,17 +33,17 @@ class ConfiguredAgentRunner:
 
     def run(
         self,
-        company_config: CompanyConfig,
+        instance_config: RunInstanceConfig,
         previous_results: list[AgentResult],
         *,
         continuation_context: dict[str, Any] | None = None,
         agent_output_dir: str | None = None,
     ) -> AgentResult:
         try:
-            self.current_company_config = company_config
+            self.current_instance_config = instance_config
             agent_name = self.definition.name
             self.react_runtime.run_model(
-                company_config=company_config,
+                instance_config=instance_config,
                 previous_results=previous_results,
                 continuation_context=continuation_context,
                 agent_output_dir=agent_output_dir,
@@ -53,12 +53,12 @@ class ConfiguredAgentRunner:
                 status="completed",
             )
         finally:
-            self.current_company_config = None
+            self.current_instance_config = None
             self.react_runtime.close()
 
     def run_step_review_chat(
         self,
-        company_config: CompanyConfig,
+        instance_config: RunInstanceConfig,
         previous_results: list[AgentResult],
         *,
         current_step_summary: str,
@@ -67,9 +67,9 @@ class ConfiguredAgentRunner:
         user_message: str,
     ) -> str:
         try:
-            self.current_company_config = company_config
+            self.current_instance_config = instance_config
             return self.react_runtime.run_step_review_chat(
-                company_config,
+                instance_config,
                 previous_results,
                 current_step_summary=current_step_summary,
                 current_output_dir=current_output_dir,
@@ -77,16 +77,16 @@ class ConfiguredAgentRunner:
                 user_message=user_message,
             )
         finally:
-            self.current_company_config = None
+            self.current_instance_config = None
             self.react_runtime.close()
 
     def _execute_react_tool(self, tool_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        company_config = self.current_company_config
-        if company_config is None:
-            raise RuntimeError("Tool execution requires an active company config")
+        instance_config = self.current_instance_config
+        if instance_config is None:
+            raise RuntimeError("Tool execution requires an active instance config")
 
         context = ToolExecutionContext(
-            company_config=company_config,
+            instance_config=instance_config,
             agent_name=self.definition.name,
             definition=self.definition,
         )

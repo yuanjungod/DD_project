@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -12,6 +11,7 @@ from app.models.entities import new_id
 from app.schemas.dto import LibraryFileRead
 from app.services.fs_layout import engagement_uploads_dir, platform_uploads_dir, platform_uploads_manifest_path
 from app.services.engagement_uploads_store import UPLOAD_MAX_BYTES
+from app.utils.atomic_io import atomic_write_text
 
 _MANIFEST_VERSION = 1
 
@@ -24,21 +24,6 @@ def _parse_created_at(s: str) -> datetime:
     if s.endswith("Z"):
         s = s[:-1] + "+00:00"
     return datetime.fromisoformat(s)
-
-
-def _atomic_write(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".plib_manifest_", suffix=".tmp")
-    try:
-        with open(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-        Path(tmp).replace(path)
-    except Exception:
-        try:
-            Path(tmp).unlink(missing_ok=True)
-        except OSError:
-            pass
-        raise
 
 
 def _load_raw() -> dict[str, Any]:
@@ -116,7 +101,7 @@ def save_platform_upload(*, filename: str, content_type: str | None, body: bytes
         items.append(row)
         mpath = platform_uploads_manifest_path()
         blob = {"version": _MANIFEST_VERSION, "items": items}
-        _atomic_write(mpath, json.dumps(blob, ensure_ascii=False, indent=2) + "\n")
+        atomic_write_text(mpath, json.dumps(blob, ensure_ascii=False, indent=2) + "\n", tmp_prefix=".plib_manifest_")
     except Exception:
         path.unlink(missing_ok=True)
         raise
@@ -144,7 +129,7 @@ def delete_platform_upload(file_id: str) -> bool:
         return False
     blob_path(file_id).unlink(missing_ok=True)
     mpath = platform_uploads_manifest_path()
-    _atomic_write(mpath, json.dumps({"version": _MANIFEST_VERSION, "items": kept}, ensure_ascii=False, indent=2) + "\n")
+    atomic_write_text(mpath, json.dumps({"version": _MANIFEST_VERSION, "items": kept}, ensure_ascii=False, indent=2) + "\n", tmp_prefix=".plib_manifest_")
     return True
 
 

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
+from app.utils.repo_path import repo_root
+
+_REPO_ROOT = repo_root()
 
 from shared.harness_paths import default_data_root_relative, platform_db_path, resolve_repo_path
 
@@ -49,6 +48,10 @@ class Settings(BaseSettings):
     default_users_config_path: str = Field(
         default="",
         validation_alias="HARNESS_DEFAULT_USERS_CONFIG",
+    )
+    backfill_engagement_identity_on_startup: bool = Field(
+        default=True,
+        validation_alias="HARNESS_BACKFILL_ENGAGEMENT_IDENTITY",
     )
 
     model_config = SettingsConfigDict(env_file=_ENV_FILE, env_file_encoding="utf-8", extra="ignore")

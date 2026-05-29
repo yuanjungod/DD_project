@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import HTTPException
-
+from app.exceptions import NotFoundError
 from app.models.entities import new_id
 from app.schemas.dto import SkillPackageCreate, SkillPackageUpdate
 from app.services.catalog_records import SkillPackageRecord
@@ -26,7 +25,7 @@ def get_skill_package(skill_id: str) -> SkillPackageRecord:
     for row in load_skill_packages_from_disk():
         if row.id == needle or row.directory_name == needle:
             return row
-    raise HTTPException(status_code=404, detail="Skill package not found")
+    raise NotFoundError("Skill package not found")
 
 
 def create_skill_package(payload: SkillPackageCreate) -> SkillPackageRecord:
@@ -62,7 +61,7 @@ def update_skill_package(skill_id: str, payload: SkillPackageUpdate) -> SkillPac
 def delete_skill_package(skill_id: str) -> None:
     record = get_skill_package(skill_id)
     if not delete_skill_package_directory(record.directory_name):
-        raise HTTPException(status_code=404, detail="Skill package not found")
+        raise NotFoundError("Skill package not found")
 
 
 def ensure_unique_skill_catalog_fields(payload: SkillPackageCreate) -> SkillPackageCreate:

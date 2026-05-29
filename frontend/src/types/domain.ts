@@ -1,44 +1,31 @@
-export type CompanyConfig = {
-  target_company: {
-    name: string;
-    aliases: string[];
-  };
-  workflow_template_id: string;
-  workflow_template_version?: number | null;
-  resources: {
-    uploaded_files: string[];
-    trusted_sources: string[];
-    blocked_sources: string[];
-    competitors: string[];
-    metrics?: Record<string, unknown>[];
-    external_clues?: Record<string, unknown>[];
-    agent_resource_scopes?: Record<string, unknown>[];
-  };
+export type InstanceResources = {
+  uploaded_files: string[];
+  trusted_sources: string[];
+  blocked_sources: string[];
+  competitors: string[];
+  metrics?: Record<string, unknown>[];
+  external_clues?: Record<string, unknown>[];
+  agent_resource_scopes?: Record<string, unknown>[];
 };
 
 export type InstanceConfig = {
   workflow_template_id: string;
   workflow_template_version?: number | null;
-  resources: CompanyConfig["resources"];
+  resources: InstanceResources;
   extensions?: {
-    due_diligence?: { target_company?: CompanyConfig["target_company"] };
     subject?: { name: string; aliases?: string[]; kind?: string };
     workflow_task?: { description?: string; task?: string; goal?: string };
     [key: string]: unknown;
   };
-  /** @deprecated Legacy due-diligence root field */
-  target_company?: CompanyConfig["target_company"];
 };
 
 export type Engagement = {
   id: string;
   name: string;
-  company_key: string;
+  subject_key: string;
   application_id: string;
   version: number;
   instance_config: InstanceConfig;
-  /** @deprecated Use instance_config */
-  company_config: CompanyConfig;
   created_at: string;
   updated_at: string;
 };
@@ -231,9 +218,7 @@ export type ResourceConfig = {
   enabled: boolean;
   created_at: string;
   updated_at: string;
-  /** Overlay YAML exists under data store; DELETE removes overlay file. */
   deletable?: boolean;
-  /** Repo catalog defines this id (may still have overlay override). */
   builtin_base?: boolean;
 };
 
@@ -246,7 +231,6 @@ export type AgentTemplate = {
   skill_package_ids: string[];
   tool_ids: string[];
   resource_ids: string[];
-  /** Empty = use all merged uploaded_files at run time; otherwise restrict agent-visible upload file IDs. */
   platform_upload_file_ids?: string[];
   react_config: Record<string, unknown>;
   enabled: boolean;
@@ -258,7 +242,6 @@ export type WorkflowGraph = {
   nodes: Array<{
     id: string;
     agent_template_id: string;
-    /** Optional sub-agents executed after node master agent. */
     sub_agent_template_ids?: string[];
     stage?: string;
     position?: { x: number; y: number };
@@ -288,6 +271,7 @@ export type WorkflowTemplate = {
   runtime?: WorkflowRuntimeConfig;
   status: "draft" | "published";
   version: number;
+  is_builtin?: boolean;
   created_at: string;
   updated_at: string;
 };

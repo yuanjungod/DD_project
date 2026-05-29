@@ -13,16 +13,6 @@ from app.services.fs_layout import dd_flow_users_dir
 _WORKFLOW_TEMPLATE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 _WORKFLOW_TEMPLATE_FILENAMES = ("workflow_template.yaml",)
 
-_BUILTIN_WORKFLOW_TEMPLATE_IDS = frozenset(
-    {
-        "standard_due_diligence",
-        "financial_investment_due_diligence",
-        "legal_compliance_due_diligence",
-        "market_entry_due_diligence",
-    }
-)
-
-
 def repo_root() -> Path:
     return settings.repo_root
 
@@ -108,7 +98,7 @@ def _all_user_agent_template_roots() -> list[Path]:
 
 
 def is_protected_workflow_template(workflow_template_id: str) -> bool:
-    return workflow_template_id in _BUILTIN_WORKFLOW_TEMPLATE_IDS
+    return workflow_template_is_builtin(workflow_template_id)
 
 
 def workflow_template_is_builtin(workflow_template_id: str) -> bool:
@@ -200,7 +190,14 @@ def list_workflow_template_config_dirs(user_id: str | None = None) -> list[Path]
 
 
 def protected_workflow_template_ids() -> frozenset[str]:
-    return _BUILTIN_WORKFLOW_TEMPLATE_IDS
+    root = builtin_workflow_templates_root()
+    if not root.is_dir():
+        return frozenset()
+    ids: list[str] = []
+    for child in root.iterdir():
+        if child.is_dir() and _workflow_template_yaml_in(child) is not None:
+            ids.append(child.name)
+    return frozenset(ids)
 
 
 def user_agent_template_path(user_id: str, agent_id: str) -> Path:

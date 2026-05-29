@@ -18,7 +18,7 @@ import {
 } from "../api/client";
 import { SectionCard } from "../components/SectionCard";
 import { workflowName } from "../data/workflows";
-import { workflowTemplateIdFromConfig } from "../domain/companyConfig";
+import { workflowTemplateIdFromInstance } from "../domain/instanceConfig";
 import { engagementConfig, engagementIdentityLabel } from "../domain/engagementIdentity";
 import { resolveRunStatus, runStatusLabel, runStatusClassName } from "../domain/runStatus";
 import type {
@@ -508,7 +508,7 @@ export function EngagementDetailPage({ section = "outputs" }: { section?: Engage
   const orderedSteps = [...(activeRun?.steps ?? [])].sort((a, b) => a.id.localeCompare(b.id));
   const pausedReviewStep = awaitingStepReview ? [...orderedSteps].filter((s) => s.status === "completed").slice(-1)[0] : undefined;
   const engagementWorkflowName = engagement
-    ? workflowName(workflowTemplateIdFromConfig(engagementConfig(engagement)), workflowTemplates)
+    ? workflowName(workflowTemplateIdFromInstance(engagementConfig(engagement)), workflowTemplates)
     : "";
 
   return (

@@ -98,8 +98,18 @@ def ensure_schema_patches(engine) -> None:
         return
     eng_cols = {c["name"] for c in inspector.get_columns("engagements")}
     eng_statements: list[str] = []
-    if "company_key" not in eng_cols:
-        eng_statements.append("ALTER TABLE engagements ADD COLUMN company_key VARCHAR DEFAULT 'company' NOT NULL")
+    if "subject_key" not in eng_cols:
+        if "company_key" in eng_cols:
+            with engine.begin() as conn:
+                _rename_column_if_needed(conn, inspect(engine), "engagements", "company_key", "subject_key")
+        else:
+            eng_statements.append("ALTER TABLE engagements ADD COLUMN subject_key VARCHAR DEFAULT 'subject' NOT NULL")
+    if "instance_config" not in eng_cols:
+        if "company_config" in eng_cols:
+            with engine.begin() as conn:
+                _rename_column_if_needed(conn, inspect(engine), "engagements", "company_config", "instance_config")
+        else:
+            eng_statements.append("ALTER TABLE engagements ADD COLUMN instance_config JSON NOT NULL DEFAULT '{}'")
     if "application_id" not in eng_cols:
         eng_statements.append("ALTER TABLE engagements ADD COLUMN application_id VARCHAR DEFAULT 'default' NOT NULL")
     if "version" not in eng_cols:

@@ -3,13 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from agent_service.api.schemas import CompanyConfig
+from agent_service.api.schemas import RunInstanceConfig
 from agent_service.workflows.config_loader import AgentDefinition
 
 
 @dataclass
 class ToolExecutionContext:
-    company_config: CompanyConfig
+    instance_config: RunInstanceConfig
     agent_name: str
     definition: AgentDefinition
 
@@ -18,7 +18,7 @@ class ToolExecutionContext:
         return self.definition.role
 
     def visible_uploaded_file_ids(self) -> list[str]:
-        full = list(self.company_config.resources.uploaded_files or [])
+        full = list(self.instance_config.resources.uploaded_files or [])
         allow = [x.strip() for x in (self.definition.platform_upload_file_ids or []) if x and str(x).strip()]
         scoped = self._engagement_scoped_file_ids()
         if scoped:
@@ -29,7 +29,7 @@ class ToolExecutionContext:
         return [fid for fid in full if fid in allow_set]
 
     def _engagement_scoped_file_ids(self) -> list[str]:
-        scopes = self.company_config.resources.agent_resource_scopes or []
+        scopes = self.instance_config.resources.agent_resource_scopes or []
         selected: list[str] = []
         for scope in scopes:
             if not isinstance(scope, dict) or scope.get("agent_id") != self.definition.name:

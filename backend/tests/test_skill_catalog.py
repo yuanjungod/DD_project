@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from fastapi import HTTPException
+from app.exceptions import NotFoundError
 
 from app.schemas.dto import SkillPackageCreate
 from app.services.skill_catalog import create_skill_package, delete_skill_package, get_skill_package, list_skill_packages
@@ -75,6 +75,5 @@ def test_delete_skill_package_removes_directory(isolated_skills_dir: Path) -> No
     delete_skill_package(created.id)
     assert not (isolated_skills_dir / "temp-skill").exists()
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(NotFoundError):
         get_skill_package(created.id)
-    assert exc.value.status_code == 404

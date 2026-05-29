@@ -27,24 +27,9 @@
     },
     "extensions": {
       "type": "object",
-      "description": "Template-specific blocks. Due diligence uses extensions.due_diligence.target_company.",
       "properties": {
-        "due_diligence": {
-          "type": "object",
-          "properties": {
-            "target_company": {
-              "type": "object",
-              "required": ["name"],
-              "properties": {
-                "name": { "type": "string", "minLength": 1 },
-                "aliases": { "type": "array", "items": { "type": "string" }, "default": [] }
-              }
-            }
-          }
-        },
         "subject": {
           "type": "object",
-          "description": "Generic non-diligence subject (research topic, product, etc.).",
           "required": ["name"],
           "properties": {
             "name": { "type": "string", "minLength": 1 },
@@ -54,7 +39,6 @@
         },
         "workflow_task": {
           "type": "object",
-          "description": "Natural-language goal for this workflow run; injected into every agent step.",
           "required": ["description"],
           "properties": {
             "description": { "type": "string", "minLength": 1 },
@@ -64,16 +48,6 @@
         }
       },
       "additionalProperties": true
-    },
-    "target_company": {
-      "type": "object",
-      "deprecated": true,
-      "description": "Legacy due-diligence field; prefer extensions.due_diligence.target_company.",
-      "required": ["name"],
-      "properties": {
-        "name": { "type": "string", "minLength": 1 },
-        "aliases": { "type": "array", "items": { "type": "string" }, "default": [] }
-      }
     }
   }
 }

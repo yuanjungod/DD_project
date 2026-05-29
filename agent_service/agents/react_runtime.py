@@ -21,7 +21,7 @@ from agentscope.tool import (
 )
 from pydantic import BaseModel
 
-from agent_service.api.schemas import AgentResult, CompanyConfig
+from agent_service.api.schemas import AgentResult, RunInstanceConfig
 from agent_service.execution.context import RunExecutionContext
 from agent_service.execution.prompt_paths import translate_handoff_for_prompt
 from agent_service.execution.router import ExecutionRouter
@@ -73,7 +73,7 @@ class AgentScopeReActRuntime:
         self.execution_context = execution_context
         self.execution_router = ExecutionRouter(execution_context)
         self.model_config = _normalize_model_config(definition.react_config.get("model", definition.react_config))
-        self._temp_dir = tempfile.TemporaryDirectory(prefix=f"dd_{definition.name}_")
+        self._temp_dir = tempfile.TemporaryDirectory(prefix=f"harness_{definition.name}_")
         self.toolkit = Toolkit()
         self.skill_dirs = self._materialize_skill_packages()
         self._register_skill_packages()
@@ -85,7 +85,7 @@ class AgentScopeReActRuntime:
 
     def run_model(
         self,
-        company_config: CompanyConfig,
+        instance_config: RunInstanceConfig,
         previous_results: list[AgentResult],
         *,
         continuation_context: dict[str, Any] | None = None,
@@ -93,7 +93,7 @@ class AgentScopeReActRuntime:
     ) -> None:
         asyncio.run(
             self._run_model_async(
-                company_config,
+                instance_config,
                 previous_results,
                 continuation_context=continuation_context,
                 agent_output_dir=agent_output_dir,
@@ -102,7 +102,7 @@ class AgentScopeReActRuntime:
 
     async def _run_model_async(
         self,
-        company_config: CompanyConfig,
+        instance_config: RunInstanceConfig,
         previous_results: list[AgentResult],
         *,
         continuation_context: dict[str, Any] | None = None,
@@ -113,7 +113,7 @@ class AgentScopeReActRuntime:
             Msg(
                 name="user",
                 content=self._build_task_message(
-                    company_config,
+                    instance_config,
                     previous_results,
                     continuation_context=continuation_context,
                     agent_output_dir=agent_output_dir,
@@ -186,7 +186,7 @@ class AgentScopeReActRuntime:
 
     def _build_task_message(
         self,
-        company_config: CompanyConfig,
+        instance_config: RunInstanceConfig,
         previous_results: list[AgentResult],
         *,
         continuation_context: dict[str, Any] | None = None,
@@ -207,7 +207,7 @@ class AgentScopeReActRuntime:
             "## 任务说明",
             "",
         ]
-        task_text = (company_config.workflow_task or "").strip()
+        task_text = (instance_config.workflow_task or "").strip()
         if task_text:
             sections.extend(
                 [
@@ -233,13 +233,13 @@ class AgentScopeReActRuntime:
             sections.extend(
                 _markdown_json_section(
                     "run_subject（运行主体）",
-                    company_config.target_company.model_dump(mode="json"),
+                    instance_config.subject.model_dump(mode="json"),
                 )
             )
         sections.extend(
             _markdown_json_section(
                 "project_resources（项目资源）",
-                company_config.resources.model_dump(mode="json"),
+                instance_config.resources.model_dump(mode="json"),
             )
         )
         sections.extend(
@@ -261,7 +261,7 @@ class AgentScopeReActRuntime:
 
     def run_step_review_chat(
         self,
-        company_config: CompanyConfig,
+        instance_config: RunInstanceConfig,
         previous_results: list[AgentResult],
         *,
         current_step_summary: str,
@@ -271,7 +271,7 @@ class AgentScopeReActRuntime:
     ) -> str:
         return asyncio.run(
             self._run_step_review_chat_async(
-                company_config,
+                instance_config,
                 previous_results,
                 current_step_summary=current_step_summary,
                 current_output_dir=current_output_dir,
@@ -282,7 +282,7 @@ class AgentScopeReActRuntime:
 
     async def _run_step_review_chat_async(
         self,
-        company_config: CompanyConfig,
+        instance_config: RunInstanceConfig,
         previous_results: list[AgentResult],
         *,
         current_step_summary: str,
@@ -299,8 +299,8 @@ class AgentScopeReActRuntime:
                 "用清晰中文回复（除非用户用其他语言）。可指出逻辑/来源缺口、建议如何修订输出目录中的内容，不要编造未出现的来源。"
                 "修订建议须与本次工作流的最终目标一致。"
             ),
-            "target_company": company_config.target_company.model_dump(mode="json"),
-            "workflow_task": (company_config.workflow_task or "").strip(),
+            "subject": instance_config.subject.model_dump(mode="json"),
+            "workflow_task": (instance_config.workflow_task or "").strip(),
             "previous_agent_results": [
                 {
                     "agent": result.agent,

@@ -1,14 +1,12 @@
-"""Tests for agent run request config coalescing."""
-
 from __future__ import annotations
 
 import unittest
 
-from agent_service.api.schemas import CompanyConfig, RunRequest
+from agent_service.api.schemas import RunInstanceConfig, RunRequest, Subject
 
 
-class RunRequestConfigTests(unittest.TestCase):
-    def test_instance_config_coalesced_to_company_config(self) -> None:
+class RunRequestTests(unittest.TestCase):
+    def test_instance_config_normalized(self) -> None:
         request = RunRequest.model_validate(
             {
                 "engagement_id": "eng_1",
@@ -22,17 +20,17 @@ class RunRequestConfigTests(unittest.TestCase):
                 },
             }
         )
-        cfg = request.resolved_company_config
-        self.assertIsInstance(cfg, CompanyConfig)
+        cfg = request.resolved_instance_config
+        self.assertIsInstance(cfg, RunInstanceConfig)
         self.assertEqual(cfg.workflow_task, "Deliver a market scan report.")
-        self.assertEqual(cfg.target_company.name, "Deliver a market scan report.")
+        self.assertEqual(cfg.subject.name, "Deliver a market scan report.")
 
-    def test_company_config_wire_shape_not_renormalized(self) -> None:
+    def test_legacy_company_config_wire_migrated(self) -> None:
         wire = {
             "target_company": {"name": "Subject", "aliases": []},
             "workflow_template_id": "workflow_research_demo",
-            "resources": {},
             "workflow_task": "Already normalized task.",
+            "resources": {},
         }
         request = RunRequest.model_validate(
             {
@@ -41,7 +39,8 @@ class RunRequestConfigTests(unittest.TestCase):
                 "company_config": wire,
             }
         )
-        self.assertEqual(request.resolved_company_config.workflow_task, "Already normalized task.")
+        self.assertEqual(request.resolved_instance_config.workflow_task, "Already normalized task.")
+        self.assertEqual(request.resolved_instance_config.subject.name, "Subject")
 
 
 if __name__ == "__main__":

@@ -22,8 +22,8 @@ def _load_snapshot_resources(resource_ids: list[str], engagement_id: str | None)
     return [by_id[k] for k in sorted(by_id.keys())]
 
 
-def build_workflow_snapshot(company_config: dict, *, engagement_id: str | None = None) -> dict:
-    workflow_template_id = _workflow_template_id_from_config(company_config)
+def build_workflow_snapshot(instance_config: dict, *, engagement_id: str | None = None) -> dict:
+    workflow_template_id = _workflow_template_id_from_config(instance_config)
     bundle = get_published_workflow_bundle(workflow_template_id)
     workflow_section = bundle["workflow"]
 
@@ -179,11 +179,11 @@ def _apply_engagement_agent_overrides(agents: list[dict], overrides: list[dict])
     return out
 
 
-def _workflow_template_id_from_config(company_config: dict) -> str:
-    """Resolve published workflow template id from company_config."""
-    if not company_config:
-        raise HTTPException(status_code=400, detail="company_config.workflow_template_id is required")
-    template_id = company_config.get("workflow_template_id")
+def _workflow_template_id_from_config(instance_config: dict) -> str:
+    """Resolve published workflow template id from instance_config."""
+    if not instance_config:
+        raise HTTPException(status_code=400, detail="instance_config.workflow_template_id is required")
+    template_id = instance_config.get("workflow_template_id")
     if isinstance(template_id, str) and template_id.strip():
         return template_id.strip()
-    raise HTTPException(status_code=400, detail="company_config.workflow_template_id is required")
+    raise HTTPException(status_code=400, detail="instance_config.workflow_template_id is required")

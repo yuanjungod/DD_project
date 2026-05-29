@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from shared.instance_config import to_agent_company_config
+from shared.instance_config import migrate_legacy_agent_wire_config, to_agent_run_config
 from shared.session_fields import coalesce_workflow_session_id
 
 
@@ -12,11 +12,10 @@ RunStatus = Literal["pending", "running", "completed", "failed", "paused"]
 RiskLevel = Literal["low", "medium", "high", "unknown"]
 
 
-class TargetCompany(BaseModel):
-    """Run subject identity (wire field name retained for compatibility)."""
-
+class Subject(BaseModel):
     name: str
     aliases: list[str] = Field(default_factory=list)
+    kind: str = "generic"
 
 
 class Resources(BaseModel):
@@ -30,9 +29,8 @@ class Resources(BaseModel):
 
 
 class RunInstanceConfig(BaseModel):
-    """Engagement run input for agents (JSON wire field: ``company_config``)."""
+    """Engagement run input for agents."""
 
-    target_company: TargetCompany
     workflow_template_id: str
     workflow_template_version: int | None = None
     resources: Resources = Field(default_factory=Resources)
@@ -40,9 +38,7 @@ class RunInstanceConfig(BaseModel):
         default="",
         description="Natural-language goal for this workflow run; injected into every agent step.",
     )
-
-
-CompanyConfig = RunInstanceConfig
+    subject: Subject
 
 
 class AgentResult(BaseModel):
@@ -62,8 +58,6 @@ class ReportSection(BaseModel):
 
 
 class WorkflowReport(BaseModel):
-    """Structured workflow run report (sections + executive summary)."""
-
     title: str
     executive_summary: str
     overall_risk: RiskLevel
@@ -81,11 +75,7 @@ class AgentStep(BaseModel):
 class RunRequest(BaseModel):
     engagement_id: str
     user_id: str = Field(description="User id for session filesystem isolation.")
-    company_config: CompanyConfig | None = None
-    instance_config: dict[str, Any] | None = Field(
-        default=None,
-        description="Generic engagement instance config; synthesized into company_config for agents.",
-    )
+    instance_config: RunInstanceConfig | None = None
     workflow_snapshot: dict[str, Any] | None = None
     run_id: str | None = Field(
         default=None,
@@ -94,11 +84,6 @@ class RunRequest(BaseModel):
     workflow_session_id: str | None = Field(
         default=None,
         description="Product workflow session container (pairs with backend WorkflowSession).",
-    )
-    diligence_session_id: str | None = Field(
-        default=None,
-        deprecated=True,
-        description="Deprecated alias for workflow_session_id.",
     )
     attempt_index: int | None = Field(default=None, description="1-based attempt number within workflow_session_id.")
     continuation_context: dict[str, Any] | None = Field(
@@ -118,20 +103,26 @@ class RunRequest(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _coalesce_config_and_session(cls, data: object) -> object:
-        if isinstance(data, dict):
-            if isinstance(data.get("instance_config"), dict):
-                data["company_config"] = to_agent_company_config(data["instance_config"])
-            resolved = coalesce_workflow_session_id(data)
-            if resolved:
-                data["workflow_session_id"] = resolved
+    def _normalize_config_and_session(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        raw_config = data.get("instance_config")
+        if raw_config is None and isinstance(data.get("company_config"), dict):
+            raw_config = migrate_legacy_agent_wire_config(data["company_config"])
+        elif isinstance(raw_config, dict):
+            raw_config = to_agent_run_config(raw_config)
+        if isinstance(raw_config, dict):
+            data["instance_config"] = raw_config
+        resolved = coalesce_workflow_session_id(data)
+        if resolved:
+            data["workflow_session_id"] = resolved
         return data
 
     @property
-    def resolved_company_config(self) -> CompanyConfig:
-        if self.company_config is None:
-            raise ValueError("company_config is required")
-        return self.company_config
+    def resolved_instance_config(self) -> RunInstanceConfig:
+        if self.instance_config is None:
+            raise ValueError("instance_config is required")
+        return self.instance_config
 
     @property
     def resolved_workflow_session_id(self) -> str | None:
@@ -149,16 +140,7 @@ class StepReviewChatRequest(BaseModel):
     engagement_id: str
     user_id: str = ""
     workflow_session_id: str | None = None
-    diligence_session_id: str | None = Field(
-        default=None,
-        deprecated=True,
-        description="Deprecated alias for workflow_session_id.",
-    )
-    company_config: CompanyConfig | None = None
-    instance_config: dict[str, Any] | None = Field(
-        default=None,
-        description="Generic engagement instance config; synthesized into company_config for agents.",
-    )
+    instance_config: RunInstanceConfig | None = None
     workflow_snapshot: dict[str, Any] | None = None
     agent_name: str
     previous_results: list[AgentResult] = Field(default_factory=list)
@@ -171,20 +153,26 @@ class StepReviewChatRequest(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _coalesce_config(cls, data: object) -> object:
-        if isinstance(data, dict):
-            if isinstance(data.get("instance_config"), dict):
-                data["company_config"] = to_agent_company_config(data["instance_config"])
-            resolved = coalesce_workflow_session_id(data)
-            if resolved:
-                data["workflow_session_id"] = resolved
+    def _normalize_config(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        raw_config = data.get("instance_config")
+        if raw_config is None and isinstance(data.get("company_config"), dict):
+            raw_config = migrate_legacy_agent_wire_config(data["company_config"])
+        elif isinstance(raw_config, dict):
+            raw_config = to_agent_run_config(raw_config)
+        if isinstance(raw_config, dict):
+            data["instance_config"] = raw_config
+        resolved = coalesce_workflow_session_id(data)
+        if resolved:
+            data["workflow_session_id"] = resolved
         return data
 
     @property
-    def resolved_company_config(self) -> CompanyConfig:
-        if self.company_config is None:
-            raise ValueError("company_config is required")
-        return self.company_config
+    def resolved_instance_config(self) -> RunInstanceConfig:
+        if self.instance_config is None:
+            raise ValueError("instance_config is required")
+        return self.instance_config
 
     @property
     def resolved_workflow_session_id(self) -> str | None:

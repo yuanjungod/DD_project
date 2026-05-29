@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import json
-import sys
-import tempfile
 from pathlib import Path
 
 from app.core.config import settings
+from app.utils.atomic_io import atomic_write_text
+from app.utils.repo_path import ensure_repo_on_path
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
+ensure_repo_on_path()
 
 from shared.harness_paths import runtime_project_home
 
@@ -58,21 +56,6 @@ def _engagement_index_path() -> Path:
     return p
 
 
-def _atomic_write(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".eng_index_", suffix=".tmp")
-    try:
-        with open(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-        Path(tmp).replace(path)
-    except Exception:
-        try:
-            Path(tmp).unlink(missing_ok=True)
-        except OSError:
-            pass
-        raise
-
-
 def _load_engagement_index() -> dict[str, dict[str, str]]:
     p = _engagement_index_path()
     if not p.is_file():
@@ -95,7 +78,7 @@ def _load_engagement_index() -> dict[str, dict[str, str]]:
 
 
 def _save_engagement_index(index: dict[str, dict[str, str]]) -> None:
-    _atomic_write(_engagement_index_path(), json.dumps(index, ensure_ascii=False, indent=2) + "\n")
+    atomic_write_text(_engagement_index_path(), json.dumps(index, ensure_ascii=False, indent=2) + "\n", tmp_prefix=".eng_index_")
 
 
 def register_engagement_tree(engagement_id: str, user_id: str, workflow_template_id: str) -> None:

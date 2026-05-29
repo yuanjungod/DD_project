@@ -1,0 +1,20 @@
+{
+  "workflow_template_id": "workflow_tpl_f6b4449a5378",
+  "workflow_template_version": 1,
+  "resources": {
+    "uploaded_files": [],
+    "trusted_sources": [],
+    "blocked_sources": [],
+    "competitors": []
+  },
+  "extensions": {
+    "workflow_task": {
+      "description": "Analyze Example Corp quarterly performance and summarize key risks."
+    },
+    "subject": {
+      "name": "Example Corp",
+      "aliases": [],
+      "kind": "generic"
+    }
+  }
+}

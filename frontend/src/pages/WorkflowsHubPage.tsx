@@ -35,13 +35,6 @@ const DEFAULT_DOCKER_IDLE_TTL_MINUTES = 20;
 const MIN_DOCKER_IDLE_TTL_MINUTES = 1;
 const MAX_DOCKER_IDLE_TTL_MINUTES = 24 * 60;
 
-const PROTECTED_WORKFLOW_TEMPLATE_IDS = new Set([
-  "standard_due_diligence",
-  "financial_investment_due_diligence",
-  "legal_compliance_due_diligence",
-  "market_entry_due_diligence",
-]);
-
 export function WorkflowsHubPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
@@ -220,7 +213,7 @@ export function WorkflowsHubPage() {
   }
 
   async function handleDelete(workflow: WorkflowTemplate) {
-    if (PROTECTED_WORKFLOW_TEMPLATE_IDS.has(workflow.id)) {
+    if (workflow.is_builtin) {
       return;
     }
     const publishedHint =
@@ -544,7 +537,7 @@ export function WorkflowsHubPage() {
                           <button type="button" className="secondary-button" onClick={() => handleClone(workflow.id)}>
                             克隆
                           </button>
-                          {!PROTECTED_WORKFLOW_TEMPLATE_IDS.has(workflow.id) ? (
+                          {!workflow.is_builtin ? (
                             <button
                               type="button"
                               className="danger-button"

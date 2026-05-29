@@ -6,12 +6,13 @@ from typing import Any, Literal
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 
-from app.services.company_config_merge_constants import PROJECT_RESOURCE_TYPES
+from app.services.instance_config_merge_constants import PROJECT_RESOURCE_TYPES
 
 
-class TargetCompany(BaseModel):
+class Subject(BaseModel):
     name: str
     aliases: list[str] = Field(default_factory=list)
+    kind: str = "generic"
 
 
 class Resources(BaseModel):
@@ -25,63 +26,33 @@ class Resources(BaseModel):
     agent_resource_scopes: list[dict[str, Any]] = Field(default_factory=list)
 
 
-class CompanyConfig(BaseModel):
-    """Legacy API alias for due-diligence-shaped engagement input; prefer InstanceConfig on create/update."""
-
-    target_company: TargetCompany
-    workflow_template_id: str
-    workflow_template_version: int | None = None
-    resources: Resources = Field(default_factory=Resources)
-
-
 class InstanceConfig(BaseModel):
     workflow_template_id: str
     workflow_template_version: int | None = None
     resources: Resources = Field(default_factory=Resources)
     extensions: dict[str, Any] = Field(default_factory=dict)
-    target_company: TargetCompany | None = Field(
-        default=None,
-        deprecated="Legacy due-diligence field; prefer extensions.due_diligence.target_company.",
-    )
 
 
 class EngagementCreate(BaseModel):
     name: str
-    instance_config: InstanceConfig | None = None
-    company_config: CompanyConfig | None = Field(
-        default=None,
-        deprecated="Use instance_config instead.",
-    )
+    instance_config: InstanceConfig
     application_id: str
     version: int = 1
     initial_resources: list["ResourceCreate"] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def _require_config(self) -> EngagementCreate:
-        if self.instance_config is None and self.company_config is None:
-            raise ValueError("instance_config or company_config is required")
-        return self
 
 
 class EngagementUpdate(BaseModel):
     name: str | None = None
     instance_config: InstanceConfig | None = None
-    company_config: CompanyConfig | None = Field(
-        default=None,
-        deprecated="Use instance_config instead.",
-    )
     application_id: str | None = None
 
 
 class EngagementRead(BaseModel):
     id: str
     name: str
-    company_key: str
+    subject_key: str
     application_id: str
     version: int
-    company_config: dict[str, Any] = Field(
-        deprecated="Use instance_config instead.",
-    )
     instance_config: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
@@ -93,23 +64,29 @@ class EngagementRead(BaseModel):
     def _enrich_instance_config(cls, data: Any, handler: Any) -> EngagementRead:
         from shared.instance_config import instance_config_view
 
-        if hasattr(data, "company_config"):
-            stored = data.company_config if isinstance(data.company_config, dict) else {}
+        if hasattr(data, "instance_config"):
+            stored = data.instance_config if isinstance(data.instance_config, dict) else {}
             payload = {
                 "id": data.id,
                 "name": data.name,
-                "company_key": data.company_key,
+                "subject_key": getattr(data, "subject_key", None) or getattr(data, "company_key", "subject"),
                 "application_id": data.application_id,
                 "version": data.version,
-                "company_config": stored,
                 "instance_config": instance_config_view(stored),
                 "created_at": data.created_at,
                 "updated_at": data.updated_at,
             }
             return handler(payload)
-        if isinstance(data, dict) and "instance_config" not in data and isinstance(data.get("company_config"), dict):
+        if isinstance(data, dict):
             enriched = dict(data)
-            enriched["instance_config"] = instance_config_view(enriched["company_config"])
+            raw = enriched.get("instance_config")
+            if raw is None and isinstance(enriched.get("company_config"), dict):
+                raw = enriched["company_config"]
+            if isinstance(raw, dict):
+                enriched["instance_config"] = instance_config_view(raw)
+            if "subject_key" not in enriched and enriched.get("company_key"):
+                enriched["subject_key"] = enriched["company_key"]
+            enriched.pop("company_config", None)
             return handler(enriched)
         return handler(data)
 
@@ -435,6 +412,7 @@ class WorkflowTemplateUpdate(BaseModel):
 
 class WorkflowTemplateRead(WorkflowTemplateBase):
     id: str
+    is_builtin: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -519,26 +497,10 @@ class StartAgentRunBody(BaseModel):
         default=None,
         description="Existing session id; required when session_mode is continue",
     )
-    diligence_session_id: str | None = Field(
-        default=None,
-        deprecated="Use workflow_session_id instead.",
-        description="Deprecated alias for workflow_session_id.",
-    )
     interaction_mode: Literal["batch", "step_gated"] = Field(
         default="batch",
         description="step_gated pauses after each agent for human chat + continue",
     )
-
-    @model_validator(mode="before")
-    @classmethod
-    def _coalesce_session_id(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            primary = str(data.get("workflow_session_id") or "").strip()
-            legacy = str(data.get("diligence_session_id") or "").strip()
-            resolved = primary or legacy or None
-            data["workflow_session_id"] = resolved
-        return data
-
 
 class StepReviewChatTurnRead(BaseModel):
     id: str
