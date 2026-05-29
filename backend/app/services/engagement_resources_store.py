@@ -1,4 +1,4 @@
-"""Project-scoped diligence resources as JSON under data/projects/<id>/resources/."""
+"""Engagement-scoped diligence resources as JSON under engagement shared/resources/."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import Any
 
 from app.models.entities import new_id
 from app.schemas import ResourceCreate, ResourceRead
-from app.services.fs_layout import project_resources_manifest_path
+from app.services.fs_layout import engagement_resources_manifest_path
 
 _MANIFEST_VERSION = 1
 
@@ -25,8 +25,12 @@ def _parse_created_at(s: str) -> datetime:
     return datetime.fromisoformat(s)
 
 
-def _load_raw(project_id: str) -> dict[str, Any]:
-    path = project_resources_manifest_path(project_id)
+def _engagement_id_from_row(row: dict[str, Any]) -> str:
+    return str(row.get("engagement_id") or "")
+
+
+def _load_raw(engagement_id: str) -> dict[str, Any]:
+    path = engagement_resources_manifest_path(engagement_id)
     if not path.is_file():
         return {"version": _MANIFEST_VERSION, "items": []}
     try:
@@ -53,8 +57,8 @@ def _atomic_write(path, text: str) -> None:
         raise
 
 
-def list_project_resources(project_id: str) -> list[ResourceRead]:
-    raw = _load_raw(project_id)
+def list_engagement_resources(engagement_id: str) -> list[ResourceRead]:
+    raw = _load_raw(engagement_id)
     out: list[ResourceRead] = []
     for row in raw["items"]:
         if not isinstance(row, dict):
@@ -63,7 +67,7 @@ def list_project_resources(project_id: str) -> list[ResourceRead]:
             out.append(
                 ResourceRead(
                     id=str(row["id"]),
-                    project_id=str(row["project_id"]),
+                    engagement_id=_engagement_id_from_row(row) or engagement_id,
                     type=str(row["type"]),
                     value=str(row.get("value", "")),
                     metadata_json=row.get("metadata_json") if isinstance(row.get("metadata_json"), dict) else {},
@@ -76,9 +80,9 @@ def list_project_resources(project_id: str) -> list[ResourceRead]:
     return out
 
 
-def project_resource_records_for_merge(project_id: str) -> list[dict[str, Any]]:
+def engagement_resource_records_for_merge(engagement_id: str) -> list[dict[str, Any]]:
     """Plain dicts for company_config_merge (compatible with prior ORM row access)."""
-    raw = _load_raw(project_id)
+    raw = _load_raw(engagement_id)
     items: list[dict[str, Any]] = []
     for row in raw.get("items", []):
         if isinstance(row, dict) and row.get("id"):
@@ -95,26 +99,26 @@ def project_resource_records_for_merge(project_id: str) -> list[dict[str, Any]]:
     return items
 
 
-def add_resource(project_id: str, payload: ResourceCreate) -> ResourceRead:
-    raw = _load_raw(project_id)
+def add_resource(engagement_id: str, payload: ResourceCreate) -> ResourceRead:
+    raw = _load_raw(engagement_id)
     items = list(raw.get("items", []))
     rid = new_id("res")
     now = _utc_now_iso()
     row = {
         "id": rid,
-        "project_id": project_id,
+        "engagement_id": engagement_id,
         "type": payload.type,
         "value": payload.value,
         "metadata_json": dict(payload.metadata_json or {}),
         "created_at": now,
     }
     items.append(row)
-    path = project_resources_manifest_path(project_id)
+    path = engagement_resources_manifest_path(engagement_id)
     blob = {"version": _MANIFEST_VERSION, "items": items}
     _atomic_write(path, json.dumps(blob, ensure_ascii=False, indent=2) + "\n")
     return ResourceRead(
         id=rid,
-        project_id=project_id,
+        engagement_id=engagement_id,
         type=payload.type,
         value=payload.value,
         metadata_json=row["metadata_json"],
@@ -122,31 +126,31 @@ def add_resource(project_id: str, payload: ResourceCreate) -> ResourceRead:
     )
 
 
-def append_resources(project_id: str, payloads: list[ResourceCreate]) -> None:
+def append_resources(engagement_id: str, payloads: list[ResourceCreate]) -> None:
     if not payloads:
         return
-    raw = _load_raw(project_id)
+    raw = _load_raw(engagement_id)
     items = list(raw.get("items", []))
     for payload in payloads:
         rid = new_id("res")
         items.append(
             {
                 "id": rid,
-                "project_id": project_id,
+                "engagement_id": engagement_id,
                 "type": payload.type,
                 "value": payload.value,
                 "metadata_json": dict(payload.metadata_json or {}),
                 "created_at": _utc_now_iso(),
             }
         )
-    path = project_resources_manifest_path(project_id)
+    path = engagement_resources_manifest_path(engagement_id)
     blob = {"version": _MANIFEST_VERSION, "items": items}
     _atomic_write(path, json.dumps(blob, ensure_ascii=False, indent=2) + "\n")
 
 
-def delete_file_references_by_file_id(project_id: str, file_id: str) -> None:
-    """Remove legacy manifest file_reference rows pointing at the given upload file_id."""
-    raw = _load_raw(project_id)
+def delete_file_references_by_file_id(engagement_id: str, file_id: str) -> None:
+    """Remove manifest file_reference rows pointing at the given upload file_id."""
+    raw = _load_raw(engagement_id)
     items_all = raw.get("items", [])
     kept: list[Any] = []
     for row in items_all:
@@ -159,13 +163,13 @@ def delete_file_references_by_file_id(project_id: str, file_id: str) -> None:
         kept.append(row)
     if len(kept) == len(items_all):
         return
-    path = project_resources_manifest_path(project_id)
+    path = engagement_resources_manifest_path(engagement_id)
     blob = {"version": _MANIFEST_VERSION, "items": kept}
     _atomic_write(path, json.dumps(blob, ensure_ascii=False, indent=2) + "\n")
 
 
-def delete_resource(project_id: str, resource_id: str) -> bool:
-    raw = _load_raw(project_id)
+def delete_resource(engagement_id: str, resource_id: str) -> bool:
+    raw = _load_raw(engagement_id)
     items_all = raw.get("items", [])
     removed: dict[str, Any] | None = None
     items: list[Any] = []
@@ -179,20 +183,20 @@ def delete_resource(project_id: str, resource_id: str) -> bool:
     if str(removed.get("type")) == "file_reference":
         meta = removed.get("metadata_json")
         if isinstance(meta, dict) and meta.get("uploaded_via_platform") is True:
-            from app.services.project_uploads_store import unlink_upload_blob  # noqa: PLC0415
+            from app.services.engagement_uploads_store import unlink_upload_blob  # noqa: PLC0415
 
             fid = str(removed.get("value") or "").strip()
             if fid:
-                unlink_upload_blob(project_id, fid)
-    path = project_resources_manifest_path(project_id)
+                unlink_upload_blob(engagement_id, fid)
+    path = engagement_resources_manifest_path(engagement_id)
     blob = {"version": _MANIFEST_VERSION, "items": items}
     _atomic_write(path, json.dumps(blob, ensure_ascii=False, indent=2) + "\n")
     return True
 
 
-def delete_project_resources_tree(project_id: str) -> None:
-    """Remove entire project subtree under data/projects/<id>/."""
-    base = project_resources_manifest_path(project_id).parent.parent
+def delete_engagement_resources_tree(engagement_id: str) -> None:
+    """Remove entire engagement subtree under shared/resources/."""
+    base = engagement_resources_manifest_path(engagement_id).parent.parent
     try:
         if base.is_dir():
             import shutil

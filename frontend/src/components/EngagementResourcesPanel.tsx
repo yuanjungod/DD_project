@@ -9,11 +9,11 @@ import {
   emptyFieldsForResourceType,
   headlineForResourceRow,
   parseProjectResourceForm,
-} from "../domain/projectResources";
+} from "../domain/engagementResources";
 import type { Resource } from "../types/domain";
 
-export type { ProjectResourceType } from "../domain/projectResources";
-export { PROJECT_RESOURCE_TYPE_LABELS } from "../domain/projectResources";
+export type { ProjectResourceType } from "../domain/engagementResources";
+export { PROJECT_RESOURCE_TYPE_LABELS } from "../domain/engagementResources";
 
 export type DraftResourceRow = ParsedProjectResource & { tempId: string };
 

@@ -6,7 +6,7 @@ from typing import Any
 def _collect_node_agent_ids(node: dict[str, Any]) -> list[str]:
     """Collect execution agent ids from one graph node.
 
-    Supports legacy `agent_template_id` and hierarchical master/sub-agent config:
+    Supports flat and hierarchical master/sub-agent config:
     - `agent_template_id`: "CoordinatorAgent"
     - `agent_template_id`: "MasterAgent", `sub_agent_template_ids`: ["SubA", "SubB"]
     """

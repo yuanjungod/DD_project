@@ -48,8 +48,8 @@ def dd_flow_sqlite_dir() -> Path:
     return d
 
 
-def dd_project_project_home(project_id: str) -> Path:
-    d = engagement_tree_dir(project_id)
+def dd_engagement_home(engagement_id: str) -> Path:
+    d = engagement_tree_dir(engagement_id)
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -90,9 +90,9 @@ def _load_engagement_index() -> dict[str, dict[str, str]]:
         if not isinstance(eid, str) or not isinstance(row, dict):
             continue
         uid = str(row.get("user_id") or "").strip()
-        wid = str(row.get("workflow_id") or "").strip()
+        wid = str(row.get("workflow_template_id") or row.get("workflow_id") or "").strip()
         if uid and wid:
-            out[eid] = {"user_id": uid, "workflow_id": wid}
+            out[eid] = {"user_id": uid, "workflow_template_id": wid}
     return out
 
 
@@ -100,14 +100,14 @@ def _save_engagement_index(index: dict[str, dict[str, str]]) -> None:
     _atomic_write(_engagement_index_path(), json.dumps(index, ensure_ascii=False, indent=2) + "\n")
 
 
-def register_engagement_tree(engagement_id: str, user_id: str, workflow_id: str) -> None:
+def register_engagement_tree(engagement_id: str, user_id: str, workflow_template_id: str) -> None:
     eid = str(engagement_id or "").strip()
     uid = str(user_id or "").strip()
-    wid = str(workflow_id or "").strip() or "_default_workflow"
+    wid = str(workflow_template_id or "").strip() or "_default_workflow"
     if not eid or not uid:
         return
     idx = _load_engagement_index()
-    idx[eid] = {"user_id": uid, "workflow_id": wid}
+    idx[eid] = {"user_id": uid, "workflow_template_id": wid}
     _save_engagement_index(idx)
 
 
@@ -115,7 +115,7 @@ def _lookup_engagement_tree(engagement_id: str) -> tuple[str, str]:
     idx = _load_engagement_index()
     row = idx.get(engagement_id)
     if row:
-        return row["user_id"], row["workflow_id"]
+        return row["user_id"], row["workflow_template_id"]
     users_root = dd_flow_users_dir()
     matches: list[tuple[str, str]] = []
     for user_dir in users_root.iterdir():
@@ -162,46 +162,40 @@ def platform_resource_configs_overlay_dir() -> Path:
     return d
 
 
-def project_tree_dir(project_id: str) -> Path:
-    d = dd_project_project_home(project_id)
-    d.mkdir(parents=True, exist_ok=True)
-    return d
-
-
-def project_resources_manifest_path(project_id: str) -> Path:
-    p = project_tree_dir(project_id) / "shared" / "resources" / "manifest.json"
+def engagement_resources_manifest_path(engagement_id: str) -> Path:
+    p = engagement_tree_dir(engagement_id) / "shared" / "resources" / "manifest.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     return p
 
 
-def project_agent_overrides_manifest_path(project_id: str) -> Path:
-    p = project_tree_dir(project_id) / "meta" / "agent_overrides.json"
+def engagement_agent_overrides_manifest_path(engagement_id: str) -> Path:
+    p = engagement_tree_dir(engagement_id) / "meta" / "agent_overrides.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     return p
 
 
-def project_resource_configs_dir(project_id: str) -> Path:
-    d = project_tree_dir(project_id) / "shared" / "resource_configs"
+def engagement_resource_configs_dir(engagement_id: str) -> Path:
+    d = engagement_tree_dir(engagement_id) / "shared" / "resource_configs"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def project_uploads_dir(project_id: str) -> Path:
+def engagement_uploads_dir(engagement_id: str) -> Path:
     """Binary blobs for uploaded files (file_id → single file under this directory)."""
-    d = project_tree_dir(project_id) / "shared" / "uploads"
+    d = engagement_tree_dir(engagement_id) / "shared" / "uploads"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def project_skills_dir(project_id: str) -> Path:
-    """Project-local copied skill packages used by mounted runtime."""
-    d = project_tree_dir(project_id) / "shared" / "skills"
+def engagement_skills_dir(engagement_id: str) -> Path:
+    """Engagement-local copied skill packages used by mounted runtime."""
+    d = engagement_tree_dir(engagement_id) / "shared" / "skills"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
 def platform_uploads_dir() -> Path:
-    """Shared library blobs (not tied to a single project application)."""
+    """Shared library blobs (not tied to a single engagement application)."""
     d = dd_flow_sqlite_dir() / "platform" / "uploads"
     d.mkdir(parents=True, exist_ok=True)
     return d

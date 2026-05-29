@@ -46,7 +46,6 @@ class AgentDefinition(BaseModel):
     prompt: str
     sub_agent_ids: list[str] = Field(default_factory=list)
     prompt_text: str | None = None
-    tools: list[str]
     skill_package_ids: list[str] = Field(default_factory=list)
     tool_ids: list[str] = Field(default_factory=list)
     resource_ids: list[str] = Field(default_factory=list)

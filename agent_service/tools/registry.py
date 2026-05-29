@@ -30,7 +30,7 @@ class ToolRegistry:
     def for_agent_definition(cls, definition: AgentDefinition) -> ToolRegistry:
         configs = list(definition.tool_configs or [])
         if not configs:
-            configs = _tool_configs_from_catalog(definition.tool_ids or definition.tools)
+            configs = _tool_configs_from_catalog(definition.tool_ids)
         return cls(configs)
 
     @property

@@ -10,7 +10,7 @@ import yaml
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import decode_access_token, hash_password
-from app.models.entities import Project, ProjectAccess, User
+from app.models.entities import Engagement, EngagementAccess, User
 from app.services.fs_layout import default_users_config_path
 
 
@@ -87,35 +87,35 @@ def require_roles(*roles: str):
     return dependency
 
 
-def can_access_project(db: Session, user: User, project_id: str) -> bool:
+def can_access_engagement(db: Session, user: User, engagement_id: str) -> bool:
     if user.role == "admin":
-        return db.get(Project, project_id) is not None
+        return db.get(Engagement, engagement_id) is not None
     return (
-        db.query(ProjectAccess)
-        .filter(ProjectAccess.project_id == project_id, ProjectAccess.user_id == user.id)
+        db.query(EngagementAccess)
+        .filter(EngagementAccess.engagement_id == engagement_id, EngagementAccess.user_id == user.id)
         .first()
         is not None
     )
 
 
-def ensure_project_access(db: Session, user: User, project_id: str) -> Project:
-    project = db.get(Project, project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    if not can_access_project(db, user, project_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Project access denied")
-    return project
+def ensure_engagement_access(db: Session, user: User, engagement_id: str) -> Engagement:
+    engagement = db.get(Engagement, engagement_id)
+    if not engagement:
+        raise HTTPException(status_code=404, detail="Engagement not found")
+    if not can_access_engagement(db, user, engagement_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Engagement access denied")
+    return engagement
 
 
-def ensure_project_write_access(db: Session, user: User, project_id: str) -> Project:
-    project = ensure_project_access(db, user, project_id)
+def ensure_engagement_write_access(db: Session, user: User, engagement_id: str) -> Engagement:
+    engagement = ensure_engagement_access(db, user, engagement_id)
     if user.role == "viewer":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Read-only users cannot modify projects")
-    return project
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Read-only users cannot modify engagements")
+    return engagement
 
 
-def accessible_project_ids(db: Session, user: User) -> Iterable[str] | None:
+def accessible_engagement_ids(db: Session, user: User) -> Iterable[str] | None:
     if user.role == "admin":
         return None
-    rows = db.query(ProjectAccess.project_id).filter(ProjectAccess.user_id == user.id).all()
+    rows = db.query(EngagementAccess.engagement_id).filter(EngagementAccess.user_id == user.id).all()
     return [row[0] for row in rows]

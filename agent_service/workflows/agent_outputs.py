@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_service.api.schemas import AgentResult
-from agent_service.scenario_layout import session_json_path
+from agent_service.engagement_layout import session_json_path
 
 _SAFE_SEGMENT = re.compile(r"[^a-zA-Z0-9_-]+")
 
@@ -57,13 +57,13 @@ def agent_step_output_dir(
     *,
     workflow_template_id: str,
     user_id: str,
-    project_id: str,
+    engagement_id: str,
     session_id: str,
     run_id: str,
     step_id: str,
     agent_name: str,
 ) -> Path:
-    session_path = session_json_path(workflow_template_id, user_id, project_id, run_id, session_id)
+    session_path = session_json_path(workflow_template_id, user_id, engagement_id, run_id, session_id)
     folder_name = f"{_safe_segment(step_id)}_{_safe_segment(agent_name)}"
     return session_path.parent / "outputs" / f"{_safe_segment(run_id)}_outputs" / folder_name
 

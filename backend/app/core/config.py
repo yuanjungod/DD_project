@@ -42,10 +42,9 @@ class Settings(BaseSettings):
     # Verified by POST /internal/agent-runs/*/progress — must match agent service AGENT_CALLBACK_SECRET
     agent_callback_secret: str = _DEV_CALLBACK_SECRET
     agent_api_key: str = Field(default=_DEV_AGENT_API_KEY, validation_alias="AGENT_API_KEY")
-    # Project + platform connector resources (YAML/JSON), not SQLite tables.
     filesystem_data_root: str = Field(
         default=_DEFAULT_DATA_ROOT,
-        validation_alias=AliasChoices("DD_DATA_ROOT", "FILESYSTEM_DATA_ROOT"),
+        validation_alias="DD_DATA_ROOT",
     )
     seed_default_users: bool = Field(default=True, validation_alias="DD_SEED_DEFAULT_USERS")
     default_users_config_path: str = Field(default="", validation_alias="DD_DEFAULT_USERS_CONFIG")

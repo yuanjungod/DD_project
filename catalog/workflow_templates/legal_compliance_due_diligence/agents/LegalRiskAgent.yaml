@@ -1,4 +1,4 @@
-# Agent template — global library entry. Scenario folders may copy this into their agents/ directory.
+# Agent template — global library entry.
 
 id: LegalRiskAgent
 name: LegalRiskAgent
@@ -20,7 +20,6 @@ prompt: 'You are a legal and compliance risk analyst.
   '
 skill_package_ids: []
 tool_ids: []
-skill_ids: []
 resource_ids:
 - resource_public_web
 react_config:

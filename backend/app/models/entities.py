@@ -13,9 +13,11 @@ def new_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:12]}"
 
 
-class Project(Base):
-    __tablename__ = "projects"
-    __table_args__ = (UniqueConstraint("company_key", "application_id", "version", name="uq_project_company_app_version"),)
+class Engagement(Base):
+    __tablename__ = "engagements"
+    __table_args__ = (
+        UniqueConstraint("company_key", "application_id", "version", name="uq_engagement_company_app_version"),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("eng"))
     name: Mapped[str] = mapped_column(String, nullable=False)
@@ -26,12 +28,13 @@ class Project(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-
-    runs: Mapped[list["AgentRun"]] = relationship(back_populates="project", cascade="all, delete-orphan")
-    reports: Mapped[list["Report"]] = relationship(back_populates="project", cascade="all, delete-orphan")
-    access_entries: Mapped[list["ProjectAccess"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    runs: Mapped[list["AgentRun"]] = relationship(back_populates="engagement", cascade="all, delete-orphan")
+    reports: Mapped[list["Report"]] = relationship(back_populates="engagement", cascade="all, delete-orphan")
+    access_entries: Mapped[list["EngagementAccess"]] = relationship(
+        back_populates="engagement", cascade="all, delete-orphan"
+    )
     diligence_sessions: Mapped[list["DiligenceSession"]] = relationship(
-        back_populates="project", cascade="all, delete-orphan"
+        back_populates="engagement", cascade="all, delete-orphan"
     )
 
 
@@ -41,12 +44,12 @@ class DiligenceSession(Base):
     __tablename__ = "diligence_sessions"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("sess"))
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    engagement_id: Mapped[str] = mapped_column(ForeignKey("engagements.id"), nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    project: Mapped["Project"] = relationship(back_populates="diligence_sessions")
+    engagement: Mapped["Engagement"] = relationship(back_populates="diligence_sessions")
     runs: Mapped[list["AgentRun"]] = relationship(back_populates="diligence_session")
 
 
@@ -60,39 +63,39 @@ class User(Base):
     role: Mapped[str] = mapped_column(String, nullable=False, default="analyst")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    project_access: Mapped[list["ProjectAccess"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    engagement_access: Mapped[list["EngagementAccess"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
-class ProjectAccess(Base):
-    __tablename__ = "project_access"
-    __table_args__ = (UniqueConstraint("project_id", "user_id", name="uq_project_user_access"),)
+class EngagementAccess(Base):
+    __tablename__ = "engagement_access"
+    __table_args__ = (UniqueConstraint("engagement_id", "user_id", name="uq_engagement_user_access"),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("access"))
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    engagement_id: Mapped[str] = mapped_column(ForeignKey("engagements.id"), nullable=False)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
     access_role: Mapped[str] = mapped_column(String, nullable=False, default="owner")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    project: Mapped[Project] = relationship(back_populates="access_entries")
-    user: Mapped[User] = relationship(back_populates="project_access")
+    engagement: Mapped[Engagement] = relationship(back_populates="access_entries")
+    user: Mapped[User] = relationship(back_populates="engagement_access")
 
 
 class AgentRun(Base):
     __tablename__ = "agent_runs"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    engagement_id: Mapped[str] = mapped_column(ForeignKey("engagements.id"), nullable=False)
     started_by_user_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id"), nullable=True)
-    session_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("diligence_sessions.id"), nullable=True
-    )
+    session_id: Mapped[str | None] = mapped_column(String, ForeignKey("diligence_sessions.id"), nullable=True)
     attempt_index: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     raw_result: Mapped[dict] = mapped_column(JSON, default=dict)
 
-    project: Mapped[Project] = relationship(back_populates="runs")
+    engagement: Mapped[Engagement] = relationship(back_populates="runs")
     diligence_session: Mapped["DiligenceSession | None"] = relationship(back_populates="runs")
     steps: Mapped[list["AgentStep"]] = relationship(back_populates="run", cascade="all, delete-orphan")
     report: Mapped["Report | None"] = relationship(back_populates="run", cascade="all, delete-orphan")
@@ -130,7 +133,7 @@ class Report(Base):
     __tablename__ = "reports"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("report"))
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    engagement_id: Mapped[str] = mapped_column(ForeignKey("engagements.id"), nullable=False)
     run_id: Mapped[str] = mapped_column(ForeignKey("agent_runs.id"), nullable=False, unique=True)
     title: Mapped[str] = mapped_column(String, nullable=False)
     executive_summary: Mapped[str] = mapped_column(Text, nullable=False)
@@ -138,5 +141,5 @@ class Report(Base):
     sections: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    project: Mapped[Project] = relationship(back_populates="reports")
+    engagement: Mapped[Engagement] = relationship(back_populates="reports")
     run: Mapped[AgentRun] = relationship(back_populates="report")

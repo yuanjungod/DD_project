@@ -26,8 +26,7 @@ class Resources(BaseModel):
 
 class CompanyConfig(BaseModel):
     target_company: TargetCompany
-    workflow_id: str = "standard_due_diligence"
-    workflow_template_id: str | None = None
+    workflow_template_id: str
     workflow_template_version: int | None = None
     resources: Resources = Field(default_factory=Resources)
 

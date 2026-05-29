@@ -72,7 +72,10 @@ def _normalize_bundle(doc: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(wf, dict):
         raise HTTPException(status_code=400, detail="Workflow template missing workflow section")
     wf.setdefault("description", "")
-    wf["workflow_template"] = str(wf.get("workflow_template") or "standard")
+    discriminator = str(wf.get("workflow_template") or "").strip()
+    if not discriminator:
+        raise HTTPException(status_code=400, detail="Workflow missing workflow_template discriminator")
+    wf["workflow_template"] = discriminator
     wf.setdefault("status", "draft")
     wf.setdefault("version", 1)
     if "graph" not in wf or not wf["graph"]:

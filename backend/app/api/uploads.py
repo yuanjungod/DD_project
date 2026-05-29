@@ -5,11 +5,11 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from app.core.auth import ensure_project_write_access, require_roles
+from app.core.auth import ensure_engagement_write_access, require_roles
 from app.core.database import get_db
 from app.models.entities import User
 from app.schemas import ResourceRead
-from app.services.project_uploads_store import save_project_upload
+from app.services.engagement_uploads_store import save_engagement_upload
 
 router = APIRouter(prefix="/engagements/{engagement_id}/uploads", tags=["uploads"])
 
@@ -21,11 +21,11 @@ async def upload_engagement_file(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> ResourceRead:
-    ensure_project_write_access(db, user, engagement_id)
+    ensure_engagement_write_access(db, user, engagement_id)
     body = await file.read()
     filename = file.filename or "upload.bin"
     try:
-        return save_project_upload(
+        return save_engagement_upload(
             engagement_id,
             filename=filename,
             content_type=file.content_type,

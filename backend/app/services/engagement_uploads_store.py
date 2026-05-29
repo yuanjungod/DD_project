@@ -1,4 +1,4 @@
-"""Persist uploaded diligence files under the project tree and register them as file_reference resources."""
+"""Persist uploaded diligence files under the engagement tree and register them as file_reference resources."""
 
 from __future__ import annotations
 
@@ -6,26 +6,26 @@ from pathlib import Path
 
 from app.models.entities import new_id
 from app.schemas import ResourceCreate, ResourceRead
-from app.services.fs_layout import project_uploads_dir
+from app.services.fs_layout import engagement_uploads_dir
 
 # Guardrail for local MVP; adjust via env later if needed.
 UPLOAD_MAX_BYTES = 50 * 1024 * 1024
 
 
-def upload_blob_path(project_id: str, file_id: str) -> Path:
-    return project_uploads_dir(project_id) / file_id
+def upload_blob_path(engagement_id: str, file_id: str) -> Path:
+    return engagement_uploads_dir(engagement_id) / file_id
 
 
-def unlink_upload_blob(project_id: str, file_id: str) -> None:
-    path = upload_blob_path(project_id, file_id)
+def unlink_upload_blob(engagement_id: str, file_id: str) -> None:
+    path = upload_blob_path(engagement_id, file_id)
     try:
         path.unlink(missing_ok=True)
     except OSError:
         pass
 
 
-def save_project_upload(
-    project_id: str,
+def save_engagement_upload(
+    engagement_id: str,
     *,
     filename: str,
     content_type: str | None,
@@ -38,7 +38,7 @@ def save_project_upload(
 
     safe_name = Path(filename or "upload").name.strip() or "upload.bin"
     file_id = new_id("fil")
-    path = upload_blob_path(project_id, file_id)
+    path = upload_blob_path(engagement_id, file_id)
     path.write_bytes(body)
 
     metadata_json = {
@@ -55,9 +55,9 @@ def save_project_upload(
         metadata_json=metadata_json,
     )
     try:
-        from app.services.project_resources_store import add_resource  # noqa: PLC0415
+        from app.services.engagement_resources_store import add_resource  # noqa: PLC0415
 
-        return add_resource(project_id, payload)
+        return add_resource(engagement_id, payload)
     except Exception:
         path.unlink(missing_ok=True)
         raise

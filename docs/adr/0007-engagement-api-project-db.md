@@ -1,21 +1,23 @@
-# ADR-0007: Engagement in API, Project in database
+# ADR-0007: Engagement naming in API and database
 
 ## Status
 
-Accepted (2026-05-29)
+Accepted (2026-05-29, updated)
 
 ## Context
 
-Renaming the SQLAlchemy `Project` table and all `project_id` foreign keys to `Engagement` would touch migrations, queries, and filesystem helpers across backend and agent_service.
+The product domain object was originally named "Project" in the database while the public API used "Engagement". Dual naming added confusion and `AliasChoices` shims in DTOs.
 
 ## Decision
 
-- Keep **`Project` model and `project_id` columns** in the database for MVP stability.
-- Expose **`engagement_id`** in all public JSON via Pydantic field aliases.
-- Defer a full DB rename until migration tooling and downtime budget are available.
+- **Public API, UI, ORM, and database** all use `engagement` / `engagement_id`.
+- SQLAlchemy model: `Engagement` with `__tablename__ = "engagements"`.
+- Access control: `EngagementAccess` / `engagement_access` table.
+- Foreign keys on runs, reports, sessions use `engagement_id`.
+- Alembic migration `001_rename_projects_to_engagements` renames legacy tables/columns; `ensure_schema_patches` performs the same renames on startup for existing SQLite dev databases.
 
 ## Consequences
 
-- Internal code continues to use `project_id`; API consumers see `engagement_id`.
-- New code should prefer "engagement" in user-facing strings and route names.
-- A future migration can rename tables/columns with a single Alembic revision.
+- No `project_id` JSON aliases on API responses.
+- Internal module names use `engagement_*` (not `project_*`).
+- Developers with old local SQLite files get automatic table renames on startup, or may delete `.dd_project/data/platform/dd_platform.db` for a clean schema.

@@ -9,14 +9,13 @@ import { defaultApplicationId, engagementIdentityLabel } from "../domain/engagem
 import { normalizeCompanyConfig, workflowTemplateIdFromConfig } from "../domain/companyConfig";
 import type { CompanyConfig, Engagement, WorkflowTemplate } from "../types/domain";
 
-function defaultConfig(workflowId: string): CompanyConfig {
+function defaultConfig(workflowTemplateId: string): CompanyConfig {
   return {
     target_company: {
       name: "Example Robotics",
       aliases: ["ExampleBot"],
     },
-    workflow_id: workflowId,
-    workflow_template_id: workflowId,
+    workflow_template_id: workflowTemplateId,
     workflow_template_version: 1,
     resources: {
       uploaded_files: [],
@@ -106,7 +105,6 @@ export function NewEngagementPage() {
         if (selected) {
           setForm((current) => ({
             ...current,
-            workflow_id: selected.id,
             workflow_template_id: selected.id,
             workflow_template_version: selected.version,
           }));
@@ -254,7 +252,6 @@ export function NewEngagementPage() {
                     if (!workflow) return;
                     setForm({
                       ...form,
-                      workflow_id: workflow.id,
                       workflow_template_id: workflow.id,
                       workflow_template_version: workflow.version,
                     });

@@ -1,4 +1,4 @@
-"""Merge filesystem-backed project resource records into company_config.resources for Agent runs."""
+"""Merge filesystem-backed engagement resource records into company_config.resources for Agent runs."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Any
 from app.services.platform_uploads_store import iter_platform_upload_file_ids
 
 
-def merged_company_config_with_project_resources(
+def merged_company_config_with_engagement_resources(
     company_config: dict[str, Any],
     resource_records: list[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -111,7 +111,7 @@ def merged_company_config_with_project_resources(
                 seen_metric_rows.add(rid)
         elif rtype == "agent_resource_scope":
             if rid not in seen_scope_rows:
-                file_ids = meta.get("uploaded_file_ids") or meta.get("file_ids") or []
+                file_ids = meta.get("uploaded_file_ids") or []
                 if isinstance(file_ids, str):
                     file_ids = [x.strip() for x in file_ids.split(",") if x.strip()]
                 agent_scopes.append(
@@ -136,4 +136,4 @@ def merged_company_config_with_project_resources(
     return merged
 
 
-__all__ = ["merged_company_config_with_project_resources"]
+__all__ = ["merged_company_config_with_engagement_resources"]

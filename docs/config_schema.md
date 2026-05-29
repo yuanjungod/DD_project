@@ -5,7 +5,7 @@ This document describes the configuration contract shared by the frontend, backe
 ## Terminology
 
 - `workflow_template`: reusable process definition; it answers "how the due diligence runs".
-- `engagement` (formerly `project`): concrete business instance bound to a company/application/version/resources; it answers "what this run is for".
+- `engagement`: concrete business instance bound to a company/application/version/resources; it answers "what this run is for".
 - API routes now use `/engagements/*` for engagement resources and execution state.
 
 ## Local runtime environment
@@ -20,7 +20,7 @@ This document describes the configuration contract shared by the frontend, backe
 | `AUTH_SECRET_KEY` | backend | JWT signing secret (must not use dev default in production). |
 | `ENV` | backend + agent | Set to `production` to enforce non-default secrets. |
 | `PLATFORM_CALLBACK_BASE_URL` | agent | Backend base URL for incremental progress (default `http://127.0.0.1:8010`). Set empty or unreachable to disable callbacks (UI then only updates after finalization). |
-| `DD_SESSION_HISTORY_DIR` | agent | Optional legacy override (deprecated). Session JSON lives under `.dd_project/users/<user>/<workflow_template>/<engagement>/sessions/<session>/runs/<workflow_template>/<run>.json`. |
+| `DD_SESSION_HISTORY_ENABLED` | agent | Persist each POST /runs execution under `.dd_project/users/<user>/<workflow_template>/<engagement>/sessions/<session>/runs/<workflow_template>/<run>.json`. |
 | `DD_SEED_DEFAULT_USERS` | backend | Seed development users on startup when the users table is empty (default `true`). |
 | `DD_DEFAULT_USERS_CONFIG` | backend | Optional path to the seed user YAML. Defaults to `catalog/default_users.yaml`; relative paths are resolved from the repository root. |
 | `VITE_API_BASE_URL` | frontend | When set, all `fetch` calls use this absolute base (skips the dev proxy). |
@@ -120,7 +120,6 @@ Skill packages follow the same engagement-localization principle:
     "name": "Example Robotics",
     "aliases": ["ExampleBot"]
   },
-  "workflow_id": "standard_due_diligence",
   "workflow_template_id": "standard_due_diligence",
   "workflow_template_version": 1,
   "resources": {
@@ -132,7 +131,7 @@ Skill packages follow the same engagement-localization principle:
 }
 ```
 
-`workflow_template_id` selects the published workflow template for runs; `workflow_id` remains a compatibility alias. The backend builds the run snapshot from the published `workflow_template.yaml` and the separate agent catalog on disk.
+`workflow_template_id` selects the published workflow template for runs. The backend builds the run snapshot from the published `workflow_template.yaml` and the separate agent catalog on disk.
 
 ## Configuration Catalog
 
@@ -141,8 +140,8 @@ Reusable workflows are managed through the backend configuration catalog:
 - `SkillPackage` (file-backed): Anthropic/Cursor-style skill package with `SKILL.md`, directory name, editable package files, and optional bundled resources such as references, scripts, and assets. Skill packages live under `agent_service/skills/<directory_name>/`. Admins may **`POST /skills/import-zip`** (`multipart/form-data`: **`file`** = single-skill `.zip` with one top-level folder containing `SKILL.md`; optional **`directory_name`** form field overrides the disk directory slug).
 - `ToolConfig` (file-backed): optional executable platform capabilities; persisted under `agent_service/configs/tools.yaml`.
 - `ResourceConfig`: data resource available to agents, such as public web, uploaded files, vector stores, databases, or external APIs.
-- `AgentTemplate` (file-backed): definitions are stored in **`catalog/agents/{agent_id}.yaml`** (published catalog) and **`.dd_project/users/{user_id}/workflows/_agent_templates/{agent_id}.yaml`** (user draft/save area). Each record has `id`, `name`, `role`, inline `prompt`, optional `sub_agent_ids`, `skill_package_ids`, `tool_ids`, `skill_ids`, `resource_ids`, `react_config`, and `enabled`. The Admin UI uses **`GET/POST/PATCH /agent-templates`** to save drafts under the current user, and **`POST /agent-templates/{agent_id}/publish`** to publish into `catalog/agents/`.
-- `WorkflowTemplate` (file-backed template): one folder per workflow template under **`catalog/workflow_templates/{workflow_id}/`** (published catalog) or **`.dd_project/users/{user_id}/workflows/{workflow_id}/`** (user draft/save area). Each folder contains **`workflow_template.yaml`** (workflow graph and metadata) and an **`agents/`** subdirectory with the agents referenced by that template. **`GET/POST/PATCH /workflow-templates`** save to the user draft area; **`POST /workflow-templates/{workflow_id}/publish`** publishes that draft into `catalog/workflow_templates/{workflow_id}/`. Only **`published`** templates are listed for non-admin callers and for run snapshots.
+- `AgentTemplate` (file-backed): definitions are stored in **`catalog/agents/{agent_id}.yaml`** (published catalog) and **`.dd_project/users/{user_id}/workflows/_agent_templates/{agent_id}.yaml`** (user draft/save area). Each record has `id`, `name`, `role`, inline `prompt`, optional `sub_agent_ids`, `skill_package_ids`, `tool_ids`, `resource_ids`, `react_config`, and `enabled`. The Admin UI uses **`GET/POST/PATCH /agent-templates`** to save drafts under the current user, and **`POST /agent-templates/{agent_id}/publish`** to publish into `catalog/agents/`.
+- `WorkflowTemplate` (file-backed template): one folder per workflow template under **`catalog/workflow_templates/{workflow_template_id}/`** (published catalog) or **`.dd_project/users/{user_id}/workflows/{workflow_template_id}/`** (user draft/save area). Each folder contains **`workflow_template.yaml`** (workflow graph and metadata) and an **`agents/`** subdirectory with the agents referenced by that template. **`GET/POST/PATCH /workflow-templates`** save to the user draft area; **`POST /workflow-templates/{workflow_template_id}/publish`** publishes that draft into `catalog/workflow_templates/{workflow_template_id}/`. Only **`published`** templates are listed for non-admin callers and for run snapshots.
 
 Only **`published`** workflow templates should be selected by downstream engagements. When a run starts, the backend creates a **workflow snapshot** from the current file-backed template, agent catalog, and DB/file-backed skill/tool/resource mirrors. The snapshot sent to the agent service includes `skill_packages` (with `package_files`), executable `tools`, `resources`, and each agent's `react_config`. By default, `react_config.model` uses the local Anthropic Messages-compatible `kimi-code` provider at `http://127.0.0.1:8081/v1`.
 

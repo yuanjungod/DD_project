@@ -8,10 +8,10 @@ An MVP due diligence platform with:
 
 ## Terminology
 
-- `Workflow Template` (formerly `Scenario`): defines **how** the diligence is executed (graph/stages/agent composition).
-- `Engagement` (formerly `Project`): defines **what/who** is being analyzed for one business instance (company, app id, version, resources, runs).
+- `Workflow Template`: defines **how** the diligence is executed (graph/stages/agent composition).
+- `Engagement`: defines **what/who** is being analyzed for one business instance (company, app id, version, resources, runs).
 
-In API and UI, `engagement` is the runtime/business object and `workflow template` is the reusable process template.
+See [CONTEXT.md](CONTEXT.md) and [docs/adr/README.md](docs/adr/README.md) for domain vocabulary and architecture decisions.
 
 ## Layout
 
@@ -147,7 +147,7 @@ MVP flow:
 6. Start a due diligence run from the engagement detail page.
 7. Review agent steps, per-step output folders, report, workflow snapshot, and run history.
 
-After upgrading from a build that used the removed Evidence model, reset local SQLite under `.dd_project/data/platform/` (delete `dd_platform.db` and restart the backend) so `create_all` rebuilds the schema.
+After upgrading schema, reset local SQLite under `.dd_project/data/platform/` (delete `dd_platform.db` and restart the backend) if automatic migration does not apply.
 
 ## Tests
 

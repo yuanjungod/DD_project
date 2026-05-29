@@ -37,18 +37,17 @@ def main() -> None:
 
 
 def _workflow_template_root(workflow_template_id: str) -> Path | None:
-    for base in (ROOT / "catalog" / "workflow_templates", ROOT / "data" / "dd_store" / "workflow_templates"):
-        candidate = base / workflow_template_id
-        if (candidate / "workflow_template.yaml").is_file():
-            return candidate
+    candidate = ROOT / "catalog" / "workflow_templates" / workflow_template_id
+    if (candidate / "workflow_template.yaml").is_file():
+        return candidate
     return None
 
 
 def _load_workflow_snapshot(company_config: CompanyConfig) -> dict:
-    workflow_id = company_config.workflow_template_id or company_config.workflow_id
-    workflow_template_root = _workflow_template_root(workflow_id)
+    workflow_template_id = company_config.workflow_template_id
+    workflow_template_root = _workflow_template_root(workflow_template_id)
     if workflow_template_root is None:
-        raise FileNotFoundError(f"Workflow template not found: {workflow_id}")
+        raise FileNotFoundError(f"Workflow template not found: {workflow_template_id}")
     workflow_doc = _load_yaml(workflow_template_root / "workflow_template.yaml")
     workflow = workflow_doc["workflow"]
     agents_dir = workflow_template_root / "agents"
@@ -64,7 +63,7 @@ def _load_workflow_snapshot(company_config: CompanyConfig) -> dict:
     agent_ids = [node.get("agent_template_id", "") for node in workflow["graph"].get("nodes", [])]
     agents = [agent_catalog[agent_id] for agent_id in agent_ids if agent_id in agent_catalog]
     skill_package_ids = sorted({skill_id for agent in agents for skill_id in (agent.get("skill_package_ids") or [])})
-    tool_ids = sorted({tool_id for agent in agents for tool_id in (agent.get("tool_ids") or agent.get("skill_ids") or [])})
+    tool_ids = sorted({tool_id for agent in agents for tool_id in (agent.get("tool_ids") or [])})
     return {
         "workflow": {
             "id": workflow["id"],

@@ -3,7 +3,7 @@
   "$id": "https://dd-platform.local/schemas/company_config.schema.json",
   "title": "CompanyConfig",
   "type": "object",
-  "required": ["target_company", "resources"],
+  "required": ["target_company", "workflow_template_id", "resources"],
   "properties": {
     "target_company": {
       "type": "object",
@@ -13,18 +13,13 @@
         "aliases": { "type": "array", "items": { "type": "string" }, "default": [] }
       }
     },
-    "workflow_id": {
-      "type": "string",
-      "default": "standard_due_diligence",
-      "description": "Reusable workflow template selected for this company project."
-    },
     "workflow_template_id": {
       "type": "string",
       "description": "Published workflow template id used by downstream runs."
     },
     "workflow_template_version": {
       "type": "integer",
-      "description": "Published workflow template version selected for this project."
+      "description": "Published workflow template version selected for this engagement."
     },
     "resources": {
       "type": "object",

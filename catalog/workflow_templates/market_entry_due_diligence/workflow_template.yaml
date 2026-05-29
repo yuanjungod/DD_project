@@ -1,11 +1,12 @@
-# Scenario folder — workflow graph and metadata. Agent definitions for this scenario live in ./agents/.
+# Workflow template folder — graph and metadata. Agent definitions live in ./agents/.
+
 
 version: 1
 workflow:
   id: market_entry_due_diligence
   name: 市场进入尽调
   description: 适用于进入新市场或寻找合作标的，重点关注行业、竞品、产品和公开声誉。
-  scenario: market_entry
+  workflow_template: market_entry
   status: published
   version: 1
   graph:

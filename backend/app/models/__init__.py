@@ -1,8 +1,8 @@
 from app.models.entities import (
     AgentRun,
     AgentStep,
-    Project,
-    ProjectAccess,
+    Engagement,
+    EngagementAccess,
     Report,
     User,
 )
@@ -10,8 +10,8 @@ from app.models.entities import (
 __all__ = [
     "AgentRun",
     "AgentStep",
-    "Project",
-    "ProjectAccess",
+    "Engagement",
+    "EngagementAccess",
     "Report",
     "User",
 ]

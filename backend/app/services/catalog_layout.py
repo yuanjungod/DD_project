@@ -174,14 +174,6 @@ def workflow_template_agent_path(workflow_template_id: str, agent_id: str) -> Pa
     return workflow_template_agents_dir(workflow_template_id) / f"{agent_id}.yaml"
 
 
-def workflow_template_runs_root(workflow_template_id: str, user_id: str) -> Path:
-    assert_safe_workflow_template_id(workflow_template_id)
-    assert_safe_workflow_template_id(user_id)
-    directory = repo_root() / ".dd_project" / "projects"
-    directory.mkdir(parents=True, exist_ok=True)
-    return directory
-
-
 def list_workflow_template_config_dirs(user_id: str | None = None) -> list[Path]:
     seen: dict[str, Path] = {}
     roots: list[Path] = [builtin_workflow_templates_root()]

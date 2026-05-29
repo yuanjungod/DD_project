@@ -1,4 +1,4 @@
-# Agent template — global library entry. Scenario folders may copy this into their agents/ directory.
+# Agent template — global library entry.
 
 id: agent_tpl_6a0a5de72005
 name: 测试
@@ -8,7 +8,6 @@ prompt: '按照乔布斯风格和我对话
   你的输出写在markdown文件里面'
 skill_package_ids: []
 tool_ids: []
-skill_ids: []
 resource_ids: []
 platform_upload_file_ids: []
 react_config:

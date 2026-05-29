@@ -26,8 +26,7 @@ class Resources(BaseModel):
 
 class CompanyConfig(BaseModel):
     target_company: TargetCompany
-    workflow_id: str = "standard_due_diligence"
-    workflow_template_id: str | None = None
+    workflow_template_id: str
     workflow_template_version: int | None = None
     resources: Resources = Field(default_factory=Resources)
 
@@ -59,7 +58,7 @@ class EngagementRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ProjectAgentOverrideBase(BaseModel):
+class EngagementAgentOverrideBase(BaseModel):
     agent_id: str
     prompt_append: str = ""
     prompt_override: str = ""
@@ -113,18 +112,18 @@ class ProjectAgentOverrideBase(BaseModel):
         return out
 
     @model_validator(mode="after")
-    def validate_agent_id(self) -> ProjectAgentOverrideBase:
+    def validate_agent_id(self) -> EngagementAgentOverrideBase:
         if not self.agent_id.strip():
             raise ValueError("agent_id must be non-empty")
         self.agent_id = self.agent_id.strip()
         return self
 
 
-class ProjectAgentOverrideUpsert(ProjectAgentOverrideBase):
+class EngagementAgentOverrideUpsert(EngagementAgentOverrideBase):
     pass
 
 
-class ProjectAgentOverrideRead(ProjectAgentOverrideBase):
+class EngagementAgentOverrideRead(EngagementAgentOverrideBase):
     updated_at: datetime | None = None
 
 
@@ -295,7 +294,6 @@ class AgentTemplateBase(BaseModel):
     sub_agent_ids: list[str] = Field(default_factory=list)
     skill_package_ids: list[str] = Field(default_factory=list)
     tool_ids: list[str] = Field(default_factory=list)
-    skill_ids: list[str] = Field(default_factory=list)
     resource_ids: list[str] = Field(default_factory=list)
     platform_upload_file_ids: list[str] = Field(
         default_factory=list,
@@ -316,7 +314,6 @@ class AgentTemplateUpdate(BaseModel):
     sub_agent_ids: list[str] | None = None
     skill_package_ids: list[str] | None = None
     tool_ids: list[str] | None = None
-    skill_ids: list[str] | None = None
     resource_ids: list[str] | None = None
     platform_upload_file_ids: list[str] | None = None
     react_config: dict[str, Any] | None = None
@@ -387,10 +384,7 @@ class ResourceCreate(BaseModel):
 
 class ResourceRead(BaseModel):
     id: str
-    engagement_id: str = Field(
-        validation_alias=AliasChoices("engagement_id", "project_id"),
-        serialization_alias="engagement_id",
-    )
+    engagement_id: str
     type: str
     value: str
     metadata_json: dict[str, Any]
@@ -424,10 +418,7 @@ class AgentStepRead(BaseModel):
 
 class ReportRead(BaseModel):
     id: str
-    engagement_id: str = Field(
-        validation_alias=AliasChoices("engagement_id", "project_id"),
-        serialization_alias="engagement_id",
-    )
+    engagement_id: str
     run_id: str
     title: str
     executive_summary: str
@@ -484,10 +475,7 @@ class StepReviewChatOut(BaseModel):
 
 class AgentRunBriefRead(BaseModel):
     id: str
-    engagement_id: str = Field(
-        validation_alias=AliasChoices("engagement_id", "project_id"),
-        serialization_alias="engagement_id",
-    )
+    engagement_id: str
     status: str
     attempt_index: int | None = None
     session_id: str | None = None
@@ -502,10 +490,7 @@ class AgentRunBriefRead(BaseModel):
 
 class DiligenceSessionRead(BaseModel):
     id: str
-    engagement_id: str = Field(
-        validation_alias=AliasChoices("engagement_id", "project_id"),
-        serialization_alias="engagement_id",
-    )
+    engagement_id: str
     status: str
     created_at: datetime
     updated_at: datetime
@@ -524,10 +509,7 @@ class DiligenceSessionRead(BaseModel):
 
 class AgentRunRead(BaseModel):
     id: str
-    engagement_id: str = Field(
-        validation_alias=AliasChoices("engagement_id", "project_id"),
-        serialization_alias="engagement_id",
-    )
+    engagement_id: str
     session_id: str | None = None
     attempt_index: int | None = None
     status: str

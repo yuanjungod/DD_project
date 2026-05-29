@@ -42,8 +42,8 @@ def merge_react_config(existing: dict[str, Any]) -> dict[str, Any]:
 
 
 def normalize_tool_ids(raw: dict[str, Any]) -> list[str]:
-    """Resolve tool config ids from agent record (tool_ids preferred; skill_ids legacy alias)."""
-    tool_ids = raw.get("tool_ids") or raw.get("skill_ids") or []
+    """Resolve tool config ids from agent record."""
+    tool_ids = raw.get("tool_ids") or []
     return [str(x).strip() for x in tool_ids if str(x).strip()]
 
 
@@ -52,15 +52,14 @@ def normalize_agent_record(raw: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Each agent requires an id")
     data = dict(raw)
     data.pop("output_schema", None)
+    data.pop("skill_ids", None)
     tid = data["id"]
     data.setdefault("name", tid)
     data.setdefault("role", "")
     data.setdefault("prompt", "")
     data["sub_agent_ids"] = [str(x).strip() for x in (data.get("sub_agent_ids") or []) if str(x).strip()]
     data.setdefault("skill_package_ids", [])
-    tool_ids = normalize_tool_ids(data)
-    data["tool_ids"] = tool_ids
-    data["skill_ids"] = tool_ids
+    data["tool_ids"] = normalize_tool_ids(data)
     if not data.get("resource_ids"):
         data["resource_ids"] = []
     puf = data.get("platform_upload_file_ids")

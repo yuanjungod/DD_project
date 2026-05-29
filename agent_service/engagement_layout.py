@@ -42,25 +42,24 @@ def dd_project_root() -> Path:
     return base
 
 
-def projects_root() -> Path:
-    # Compatibility helper name: returns user-root under runtime.
+def users_root() -> Path:
     base = dd_project_root() / "users"
     base.mkdir(parents=True, exist_ok=True)
     return base
 
 
-def _engagement_root(project_id: str, user_id: str, workflow_template_id: str) -> Path:
-    safe_proj = _validate_id(project_id, "project_id")
+def _engagement_root(engagement_id: str, user_id: str, workflow_template_id: str) -> Path:
+    safe_engagement = _validate_id(engagement_id, "engagement_id")
     safe_user = _validate_id(user_id, "user_id")
     safe_workflow_template = _validate_workflow_template_id(workflow_template_id)
-    base = projects_root() / safe_user / "workflows" / safe_workflow_template / safe_proj
+    base = users_root() / safe_user / "workflows" / safe_workflow_template / safe_engagement
     base.mkdir(parents=True, exist_ok=True)
     return base
 
 
-def _session_runs_root(project_id: str, user_id: str, workflow_template_id: str, session_id: str) -> Path:
+def _session_runs_root(engagement_id: str, user_id: str, workflow_template_id: str, session_id: str) -> Path:
     safe_session = _validate_id(session_id, "session_id")
-    base = _engagement_root(project_id, user_id, workflow_template_id) / "sessions" / safe_session / "runs"
+    base = _engagement_root(engagement_id, user_id, workflow_template_id) / "sessions" / safe_session / "runs"
     base.mkdir(parents=True, exist_ok=True)
     return base
 
@@ -80,9 +79,9 @@ def builtin_workflow_templates_root() -> Path:
 def workflow_template_home(workflow_template_id: str) -> Path:
     """Canonical workflow template folder containing workflow YAML and agents/."""
     safe = _validate_workflow_template_id(workflow_template_id)
-    users_root = workflow_templates_root()
+    users_root_path = workflow_templates_root()
     catalog_dir = builtin_workflow_templates_root() / safe
-    for user_dir in users_root.iterdir():
+    for user_dir in users_root_path.iterdir():
         if not user_dir.is_dir():
             continue
         candidate = user_dir / "workflows" / safe
@@ -96,11 +95,11 @@ def workflow_template_home(workflow_template_id: str) -> Path:
 def workflow_template_runs_root(
     workflow_template_id: str,
     user_id: str,
-    project_id: str,
+    engagement_id: str,
     session_id: str,
 ) -> Path:
     safe_workflow_template = _validate_workflow_template_id(workflow_template_id)
-    directory = _session_runs_root(project_id, user_id, safe_workflow_template, session_id)
+    directory = _session_runs_root(engagement_id, user_id, safe_workflow_template, session_id)
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 
@@ -108,20 +107,20 @@ def workflow_template_runs_root(
 def session_json_path(
     workflow_template_id: str,
     user_id: str,
-    project_id: str,
+    engagement_id: str,
     run_id: str,
     session_id: str,
 ) -> Path:
     safe_workflow_template = _validate_workflow_template_id(workflow_template_id)
     safe_run = _validate_id(run_id, "run_id")
-    return workflow_template_runs_root(safe_workflow_template, user_id, project_id, session_id) / f"{safe_run}.json"
+    return workflow_template_runs_root(safe_workflow_template, user_id, engagement_id, session_id) / f"{safe_run}.json"
 
 
-def list_session_files(workflow_template_id: str, user_id: str, project_id: str) -> list[str]:
+def list_session_files(workflow_template_id: str, user_id: str, engagement_id: str) -> list[str]:
     safe_workflow_template = _validate_workflow_template_id(workflow_template_id)
     safe_user = _validate_id(user_id, "user_id")
-    safe_proj = _validate_id(project_id, "project_id")
-    root = projects_root() / safe_user / "workflows" / safe_workflow_template / safe_proj / "sessions"
+    safe_engagement = _validate_id(engagement_id, "engagement_id")
+    root = users_root() / safe_user / "workflows" / safe_workflow_template / safe_engagement / "sessions"
     if not root.is_dir():
         return []
     out: set[str] = set()
@@ -134,22 +133,22 @@ def list_session_files(workflow_template_id: str, user_id: str, project_id: str)
     return sorted(out)
 
 
-def list_session_project_ids(workflow_template_id: str, user_id: str) -> list[str]:
+def list_session_engagement_ids(workflow_template_id: str, user_id: str) -> list[str]:
     safe_workflow_template = _validate_workflow_template_id(workflow_template_id)
     safe_user = _validate_id(user_id, "user_id")
     out: set[str] = set()
-    engagements_root = projects_root() / safe_user / "workflows" / safe_workflow_template
+    engagements_root = users_root() / safe_user / "workflows" / safe_workflow_template
     if not engagements_root.is_dir():
         return []
-    for project_dir in engagements_root.iterdir():
-        if not project_dir.is_dir():
+    for engagement_dir in engagements_root.iterdir():
+        if not engagement_dir.is_dir():
             continue
-        sessions_root = project_dir / "sessions"
+        sessions_root = engagement_dir / "sessions"
         if not sessions_root.is_dir():
             continue
         for session_dir in sessions_root.iterdir():
             if (session_dir / "runs").is_dir():
-                out.add(project_dir.name)
+                out.add(engagement_dir.name)
                 break
     return sorted(out)
 
@@ -157,7 +156,7 @@ def list_session_project_ids(workflow_template_id: str, user_id: str) -> list[st
 def list_session_user_ids(workflow_template_id: str) -> list[str]:
     safe_workflow_template = _validate_workflow_template_id(workflow_template_id)
     out: set[str] = set()
-    for user_dir in projects_root().iterdir():
+    for user_dir in users_root().iterdir():
         if not user_dir.is_dir():
             continue
         engagements_root = user_dir / "workflows" / safe_workflow_template
@@ -173,7 +172,7 @@ def list_session_user_ids(workflow_template_id: str) -> list[str]:
 
 def list_session_workflow_template_ids() -> list[str]:
     ids: set[str] = set()
-    for user_dir in projects_root().iterdir():
+    for user_dir in users_root().iterdir():
         workflow_root = user_dir / "workflows"
         if not workflow_root.is_dir():
             continue
@@ -186,12 +185,12 @@ def list_session_workflow_template_ids() -> list[str]:
     return sorted(ids)
 
 
-def find_session_json_path(workflow_template_id: str, user_id: str, project_id: str, run_id: str) -> Path | None:
+def find_session_json_path(workflow_template_id: str, user_id: str, engagement_id: str, run_id: str) -> Path | None:
     safe_workflow_template = _validate_workflow_template_id(workflow_template_id)
     safe_user = _validate_id(user_id, "user_id")
-    safe_proj = _validate_id(project_id, "project_id")
+    safe_engagement = _validate_id(engagement_id, "engagement_id")
     safe_run = _validate_id(run_id, "run_id")
-    root = projects_root() / safe_user / "workflows" / safe_workflow_template / safe_proj / "sessions"
+    root = users_root() / safe_user / "workflows" / safe_workflow_template / safe_engagement / "sessions"
     if not root.is_dir():
         return None
     for session_dir in root.iterdir():

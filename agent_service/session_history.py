@@ -7,10 +7,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
-from agent_service.scenario_layout import (
+from agent_service.engagement_layout import (
     find_session_json_path,
+    list_session_engagement_ids as _list_session_engagement_ids,
     list_session_files as _list_session_files,
-    list_session_project_ids as _list_session_project_ids,
     list_session_workflow_template_ids,
     list_session_user_ids as _list_session_user_ids,
     session_json_path,
@@ -60,11 +60,11 @@ class JsonSessionRecorder:
         self,
         workflow_template_id: str,
         user_id: str,
-        project_id: str,
+        engagement_id: str,
         run_id: str,
         session_id: str,
     ) -> None:
-        self._path = session_json_path(workflow_template_id, user_id, project_id, run_id, session_id)
+        self._path = session_json_path(workflow_template_id, user_id, engagement_id, run_id, session_id)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._document: dict[str, Any] | None = None
 
@@ -73,14 +73,14 @@ class JsonSessionRecorder:
         cls,
         workflow_template_id: str,
         user_id: str,
-        project_id: str,
+        engagement_id: str,
         run_id: str,
         session_id: str | None = None,
     ) -> "JsonSessionRecorder":
         path = (
-            session_json_path(workflow_template_id, user_id, project_id, run_id, session_id)
+            session_json_path(workflow_template_id, user_id, engagement_id, run_id, session_id)
             if session_id
-            else find_session_json_path(workflow_template_id, user_id, project_id, run_id)
+            else find_session_json_path(workflow_template_id, user_id, engagement_id, run_id)
         )
         if path is None:
             raise FileNotFoundError(run_id)
@@ -158,7 +158,7 @@ class JsonSessionRecorder:
 def build_session_recorder(
     workflow_template_id: str,
     user_id: str,
-    project_id: str,
+    engagement_id: str,
     run_id: str,
     session_id: str,
 ) -> RunSessionRecorder:
@@ -166,13 +166,13 @@ def build_session_recorder(
 
     if not getattr(get_agent_settings(), "session_history_enabled", True):
         return NOOP_SESSION_RECORDER
-    return JsonSessionRecorder(workflow_template_id, user_id, project_id, run_id, session_id)
+    return JsonSessionRecorder(workflow_template_id, user_id, engagement_id, run_id, session_id)
 
 
 def open_session_recorder_for_resume(
     workflow_template_id: str,
     user_id: str,
-    project_id: str,
+    engagement_id: str,
     run_id: str,
     session_id: str | None = None,
 ) -> RunSessionRecorder | None:
@@ -184,7 +184,7 @@ def open_session_recorder_for_resume(
         return JsonSessionRecorder.open_for_resume(
             workflow_template_id,
             user_id,
-            project_id,
+            engagement_id,
             run_id,
             session_id=session_id,
         )
@@ -192,8 +192,10 @@ def open_session_recorder_for_resume(
         return None
 
 
-def read_session_document(workflow_template_id: str, user_id: str, project_id: str, run_id: str) -> dict[str, Any] | None:
-    path = find_session_json_path(workflow_template_id, user_id, project_id, run_id)
+def read_session_document(
+    workflow_template_id: str, user_id: str, engagement_id: str, run_id: str
+) -> dict[str, Any] | None:
+    path = find_session_json_path(workflow_template_id, user_id, engagement_id, run_id)
     if path is None:
         return None
     if not path.is_file():
@@ -201,12 +203,12 @@ def read_session_document(workflow_template_id: str, user_id: str, project_id: s
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def list_session_files(workflow_template_id: str, user_id: str, project_id: str) -> list[str]:
-    return _list_session_files(workflow_template_id, user_id, project_id)
+def list_session_files(workflow_template_id: str, user_id: str, engagement_id: str) -> list[str]:
+    return _list_session_files(workflow_template_id, user_id, engagement_id)
 
 
-def list_session_project_ids(workflow_template_id: str, user_id: str) -> list[str]:
-    return _list_session_project_ids(workflow_template_id, user_id)
+def list_session_engagement_ids(workflow_template_id: str, user_id: str) -> list[str]:
+    return _list_session_engagement_ids(workflow_template_id, user_id)
 
 
 def list_session_user_ids(workflow_template_id: str) -> list[str]:

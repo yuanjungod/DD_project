@@ -46,7 +46,7 @@ def receive_run_progress(
         upsert_incremental_run_progress(
             db,
             run_id=run_id,
-            project_id=body.engagement_id,
+            engagement_id=body.engagement_id,
             step_payload=body.step,
         )
     except ValueError as exc:

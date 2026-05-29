@@ -1,11 +1,12 @@
-# Scenario folder — workflow graph and metadata. Agent definitions for this scenario live in ./agents/.
+# Workflow template folder — graph and metadata. Agent definitions live in ./agents/.
+
 
 version: 1
 workflow:
   id: legal_compliance_due_diligence
   name: 法律合规重点尽调
   description: 适用于合规、诉讼、处罚、制裁、知识产权和监管风险优先的场景。
-  scenario: legal_compliance
+  workflow_template: legal_compliance
   status: published
   version: 1
   graph:

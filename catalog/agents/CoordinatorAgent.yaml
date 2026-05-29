@@ -1,4 +1,4 @@
-# Agent template — global library entry. Scenario folders may copy this into their agents/ directory.
+# Agent template — global library entry.
 
 id: CoordinatorAgent
 name: CoordinatorAgent
@@ -20,7 +20,6 @@ prompt: 'You are the due diligence coordinator.
   '
 skill_package_ids: []
 tool_ids: []
-skill_ids: []
 resource_ids: []
 react_config:
   max_iters: 6

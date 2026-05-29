@@ -66,7 +66,7 @@ class DueDiligenceWorkflow:
         if not workflow_snapshot:
             raise ValueError("workflow_snapshot is required")
         workflow = self._workflow_from_snapshot(workflow_snapshot)
-        workflow_template_id = workflow.id
+        workflow_template_id = company_config.workflow_template_id
         agent_definitions = self._agent_definitions_from_snapshot(workflow_snapshot)
         steps: list[AgentStep] = list(done_steps)
         results: list[AgentResult] = []
@@ -141,7 +141,7 @@ class DueDiligenceWorkflow:
                 agent_step_output_dir(
                     workflow_template_id=workflow_template_id,
                     user_id=safe_user_id,
-                    project_id=engagement_id,
+                    engagement_id=engagement_id,
                     session_id=safe_session_id,
                     run_id=run_id,
                     step_id=step.id,
@@ -225,7 +225,7 @@ class DueDiligenceWorkflow:
             ids = resolve_graph_agent_order(graph)
             return {
                 "source": "workflow_snapshot",
-                "workflow_id": w.get("id"),
+                "workflow_template_id": w.get("id"),
                 "workflow_name": w.get("name"),
                 "workflow_version": w.get("version"),
                 "workflow_template": w.get("workflow_template"),
@@ -233,7 +233,7 @@ class DueDiligenceWorkflow:
             }
         return {
             "source": "static_workflow_config",
-            "workflow_id": workflow.id,
+            "workflow_template_id": workflow.id,
             "workflow_name": workflow.name,
             "workflow_version": None,
             "workflow_template": getattr(workflow, "workflow_template", "standard"),
@@ -307,7 +307,7 @@ class DueDiligenceWorkflow:
             ]
             agent_tool_configs = [
                 tool_configs[tool_id]
-                for tool_id in agent.get("tool_ids", []) or agent.get("skill_ids", [])
+                for tool_id in agent.get("tool_ids", [])
                 if tool_id in tool_configs
             ]
             agent_resource_configs = [
@@ -326,9 +326,8 @@ class DueDiligenceWorkflow:
                 prompt="",
                 sub_agent_ids=agent.get("sub_agent_ids", []),
                 prompt_text=prompt_text,
-                tools=agent.get("tool_ids") or agent.get("skill_ids", []),
                 skill_package_ids=agent.get("skill_package_ids", []),
-                tool_ids=agent.get("tool_ids") or agent.get("skill_ids", []),
+                tool_ids=agent.get("tool_ids", []),
                 resource_ids=agent.get("resource_ids", []),
                 platform_upload_file_ids=list(agent.get("platform_upload_file_ids") or []),
                 skill_packages=agent_skill_packages,

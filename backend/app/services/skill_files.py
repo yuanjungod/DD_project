@@ -8,7 +8,7 @@ from typing import Any
 import yaml
 
 from app.services.catalog_records import SkillPackageRecord
-from app.services.fs_layout import project_skills_dir
+from app.services.fs_layout import engagement_skills_dir
 
 ROOT = Path(__file__).resolve().parents[3]
 SKILLS_DIR = ROOT / "agent_service" / "skills"
@@ -90,9 +90,9 @@ def skill_package_disk_path(directory_name: str) -> str:
     return str(_safe_skill_dir(directory_name))
 
 
-def copy_skill_directories_to_project(project_id: str, directory_names: list[str]) -> int:
-    """Copy selected skill directories into project shared storage."""
-    target_root = project_skills_dir(project_id)
+def copy_skill_directories_to_engagement(engagement_id: str, directory_names: list[str]) -> int:
+    """Copy selected skill directories into engagement shared storage."""
+    target_root = engagement_skills_dir(engagement_id)
     copied = 0
     seen: set[str] = set()
     for raw in directory_names:

@@ -78,6 +78,6 @@ def execute_agent_pipeline_blocking(
         if result.get("run_id") != run_id:
             mark_agent_run_failed(db, run_id, "Agent returned mismatched run_id")
             return
-        finalize_agent_run(db, project_id=engagement_id, run_id=run_id, result=result)
+        finalize_agent_run(db, engagement_id=engagement_id, run_id=run_id, result=result)
     finally:
         db.close()

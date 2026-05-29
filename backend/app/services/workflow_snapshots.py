@@ -3,43 +3,43 @@ from __future__ import annotations
 from fastapi import HTTPException
 
 from app.services.agent_record_utils import normalize_tool_ids
+from app.services.engagement_agent_overrides_store import engagement_agent_override_records
+from app.services.engagement_resource_catalog import load_engagement_resource_configs_by_ids
 from app.services.platform_resource_catalog import load_resource_configs_by_ids
-from app.services.project_resource_catalog import load_project_resource_configs_by_ids
 from app.services.workflow_graph import resolve_graph_agent_order
-from app.services.project_agent_overrides_store import project_agent_override_records
 from app.services.skill_catalog import load_skill_packages_by_ids
 from app.services.tool_catalog import load_tool_configs_by_ids
 from app.services.workflow_template_files import get_published_workflow_bundle, resolve_agents_for_snapshot
 
 
-def _load_snapshot_resources(resource_ids: list[str], project_id: str | None) -> list:
+def _load_snapshot_resources(resource_ids: list[str], engagement_id: str | None) -> list:
     by_id: dict[str, object] = {}
     for row in load_resource_configs_by_ids(resource_ids):
         by_id[row.id] = row
-    if project_id:
-        for row in load_project_resource_configs_by_ids(project_id, resource_ids):
+    if engagement_id:
+        for row in load_engagement_resource_configs_by_ids(engagement_id, resource_ids):
             by_id[row.id] = row
     return [by_id[k] for k in sorted(by_id.keys())]
 
 
-def build_workflow_snapshot(company_config: dict, *, project_id: str | None = None) -> dict:
-    workflow_id = _workflow_template_id_from_config(company_config)
-    bundle = get_published_workflow_bundle(workflow_id)
+def build_workflow_snapshot(company_config: dict, *, engagement_id: str | None = None) -> dict:
+    workflow_template_id = _workflow_template_id_from_config(company_config)
+    bundle = get_published_workflow_bundle(workflow_template_id)
     workflow_section = bundle["workflow"]
 
     agent_ids = resolve_graph_agent_order(workflow_section.get("graph") or {})
     agents, missing_agents = resolve_agents_for_snapshot(bundle, agent_ids)
     if missing_agents:
         raise HTTPException(status_code=400, detail=f"Workflow has missing or disabled agents: {missing_agents}")
-    if project_id:
-        agents = _apply_project_agent_overrides(agents, project_agent_override_records(project_id))
+    if engagement_id:
+        agents = _apply_engagement_agent_overrides(agents, engagement_agent_override_records(engagement_id))
 
     skill_package_ids = sorted({skill_id for agent in agents for skill_id in (agent.get("skill_package_ids") or [])})
     tool_ids = sorted({tool_id for agent in agents for tool_id in normalize_tool_ids(agent)})
     resource_ids = sorted({resource_id for agent in agents for resource_id in (agent.get("resource_ids") or [])})
     skill_packages = load_skill_packages_by_ids(skill_package_ids)
     tools = load_tool_configs_by_ids(tool_ids)
-    disk_resources = _load_snapshot_resources(resource_ids, project_id)
+    disk_resources = _load_snapshot_resources(resource_ids, engagement_id)
 
     return {
         "workflow": {
@@ -59,7 +59,6 @@ def build_workflow_snapshot(company_config: dict, *, project_id: str | None = No
                 "sub_agent_ids": agent.get("sub_agent_ids") or [],
                 "skill_package_ids": agent.get("skill_package_ids") or [],
                 "tool_ids": normalize_tool_ids(agent),
-                "skill_ids": normalize_tool_ids(agent),
                 "resource_ids": agent.get("resource_ids") or [],
                 "platform_upload_file_ids": agent.get("platform_upload_file_ids") or [],
                 "react_config": agent.get("react_config")
@@ -130,7 +129,7 @@ def _merge_dict(base: dict | None, override: dict | None) -> dict:
     return merged
 
 
-def _apply_project_agent_overrides(agents: list[dict], overrides: list[dict]) -> list[dict]:
+def _apply_engagement_agent_overrides(agents: list[dict], overrides: list[dict]) -> list[dict]:
     by_agent = {str(row.get("agent_id")): row for row in overrides if row.get("enabled", True)}
     out: list[dict] = []
     for agent in agents:
@@ -158,7 +157,6 @@ def _apply_project_agent_overrides(agents: list[dict], overrides: list[dict]) ->
             list(override.get("tool_ids_add") or []),
             list(override.get("tool_ids_remove") or []),
         )
-        row["skill_ids"] = list(row["tool_ids"])
         row["resource_ids"] = _apply_id_delta(
             list(row.get("resource_ids") or []),
             list(override.get("resource_ids_add") or []),
@@ -171,7 +169,7 @@ def _apply_project_agent_overrides(agents: list[dict], overrides: list[dict]) ->
         if isinstance(react_override, dict) and react_override:
             row["react_config"] = _merge_dict(row.get("react_config"), react_override)
         row["app_override"] = {
-            "project_scoped": True,
+            "engagement_scoped": True,
             "prompt_mode": "override" if prompt_override else "append" if prompt_append else "inherit",
         }
         out.append(row)
@@ -179,20 +177,10 @@ def _apply_project_agent_overrides(agents: list[dict], overrides: list[dict]) ->
 
 
 def _workflow_template_id_from_config(company_config: dict) -> str:
-    """Resolve published workflow template id from company_config (supports legacy nested scope)."""
+    """Resolve published workflow template id from company_config."""
     if not company_config:
         return "standard_due_diligence"
-    legacy = company_config.get("scope")
-    if isinstance(legacy, dict):
-        return (
-            company_config.get("workflow_template_id")
-            or legacy.get("workflow_template_id")
-            or company_config.get("workflow_id")
-            or legacy.get("workflow_id")
-            or "standard_due_diligence"
-        )
-    return (
-        company_config.get("workflow_template_id")
-        or company_config.get("workflow_id")
-        or "standard_due_diligence"
-    )
+    template_id = company_config.get("workflow_template_id")
+    if isinstance(template_id, str) and template_id.strip():
+        return template_id.strip()
+    return "standard_due_diligence"

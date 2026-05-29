@@ -8,7 +8,7 @@ from agent_service.api.schemas import RunRequest, RunResult, StepReviewChatReque
 from agent_service.session_history import (
     list_all_session_workflow_template_ids,
     list_session_files,
-    list_session_project_ids as list_session_engagement_ids,
+    list_session_engagement_ids,
     list_session_user_ids,
     read_session_document,
 )

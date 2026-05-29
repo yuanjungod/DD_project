@@ -339,8 +339,7 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
     });
     setSubAgentSel(new Set(agent.sub_agent_ids ?? []));
     setSkillSel(new Set(agent.skill_package_ids ?? []));
-    const toolIds = agent.tool_ids ?? agent.skill_ids ?? [];
-    setToolSel(new Set(toolIds));
+    setToolSel(new Set(agent.tool_ids ?? []));
     setResourceSel(new Set(agent.resource_ids ?? []));
     setPlatformFileSel(new Set(agent.platform_upload_file_ids ?? []));
     setSubAgentFilter("");
@@ -490,15 +489,13 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
     event.preventDefault();
     setError("");
     try {
-      const toolIds = Array.from(toolSel);
       const payload = {
         name: form.name,
         role: form.role,
         prompt: form.prompt,
         sub_agent_ids: Array.from(subAgentSel),
         skill_package_ids: Array.from(skillSel),
-        tool_ids: toolIds,
-        skill_ids: toolIds,
+        tool_ids: Array.from(toolSel),
         resource_ids: Array.from(resourceSel),
         platform_upload_file_ids: fileStoreConnectorSelected ? Array.from(platformFileSel) : [],
         react_config: JSON.parse(form.react_config) as Record<string, unknown>,
@@ -688,7 +685,7 @@ export function AgentTemplatesPanel({ onAgentsChanged }: AgentTemplatesPanelProp
         <SectionCard title="已有模板目录" description="当前磁盘上的 Agent 模板及已绑定 ID。">
           <ul className="agent-catalog-list">
             {agents.map((agent) => {
-              const toolIds = agent.tool_ids ?? agent.skill_ids ?? [];
+              const toolIds = agent.tool_ids ?? [];
               return (
                 <li key={agent.id} className="agent-catalog-row">
                   <div className="agent-catalog-row__top">

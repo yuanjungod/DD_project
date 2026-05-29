@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -47,15 +47,10 @@ class AgentSettings(BaseSettings):
         validation_alias="DD_SESSION_HISTORY_ENABLED",
         description="Persist each POST /runs execution under .dd_project/users/<user>/<workflow>/<engagement>/sessions/<session>/runs/<workflow>/<run>.json",
     )
-    session_history_dir: str = Field(
-        default="",
-        validation_alias="DD_SESSION_HISTORY_DIR",
-        description="Deprecated legacy override for session JSON root.",
-    )
     data_root: str = Field(
         default=_DEFAULT_DATA_ROOT,
-        validation_alias=AliasChoices("DD_DATA_ROOT", "FILESYSTEM_DATA_ROOT"),
-        description="Shared writable data root used when DD_SESSION_HISTORY_DIR is not set.",
+        validation_alias="DD_DATA_ROOT",
+        description="Shared writable data root for agent runtime artifacts.",
     )
 
     @property
@@ -79,14 +74,6 @@ class AgentSettings(BaseSettings):
     @property
     def resolved_data_root(self) -> Path:
         return _resolve_repo_path(self.data_root)
-
-    @property
-    def resolved_session_history_dir(self) -> Path:
-        """Deprecated legacy root; runtime uses repository .dd_project/users/<user>/<workflow>/<engagement>/... by default."""
-        configured = self.session_history_dir.strip()
-        if configured:
-            return _resolve_repo_path(configured)
-        return self.repo_root / ".dd_project"
 
 
 @lru_cache

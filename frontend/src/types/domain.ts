@@ -3,8 +3,7 @@ export type CompanyConfig = {
     name: string;
     aliases: string[];
   };
-  workflow_id: string;
-  workflow_template_id?: string | null;
+  workflow_template_id: string;
   workflow_template_version?: number | null;
   resources: {
     uploaded_files: string[];
@@ -219,7 +218,6 @@ export type AgentTemplate = {
   sub_agent_ids?: string[];
   skill_package_ids: string[];
   tool_ids: string[];
-  skill_ids: string[];
   resource_ids: string[];
   /** Empty = use all merged uploaded_files at run time; otherwise restrict agent-visible upload file IDs. */
   platform_upload_file_ids?: string[];

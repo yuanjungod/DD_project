@@ -1,11 +1,12 @@
-# Scenario folder — workflow graph and metadata. Agent definitions for this scenario live in ./agents/.
+# Workflow template folder — graph and metadata. Agent definitions live in ./agents/.
+
 
 version: 1
 workflow:
   id: standard_due_diligence
   name: 标准完整尽调
   description: 覆盖公司画像、公开信息、财务、法律合规、行业竞争和报告生成。
-  scenario: standard
+  workflow_template: standard
   status: published
   version: 1
   graph:

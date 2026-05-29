@@ -7,19 +7,18 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.core.auth import accessible_project_ids, ensure_project_access, ensure_project_write_access, require_roles
+from app.core.auth import accessible_engagement_ids, ensure_engagement_access, ensure_engagement_write_access, require_roles
 from app.core.database import get_db
-from app.models.entities import Project, ProjectAccess, User
+from app.models.entities import Engagement, EngagementAccess, User
 from app.schemas import EngagementCreate, EngagementRead, EngagementUpdate
 from app.services.company_identity import company_key_from_name, normalize_application_id
-from app.services.platform_uploads_store import copy_platform_uploads_to_project
-from app.services.project_agent_overrides_store import project_agent_override_records
-from app.services.project_resource_catalog import copy_project_resource_configs_tree
-from app.services.project_resources_store import append_resources as append_project_resources_fs
-from app.services.project_resources_store import delete_project_resources_tree
-from app.services.skill_files import copy_skill_directories_to_project
+from app.services.engagement_resource_catalog import copy_engagement_resource_configs_tree
+from app.services.engagement_resources_store import append_resources as append_engagement_resources_fs
+from app.services.engagement_resources_store import delete_engagement_resources_tree
+from app.services.fs_layout import engagement_agent_overrides_manifest_path, engagement_uploads_dir, register_engagement_tree
+from app.services.platform_uploads_store import copy_platform_uploads_to_engagement
+from app.services.skill_files import copy_skill_directories_to_engagement
 from app.services.workflow_snapshots import build_workflow_snapshot
-from app.services.fs_layout import project_agent_overrides_manifest_path, project_uploads_dir, register_engagement_tree
 
 
 router = APIRouter(prefix="/engagements", tags=["engagements"])
@@ -32,12 +31,11 @@ def _selected_platform_file_ids_from_company_config(company_config: dict) -> lis
     for scope in resources.get("agent_resource_scopes") or []:
         if not isinstance(scope, dict):
             continue
-        raw_ids = scope.get("uploaded_file_ids") or scope.get("file_ids") or []
+        raw_ids = scope.get("uploaded_file_ids") or []
         if isinstance(raw_ids, str):
             selected.extend(x.strip() for x in raw_ids.split(","))
         elif isinstance(raw_ids, list):
             selected.extend(str(x).strip() for x in raw_ids)
-    # de-duplicate while preserving order
     out: list[str] = []
     seen: set[str] = set()
     for file_id in selected:
@@ -53,7 +51,7 @@ def _selected_platform_file_ids_for_engagement_create(payload: EngagementCreate)
 
 
 def _selected_skill_directories_from_company_config(company_config: dict) -> list[str]:
-    snapshot = build_workflow_snapshot(company_config, project_id=None)
+    snapshot = build_workflow_snapshot(company_config, engagement_id=None)
     rows = snapshot.get("skill_packages", [])
     out: list[str] = []
     seen: set[str] = set()
@@ -73,8 +71,8 @@ def _selected_skill_directories_for_engagement_create(payload: EngagementCreate)
 
 def _next_version(db: Session, company_key: str, application_id: str) -> int:
     current = (
-        db.query(func.max(Project.version))
-        .filter(Project.company_key == company_key, Project.application_id == application_id)
+        db.query(func.max(Engagement.version))
+        .filter(Engagement.company_key == company_key, Engagement.application_id == application_id)
         .scalar()
     )
     return int(current or 0) + 1
@@ -85,7 +83,7 @@ def create_engagement(
     payload: EngagementCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst")),
-) -> Project:
+) -> Engagement:
     company_name = payload.company_config.target_company.name
     company_key = company_key_from_name(company_name)
     try:
@@ -95,11 +93,11 @@ def create_engagement(
     version = payload.version if payload.version and payload.version > 0 else _next_version(db, company_key, application_id)
 
     exists = (
-        db.query(Project.id)
+        db.query(Engagement.id)
         .filter(
-            Project.company_key == company_key,
-            Project.application_id == application_id,
-            Project.version == version,
+            Engagement.company_key == company_key,
+            Engagement.application_id == application_id,
+            Engagement.version == version,
         )
         .first()
     )
@@ -109,7 +107,7 @@ def create_engagement(
             detail=f"Application already exists: {company_name} · {application_id} · v{version}",
         )
 
-    engagement = Project(
+    engagement = Engagement(
         name=payload.name,
         company_key=company_key,
         application_id=application_id,
@@ -118,13 +116,13 @@ def create_engagement(
     )
     db.add(engagement)
     db.flush()
-    workflow_id = str(payload.company_config.workflow_template_id or payload.company_config.workflow_id or "").strip() or "_default_workflow"
-    register_engagement_tree(engagement.id, user.id, workflow_id)
-    db.add(ProjectAccess(project_id=engagement.id, user_id=user.id, access_role="owner"))
+    workflow_template_id = str(payload.company_config.workflow_template_id or "").strip() or "_default_workflow"
+    register_engagement_tree(engagement.id, user.id, workflow_template_id)
+    db.add(EngagementAccess(engagement_id=engagement.id, user_id=user.id, access_role="owner"))
     db.commit()
-    append_project_resources_fs(engagement.id, payload.initial_resources)
-    copy_platform_uploads_to_project(engagement.id, _selected_platform_file_ids_for_engagement_create(payload))
-    copy_skill_directories_to_project(engagement.id, _selected_skill_directories_for_engagement_create(payload))
+    append_engagement_resources_fs(engagement.id, payload.initial_resources)
+    copy_platform_uploads_to_engagement(engagement.id, _selected_platform_file_ids_for_engagement_create(payload))
+    copy_skill_directories_to_engagement(engagement.id, _selected_skill_directories_for_engagement_create(payload))
     db.refresh(engagement)
     return engagement
 
@@ -133,12 +131,12 @@ def create_engagement(
 def list_engagements(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
-) -> list[Project]:
-    query = db.query(Project)
-    engagement_ids = accessible_project_ids(db, user)
+) -> list[Engagement]:
+    query = db.query(Engagement)
+    engagement_ids = accessible_engagement_ids(db, user)
     if engagement_ids is not None:
-        query = query.filter(Project.id.in_(engagement_ids))
-    return query.order_by(Project.created_at.desc()).all()
+        query = query.filter(Engagement.id.in_(engagement_ids))
+    return query.order_by(Engagement.created_at.desc()).all()
 
 
 @router.get("/{engagement_id}", response_model=EngagementRead)
@@ -146,8 +144,8 @@ def get_engagement(
     engagement_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst", "viewer")),
-) -> Project:
-    return ensure_project_access(db, user, engagement_id)
+) -> Engagement:
+    return ensure_engagement_access(db, user, engagement_id)
 
 
 @router.patch("/{engagement_id}", response_model=EngagementRead)
@@ -156,13 +154,13 @@ def update_engagement(
     payload: EngagementUpdate,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst")),
-) -> Project:
-    engagement = ensure_project_write_access(db, user, engagement_id)
+) -> Engagement:
+    engagement = ensure_engagement_write_access(db, user, engagement_id)
     cfg0 = engagement.company_config if isinstance(engagement.company_config, dict) else {}
     register_engagement_tree(
         engagement.id,
         user.id,
-        str(cfg0.get("workflow_template_id") or cfg0.get("workflow_id") or "_default_workflow"),
+        str(cfg0.get("workflow_template_id") or "_default_workflow"),
     )
     if payload.name is not None:
         engagement.name = payload.name
@@ -171,15 +169,15 @@ def update_engagement(
         register_engagement_tree(
             engagement.id,
             user.id,
-            str(company_config.get("workflow_template_id") or company_config.get("workflow_id") or "_default_workflow"),
+            str(company_config.get("workflow_template_id") or "_default_workflow"),
         )
         engagement.company_config = company_config
         engagement.company_key = company_key_from_name(payload.company_config.target_company.name)
-        copy_platform_uploads_to_project(
+        copy_platform_uploads_to_engagement(
             engagement.id,
             _selected_platform_file_ids_from_company_config(company_config),
         )
-        copy_skill_directories_to_project(
+        copy_skill_directories_to_engagement(
             engagement.id,
             _selected_skill_directories_from_company_config(company_config),
         )
@@ -198,11 +196,11 @@ def clone_engagement_version(
     engagement_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst")),
-) -> Project:
-    source = ensure_project_write_access(db, user, engagement_id)
+) -> Engagement:
+    source = ensure_engagement_write_access(db, user, engagement_id)
     version = _next_version(db, source.company_key, source.application_id)
     company_name = (source.company_config or {}).get("target_company", {}).get("name", source.name)
-    clone = Project(
+    clone = Engagement(
         name=f"{company_name} · {source.application_id} · v{version}",
         company_key=source.company_key,
         application_id=source.application_id,
@@ -215,20 +213,20 @@ def clone_engagement_version(
     register_engagement_tree(
         clone.id,
         user.id,
-        str(source_cfg.get("workflow_template_id") or source_cfg.get("workflow_id") or "_default_workflow"),
+        str(source_cfg.get("workflow_template_id") or "_default_workflow"),
     )
-    db.add(ProjectAccess(project_id=clone.id, user_id=user.id, access_role="owner"))
+    db.add(EngagementAccess(engagement_id=clone.id, user_id=user.id, access_role="owner"))
     db.commit()
     db.refresh(clone)
 
-    copy_project_resource_configs_tree(source.id, clone.id)
-    src_uploads = project_uploads_dir(source.id)
-    dst_uploads = project_uploads_dir(clone.id)
+    copy_engagement_resource_configs_tree(source.id, clone.id)
+    src_uploads = engagement_uploads_dir(source.id)
+    dst_uploads = engagement_uploads_dir(clone.id)
     if src_uploads.is_dir():
         shutil.copytree(src_uploads, dst_uploads, dirs_exist_ok=True)
-    src_overrides = project_agent_overrides_manifest_path(source.id)
+    src_overrides = engagement_agent_overrides_manifest_path(source.id)
     if src_overrides.is_file():
-        shutil.copy2(src_overrides, project_agent_overrides_manifest_path(clone.id))
+        shutil.copy2(src_overrides, engagement_agent_overrides_manifest_path(clone.id))
     return clone
 
 
@@ -238,8 +236,8 @@ def delete_engagement(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("admin", "analyst")),
 ) -> None:
-    engagement = ensure_project_write_access(db, user, engagement_id)
+    engagement = ensure_engagement_write_access(db, user, engagement_id)
     eid = engagement.id
     db.delete(engagement)
     db.commit()
-    delete_project_resources_tree(eid)
+    delete_engagement_resources_tree(eid)

@@ -3,7 +3,6 @@
     "name": "Example Robotics",
     "aliases": ["ExampleBot"]
   },
-  "workflow_id": "standard_due_diligence",
   "workflow_template_id": "standard_due_diligence",
   "workflow_template_version": 1,
   "resources": {
