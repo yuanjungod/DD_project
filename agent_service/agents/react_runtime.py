@@ -23,6 +23,7 @@ from pydantic import BaseModel
 
 from agent_service.api.schemas import AgentResult, RunInstanceConfig
 from agent_service.execution.context import RunExecutionContext
+from agent_service.execution.engagement_skills import resolve_engagement_skill_dirs
 from agent_service.execution.prompt_paths import translate_handoff_for_prompt
 from agent_service.execution.router import ExecutionRouter
 from agent_service.execution.tool_wrappers import build_docker_builtin_tools
@@ -123,6 +124,8 @@ class AgentScopeReActRuntime:
         )
 
     def _materialize_skill_packages(self) -> list[str]:
+        if self.execution_context is not None and self.execution_context.is_docker:
+            return resolve_engagement_skill_dirs(self.execution_context, self.definition.skill_packages)
         skill_dirs: list[str] = []
         root = Path(self._temp_dir.name)
         for package in self.definition.skill_packages:
@@ -141,7 +144,11 @@ class AgentScopeReActRuntime:
         for skill_dir in self.skill_dirs:
             try:
                 self.toolkit.register_agent_skill(skill_dir)
-            except Exception:
+            except Exception as exc:
+                if self.execution_context is not None and self.execution_context.is_docker:
+                    raise RuntimeError(
+                        f"Failed to register engagement skill package at {skill_dir}"
+                    ) from exc
                 # Invalid skill packages are still exposed in config for audit,
                 # but they should not break deterministic local runs.
                 continue
@@ -229,6 +236,8 @@ class AgentScopeReActRuntime:
                 "",
             ]
         )
+        if self.execution_context is not None and self.execution_context.is_docker and self.skill_dirs:
+            sections.extend(self._docker_skill_roots_section())
         if not task_text:
             sections.extend(
                 _markdown_json_section(
@@ -258,6 +267,26 @@ class AgentScopeReActRuntime:
                 )
             )
         return "\n".join(sections).rstrip() + "\n"
+
+    def _docker_skill_roots_section(self) -> list[str]:
+        ctx = self.execution_context
+        assert ctx is not None
+        lines = [
+            "## Skill 目录（Docker 模式，仅可使用以下 engagement 副本）",
+            "",
+        ]
+        for skill_dir in self.skill_dirs:
+            container_path = ctx.display_path(skill_dir)
+            lines.append(f"- `{container_path}`")
+        lines.extend(
+            [
+                "",
+                "执行 Skill 内脚本时请 `cd` 到对应目录，或使用上述容器内绝对路径。"
+                "勿使用全局 catalog 或其他路径下的 Skill 副本。",
+                "",
+            ]
+        )
+        return lines
 
     def run_step_review_chat(
         self,

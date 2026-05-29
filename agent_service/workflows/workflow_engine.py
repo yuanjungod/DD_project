@@ -9,7 +9,8 @@ from uuid import uuid4
 
 from agent_service.agents.runner import ConfiguredAgentRunner
 from agent_service.execution.container_manager import get_container_manager
-from agent_service.execution.context import build_run_execution_context
+from agent_service.execution.context import RunExecutionContext, build_run_execution_context
+from agent_service.execution.engagement_skills import package_instructions_from_engagement
 from agent_service.api.schemas import (
     AgentResult,
     AgentStep,
@@ -38,10 +39,6 @@ class WorkflowEngine:
         snapshot = payload.workflow_snapshot
         if not snapshot:
             raise ValueError("workflow_snapshot is required")
-        agent_definitions = self._agent_definitions_from_snapshot(snapshot)
-        definition = agent_definitions.get(payload.agent_name)
-        if definition is None:
-            raise ValueError(f"Workflow snapshot missing agent definition: {payload.agent_name}")
         workflow_section = snapshot.get("workflow") if isinstance(snapshot.get("workflow"), dict) else {}
         execution_context = build_run_execution_context(
             workflow_runtime=workflow_section.get("runtime"),
@@ -52,6 +49,12 @@ class WorkflowEngine:
             engagement_id=str(payload.engagement_id or ""),
             session_id=str(payload.resolved_workflow_session_id or payload.engagement_id or "review"),
         )
+        agent_definitions = self._agent_definitions_from_snapshot(
+            snapshot, execution_context=execution_context
+        )
+        definition = agent_definitions.get(payload.agent_name)
+        if definition is None:
+            raise ValueError(f"Workflow snapshot missing agent definition: {payload.agent_name}")
         if execution_context.is_docker:
             get_container_manager().ensure_container(execution_context)
         runner = ConfiguredAgentRunner(definition, execution_context=execution_context)
@@ -92,7 +95,6 @@ class WorkflowEngine:
             raise ValueError("workflow_snapshot is required")
         workflow = self._workflow_from_snapshot(workflow_snapshot)
         workflow_template_id = instance_config.workflow_template_id
-        agent_definitions = self._agent_definitions_from_snapshot(workflow_snapshot)
         steps: list[AgentStep] = list(done_steps)
         results: list[AgentResult] = []
         for st in steps:
@@ -105,15 +107,6 @@ class WorkflowEngine:
         flat_plan = resolve_graph_node_agent_plan(graph)
         predecessor_map = resolve_graph_predecessors(graph)
         topo_node_ids = resolve_graph_node_ids(graph)
-        if workflow_snapshot:
-            missing = [a for a in ordered_agents if a not in agent_definitions]
-            if missing:
-                defined = sorted(agent_definitions.keys())
-                raise ValueError(
-                    "Workflow graph references agent_template_id that are missing from "
-                    "workflow_snapshot.agent_templates (compare each node's agent_template_id "
-                    f"to agent_templates[].id). missing={missing!r}; defined_ids={defined!r}"
-                )
 
         if not user_id.strip():
             raise ValueError("user_id is required")
@@ -131,6 +124,18 @@ class WorkflowEngine:
         )
         if execution_context.is_docker:
             get_container_manager().ensure_container(execution_context)
+
+        agent_definitions = self._agent_definitions_from_snapshot(
+            workflow_snapshot, execution_context=execution_context
+        )
+        missing = [a for a in ordered_agents if a not in agent_definitions]
+        if missing:
+            defined = sorted(agent_definitions.keys())
+            raise ValueError(
+                "Workflow graph references agent_template_id that are missing from "
+                "workflow_snapshot.agent_templates (compare each node's agent_template_id "
+                f"to agent_templates[].id). missing={missing!r}; defined_ids={defined!r}"
+            )
 
         recorder: object
         start_payload = {
@@ -424,7 +429,12 @@ class WorkflowEngine:
             reporter=agent_ids[-1] if len(agent_ids) >= 2 else "",
         )
 
-    def _agent_definitions_from_snapshot(self, snapshot: dict | None) -> dict[str, AgentDefinition]:
+    def _agent_definitions_from_snapshot(
+        self,
+        snapshot: dict | None,
+        *,
+        execution_context: RunExecutionContext | None = None,
+    ) -> dict[str, AgentDefinition]:
         if not snapshot:
             return {}
         definitions: dict[str, AgentDefinition] = {}
@@ -456,10 +466,15 @@ class WorkflowEngine:
                 for resource_id in agent.get("resource_ids", [])
                 if resource_id in resource_configs
             ]
-            package_instructions = "\n\n".join(
-                skill_package["skill_md"]
-                for skill_package in agent_skill_packages
-            )
+            if execution_context is not None and execution_context.is_docker:
+                package_instructions = package_instructions_from_engagement(
+                    execution_context, agent_skill_packages
+                )
+            else:
+                package_instructions = "\n\n".join(
+                    skill_package["skill_md"]
+                    for skill_package in agent_skill_packages
+                )
             prompt_text = "\n\n".join(part for part in [package_instructions, agent.get("prompt", "")] if part)
             definitions[agent["id"]] = AgentDefinition(
                 name=agent["id"],
