@@ -1,6 +1,6 @@
-# Harness_Project (Agent Orchestration Platform)
+# Harness（Agent 编排平台）
 
-An MVP **Agent orchestration platform** (Harness) with due-diligence and other workflow templates:
+An MVP **Agent orchestration platform** (**Harness**) with optional due-diligence and other workflow templates:
 
 - React frontend workbench.
 - FastAPI backend for engagements, resources, runs, and reports.

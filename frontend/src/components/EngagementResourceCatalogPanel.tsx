@@ -246,7 +246,7 @@ export function EngagementResourceCatalogPanel({ engagementId }: { engagementId:
 
   return (
     <div className="page-stack">
-      <nav className="resource-kind-tabs" aria-label="公司资源类型">
+      <nav className="resource-kind-tabs" aria-label="实例资源类型">
         {PLATFORM_RESOURCE_TYPE_OPTIONS.map((o) => (
           <button
             key={o.id}
@@ -282,11 +282,11 @@ export function EngagementResourceCatalogPanel({ engagementId }: { engagementId:
       {error ? <div className="error">{error}</div> : null}
       <div className="grid resource-configs-layout">
         <SectionCard
-          title={editingId ? "编辑公司资源" : `新增 · ${resourceListFilterLabel(listFilter)}`}
+          title={editingId ? "编辑实例资源" : `新增 · ${resourceListFilterLabel(listFilter)}`}
           description={
             showFileLibraryPanel
               ? "选择文件并填写说明，点击「上传并保存」即写入应用文件库与资源登记（与平台资源相同）。"
-              : "公司级资源登记方式与平台资源一致；Run 时与当前 Engagement 的 Agent 绑定一并生效。"
+              : "Engagement 级资源登记方式与平台资源一致；Run 时与当前 Engagement 的 Agent 绑定一并生效。"
           }
         >
           {editingId ? (

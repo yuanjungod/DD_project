@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Index of significant design decisions for Harness_Project.
+Index of significant design decisions for Harness.
 
 | ADR | Title | Status |
 | --- | --- | --- |

@@ -1,4 +1,4 @@
-# ADR-0008: Harness_Project platform rename
+# ADR-0008: Harness platform rename
 
 ## Status
 
@@ -12,7 +12,8 @@ The repository began as a due-diligence MVP (`DD_project`, `.dd_project/`, `DueD
 
 | Area | Decision |
 |------|----------|
-| Product / repo name | **Harness_Project** |
+| Product name | **Harness** |
+| Legacy repo folder | `DD_project` (historical; GitHub remote may still use this slug) |
 | Runtime data home | **`.harness_project/`** at repository root |
 | Writable data subdir | **`.harness_project/data/`** via `HARNESS_DATA_ROOT` |
 | Platform SQLite default | **`harness_platform.db`** (read legacy `dd_platform.db` if present) |

@@ -85,7 +85,7 @@ export function EngagementsPage() {
 
   async function handleClone(engagement: Engagement) {
     const ok = window.confirm(
-      `复制「${engagementIdentityLabel(engagement)}」为新版本吗？\n\n将复制公司资源、Agent 配置与上传文件，生成 v${engagement.version + 1}，随后可在创建 Engagement 中调整。`,
+      `复制「${engagementIdentityLabel(engagement)}」为新版本吗？\n\n将复制实例资源、Agent 配置与上传文件，生成 v${engagement.version + 1}，随后可在创建 Engagement 中调整。`,
     );
     if (!ok) return;
     setError("");

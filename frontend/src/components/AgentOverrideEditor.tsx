@@ -332,7 +332,7 @@ export function AgentOverrideEditor({
               selected={managedResourceIds}
               onChange={(ids) => handleResourceChange(ids, currentResourceItems)}
               disabled={saving}
-              emptyText="该来源下暂无可用资源配置，请先在「公司资源」或「平台资源」中登记。"
+              emptyText="该来源下暂无可用资源配置，请先在「实例资源」或「平台资源」中登记。"
             />
 
           </>

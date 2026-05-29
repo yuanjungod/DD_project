@@ -37,8 +37,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   return (
     <main className="login-stage">
       <section className="login-panel">
-        <p className="eyebrow">Harness Agent Orchestration</p>
-        <h1>登录 Harness 平台</h1>
+        <p className="eyebrow">Harness</p>
+        <h1>登录</h1>
         <p className="muted">
           {showDevLoginHints && defaultLoginEmail && defaultLoginPassword
             ? `开发默认账号：${defaultLoginEmail} / ${defaultLoginPassword}。管理员可查看全部 Engagement，分析师可创建并运行 Engagement，只读用户只能查看。`

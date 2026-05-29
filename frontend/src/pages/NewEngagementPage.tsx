@@ -356,7 +356,7 @@ export function NewEngagementPage() {
 
       {wizardStep !== "identity" && !createdEngagement ? (
         <SectionCard title="请先创建 Engagement">
-          <p className="muted">请通过上方 Step 1 填写并创建 Engagement 后，再配置公司资源与 Agent。</p>
+          <p className="muted">请通过上方 Step 1 填写并创建 Engagement 后，再配置实例资源与 Agent。</p>
         </SectionCard>
       ) : null}
     </div>

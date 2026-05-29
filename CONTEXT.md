@@ -1,4 +1,4 @@
-# Harness_Project (Agent Orchestration Platform)
+# Harness（Agent 编排平台）
 
 MVP workspace for configuring Agent workflow templates, running graph-orchestrated agents, and reviewing outputs. Due-diligence templates remain available as published scenarios.
 
@@ -24,7 +24,7 @@ _Avoid_: Sorting agents by YAML node list index alone.
 A typed data-source definition from shipped `catalog/resource_configs/` plus optional platform overlays under `HARNESS_DATA_ROOT`.
 
 **Engagement**:
-A concrete business instance (company/subject, application id, version, resources, runs). Persisted in the `engagements` table.
+A concrete workflow run instance (task description, application id, version, resources, runs). Persisted in the `engagements` table.
 
 **Workflow template**:
 Reusable process definition (`workflow_template_id`) with graph and agent templates under `catalog/workflow_templates/`.
