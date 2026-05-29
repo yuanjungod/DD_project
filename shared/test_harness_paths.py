@@ -37,21 +37,12 @@ class HarnessPathsTests(unittest.TestCase):
         self.assertEqual(home, root / HARNESS_PROJECT_DIR)
         self.assertTrue(home.is_dir())
 
-    def test_legacy_fallback_when_only_dd_project_exists(self) -> None:
+    def test_harness_home_created_when_legacy_dd_exists(self) -> None:
         root = self._scratch("legacy_only")
-        legacy = root / LEGACY_DD_PROJECT_DIR
-        legacy.mkdir()
-        with mock.patch("shared.harness_paths.logger") as logger:
-            home = runtime_project_home(root)
-        self.assertEqual(home, legacy)
-        logger.warning.assert_called_once()
-
-    def test_harness_home_takes_priority_over_legacy(self) -> None:
-        root = self._scratch("both")
-        (root / HARNESS_PROJECT_DIR).mkdir()
         (root / LEGACY_DD_PROJECT_DIR).mkdir()
         home = runtime_project_home(root)
         self.assertEqual(home, root / HARNESS_PROJECT_DIR)
+        self.assertTrue(home.is_dir())
 
     def test_harness_data_root_override(self) -> None:
         root = self._scratch("custom")
@@ -62,16 +53,10 @@ class HarnessPathsTests(unittest.TestCase):
             home = runtime_project_home(root)
         self.assertEqual(home.resolve(), custom.parent.resolve())
 
-    def test_default_data_root_relative_prefers_harness_on_fresh_clone(self) -> None:
+    def test_default_data_root_relative_uses_harness(self) -> None:
         root = self._scratch("defaults")
         rel = default_data_root_relative(root)
         self.assertEqual(rel, f"{HARNESS_PROJECT_DIR}/data")
-
-    def test_default_data_root_relative_uses_legacy_when_only_dd_exists(self) -> None:
-        root = self._scratch("legacy_default")
-        (root / LEGACY_DD_PROJECT_DIR / "data").mkdir(parents=True)
-        rel = default_data_root_relative(root)
-        self.assertEqual(rel, f"{LEGACY_DD_PROJECT_DIR}/data")
 
     def test_platform_db_reads_legacy_when_harness_missing(self) -> None:
         data_root = self._scratch("db_legacy") / "data"

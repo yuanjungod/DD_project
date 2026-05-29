@@ -34,20 +34,8 @@ def dd_flow_home_dir() -> Path:
     return harness_project_home_dir()
 
 
-def dd_flow_config_dir() -> Path:
-    d = dd_flow_home_dir() / "config"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
-
-
 def dd_flow_users_dir() -> Path:
     d = dd_flow_home_dir() / "users"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
-
-
-def dd_flow_channels_dir() -> Path:
-    d = dd_flow_home_dir() / "channels"
     d.mkdir(parents=True, exist_ok=True)
     return d
 

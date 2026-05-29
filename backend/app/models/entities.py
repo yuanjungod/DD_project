@@ -53,9 +53,6 @@ class WorkflowSession(Base):
     runs: Mapped[list["AgentRun"]] = relationship(back_populates="workflow_session")
 
 
-DiligenceSession = WorkflowSession
-
-
 class User(Base):
     __tablename__ = "users"
 

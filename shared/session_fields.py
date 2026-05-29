@@ -20,7 +20,4 @@ def dual_write_session_id_fields(session_id: str | None) -> dict[str, str]:
     if not session_id or not str(session_id).strip():
         return {}
     sid = str(session_id).strip()
-    return {
-        WORKFLOW_SESSION_ID_FIELD: sid,
-        LEGACY_DILIGENCE_SESSION_ID_FIELD: sid,
-    }
+    return {WORKFLOW_SESSION_ID_FIELD: sid}

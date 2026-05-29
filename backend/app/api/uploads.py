@@ -1,4 +1,4 @@
-"""Multipart uploads for engagement file library (stored under .dd_project/data + manifest file_reference)."""
+"""Multipart uploads for engagement file library (stored under .harness_project/data + manifest file_reference)."""
 
 from __future__ import annotations
 

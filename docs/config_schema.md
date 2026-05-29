@@ -12,7 +12,7 @@ This document describes the configuration contract shared by the frontend, backe
 
 | Variable | Service | Role |
 | --- | --- | --- |
-| `HARNESS_DATA_ROOT` | backend + agent | Shared writable file-data root. Defaults to `.harness_project/data` resolved from the repository root. Legacy alias: `DD_DATA_ROOT` (`.dd_project/data`). |
+| `HARNESS_DATA_ROOT` | backend + agent | Shared writable file-data root. Defaults to `.harness_project/data` resolved from the repository root. |
 | `DATABASE_URL` | backend | SQLAlchemy URL. If unset, SQLite is stored at `HARNESS_DATA_ROOT/platform/harness_platform.db` (reads legacy `dd_platform.db` when present). Relative SQLite URLs are resolved from the repository root. |
 | `AGENT_SERVICE_URL` | backend | Base URL for **`POST /runs`** (default `http://127.0.0.1:8011`). |
 | `AGENT_CALLBACK_SECRET` | backend + agent | Shared secret for **`X-Agent-Callback-Secret`** on **`POST /internal/agent-runs/.../progress`**. |
@@ -20,10 +20,10 @@ This document describes the configuration contract shared by the frontend, backe
 | `AUTH_SECRET_KEY` | backend | JWT signing secret (must not use dev default in production). |
 | `ENV` | backend + agent | Set to `production` to enforce non-default secrets. |
 | `PLATFORM_CALLBACK_BASE_URL` | agent | Backend base URL for incremental progress (default `http://127.0.0.1:8010`). Set empty or unreachable to disable callbacks (UI then only updates after finalization). |
-| `HARNESS_SESSION_HISTORY_ENABLED` | agent | Persist each POST /runs execution under `.harness_project/users/<user>/workflows/<workflow_template>/<engagement>/sessions/<session>/runs/<run>.json`. Legacy alias: `DD_SESSION_HISTORY_ENABLED`. |
-| `HARNESS_SEED_DEFAULT_USERS` | backend | Seed development users on startup when the users table is empty (default `true`). Legacy alias: `DD_SEED_DEFAULT_USERS`. |
-| `HARNESS_DEFAULT_USERS_CONFIG` | backend | Optional path to the seed user YAML. Defaults to `catalog/default_users.yaml`; relative paths are resolved from the repository root. Legacy alias: `DD_DEFAULT_USERS_CONFIG`. |
-| `HARNESS_MODEL_*` | agent | Model provider settings (`BASE_URL`, `API_KEY`, `ID`, etc.). Legacy aliases: `DD_MODEL_*`. |
+| `HARNESS_SESSION_HISTORY_ENABLED` | agent | Persist each POST /runs execution under `.harness_project/users/<user>/workflows/<workflow_template>/<engagement>/sessions/<session>/runs/<run>.json`. |
+| `HARNESS_SEED_DEFAULT_USERS` | backend | Seed development users on startup when the users table is empty (default `true`). |
+| `HARNESS_DEFAULT_USERS_CONFIG` | backend | Optional path to the seed user YAML. Defaults to `catalog/default_users.yaml`; relative paths are resolved from the repository root. |
+| `HARNESS_MODEL_*` | agent | Model provider settings (`BASE_URL`, `API_KEY`, `ID`, etc.). |
 | `VITE_API_BASE_URL` | frontend | When set, all `fetch` calls use this absolute base (skips the dev proxy). |
 | `VITE_DEV_PROXY_TARGET` | frontend (Vite config only) | Override proxy target for **`/api` → backend** during `npm run dev` (default `http://127.0.0.1:8010`). |
 | `VITE_DEFAULT_LOGIN_EMAIL` / `VITE_DEFAULT_LOGIN_PASSWORD` | frontend | Optional login form prefill values for local development. |
@@ -48,7 +48,7 @@ catalog/
   default_users.yaml                    # Development seed users
 ```
 
-**Unified runtime home:** runtime config/state is organized under repository root **`.harness_project/`** (legacy **`.dd_project/`** still supported). See [ADR-0003](adr/0003-users-workflows-storage-layout.md) and [harness_runtime_storage.md](harness_runtime_storage.md).
+**Unified runtime home:** runtime config/state is organized under repository root **`.harness_project/`**. See [ADR-0003](adr/0003-users-workflows-storage-layout.md) and [harness_runtime_storage.md](harness_runtime_storage.md).
 
 ```text
 .harness_project/
@@ -141,8 +141,8 @@ Reusable workflows are managed through the backend configuration catalog:
 - `SkillPackage` (file-backed): Anthropic/Cursor-style skill package with `SKILL.md`, directory name, editable package files, and optional bundled resources such as references, scripts, and assets. Skill packages live under `agent_service/skills/<directory_name>/`. Admins may **`POST /skills/import-zip`** (`multipart/form-data`: **`file`** = single-skill `.zip` with one top-level folder containing `SKILL.md`, or the folder contents zipped directly; macOS metadata and dev artifacts such as `__pycache__/`, `.pytest_cache/`, and `.pyc` are ignored; optional **`directory_name`** form field overrides the disk directory slug). Import limits: ZIP ≤ 20MB, ≤ 4096 files, ≤ 60MB uncompressed; imported package files must be UTF-8 text.
 - `ToolConfig` (file-backed): optional executable platform capabilities; persisted under `agent_service/configs/tools.yaml`.
 - `ResourceConfig`: data resource available to agents, such as public web, uploaded files, vector stores, databases, or external APIs.
-- `AgentTemplate` (file-backed): definitions are stored in **`catalog/agents/{agent_id}.yaml`** (published catalog) and **`.dd_project/users/{user_id}/workflows/_agent_templates/{agent_id}.yaml`** (user draft/save area). Each record has `id`, `name`, `role`, inline `prompt`, optional `sub_agent_ids`, `skill_package_ids`, `tool_ids`, `resource_ids`, `react_config`, and `enabled`. The Admin UI uses **`GET/POST/PATCH /agent-templates`** to save drafts under the current user, and **`POST /agent-templates/{agent_id}/publish`** to publish into `catalog/agents/`.
-- `WorkflowTemplate` (file-backed template): one folder per workflow template under **`catalog/workflow_templates/{workflow_template_id}/`** (published catalog) or **`.dd_project/users/{user_id}/workflows/{workflow_template_id}/`** (user draft/save area). Each folder contains **`workflow_template.yaml`** (workflow graph and metadata) and an **`agents/`** subdirectory with the agents referenced by that template. **`GET/POST/PATCH /workflow-templates`** save to the user draft area; **`POST /workflow-templates/{workflow_template_id}/publish`** publishes that draft into `catalog/workflow_templates/{workflow_template_id}/`. Only **`published`** templates are listed for non-admin callers and for run snapshots.
+- `AgentTemplate` (file-backed): definitions are stored in **`catalog/agents/{agent_id}.yaml`** (published catalog) and **`.harness_project/users/{user_id}/workflows/_agent_templates/{agent_id}.yaml`** (user draft/save area). Each record has `id`, `name`, `role`, inline `prompt`, optional `sub_agent_ids`, `skill_package_ids`, `tool_ids`, `resource_ids`, `react_config`, and `enabled`. The Admin UI uses **`GET/POST/PATCH /agent-templates`** to save drafts under the current user, and **`POST /agent-templates/{agent_id}/publish`** to publish into `catalog/agents/`.
+- `WorkflowTemplate` (file-backed template): one folder per workflow template under **`catalog/workflow_templates/{workflow_template_id}/`** (published catalog) or **`.harness_project/users/{user_id}/workflows/{workflow_template_id}/`** (user draft/save area). Each folder contains **`workflow_template.yaml`** (workflow graph and metadata) and an **`agents/`** subdirectory with the agents referenced by that template. **`GET/POST/PATCH /workflow-templates`** save to the user draft area; **`POST /workflow-templates/{workflow_template_id}/publish`** publishes that draft into `catalog/workflow_templates/{workflow_template_id}/`. Only **`published`** templates are listed for non-admin callers and for run snapshots.
 
 Only **`published`** workflow templates should be selected by downstream engagements. When a run starts, the backend creates a **workflow snapshot** from the current file-backed template, agent catalog, and DB/file-backed skill/tool/resource mirrors. The snapshot sent to the agent service includes `skill_packages` (with `package_files`), executable `tools`, `resources`, and each agent's `react_config`. By default, `react_config.model` uses the local Anthropic Messages-compatible `kimi-code` provider at `http://127.0.0.1:8081/v1`.
 
@@ -163,8 +163,8 @@ Execution order stays graph-driven by node order; within one node, the `agent_te
 {
   "agent": "LegalRiskAgent",
   "status": "completed",
-  "output_dir": "/path/to/.dd_project/users/user_x/workflows/standard_due_diligence/eng_x/sessions/sess_x/runs/outputs/run_y_outputs/run_y_step_003_LegalRiskAgent",
-  "output_readme_path": "/path/to/.dd_project/users/user_x/workflows/standard_due_diligence/eng_x/sessions/sess_x/runs/outputs/run_y_outputs/run_y_step_003_LegalRiskAgent/README.md"
+  "output_dir": "/path/to/.harness_project/users/user_x/workflows/standard_due_diligence/eng_x/sessions/sess_x/runs/outputs/run_y_outputs/run_y_step_003_LegalRiskAgent",
+  "output_readme_path": "/path/to/.harness_project/users/user_x/workflows/standard_due_diligence/eng_x/sessions/sess_x/runs/outputs/run_y_outputs/run_y_step_003_LegalRiskAgent/README.md"
 }
 ```
 

@@ -4,7 +4,7 @@ import sys
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -41,12 +41,12 @@ class AgentSettings(BaseSettings):
     )
     session_history_enabled: bool = Field(
         default=True,
-        validation_alias=AliasChoices("HARNESS_SESSION_HISTORY_ENABLED", "DD_SESSION_HISTORY_ENABLED"),
+        validation_alias="HARNESS_SESSION_HISTORY_ENABLED",
         description="Persist each POST /runs execution under .harness_project/users/<user>/workflows/<workflow>/<engagement>/sessions/<session>/runs/<run>.json",
     )
     data_root: str = Field(
         default_factory=lambda: default_data_root_relative(_REPO_ROOT),
-        validation_alias=AliasChoices("HARNESS_DATA_ROOT", "DD_DATA_ROOT"),
+        validation_alias="HARNESS_DATA_ROOT",
         description="Shared writable data root for agent runtime artifacts.",
     )
 

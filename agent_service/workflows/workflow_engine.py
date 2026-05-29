@@ -42,7 +42,7 @@ class WorkflowEngine:
         runner = ConfiguredAgentRunner(definition)
         cur = payload.current_step
         reply = runner.run_step_review_chat(
-            payload.company_config,
+            payload.resolved_company_config,
             payload.previous_results,
             current_step_summary=cur.summary or "",
             current_output_dir=cur.result.output_dir if cur.result else "",

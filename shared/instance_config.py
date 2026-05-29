@@ -106,13 +106,32 @@ def materialize_stored_config(payload: dict[str, Any]) -> dict[str, Any]:
     task = resolve_workflow_task(stored)
     if task:
         extensions[WORKFLOW_TASK_EXTENSION] = {"description": task}
-    stored[EXTENSIONS_FIELD] = extensions
-    target = resolve_target_company(stored)
     template_id = resolve_workflow_template_id(stored)
-    if target and is_due_diligence_template_id(template_id):
+    target = resolve_target_company(stored)
+
+    if task and not target:
+        first_line = task.splitlines()[0].strip()
+        label = (first_line or task)[:120]
+        target = {"name": label, "aliases": []}
+
+    if task and is_due_diligence_template_id(template_id):
+        dd = _as_dict(extensions.get(DUE_DILIGENCE_EXTENSION))
+        if target:
+            dd["target_company"] = target
+            extensions[DUE_DILIGENCE_EXTENSION] = dd
+            stored["target_company"] = target
+    elif task:
+        subject = _as_dict(extensions.get(SUBJECT_EXTENSION))
+        if not subject.get("name") and target:
+            extensions[SUBJECT_EXTENSION] = {
+                "name": target["name"],
+                "aliases": target.get("aliases") or [],
+                "kind": subject.get("kind") or "generic",
+            }
+        stored.pop("target_company", None)
+    elif target and is_due_diligence_template_id(template_id):
         stored["target_company"] = target
     elif target:
-        extensions = _as_dict(stored.get(EXTENSIONS_FIELD))
         subject = _as_dict(extensions.get(SUBJECT_EXTENSION))
         if not subject.get("name"):
             extensions[SUBJECT_EXTENSION] = {
@@ -120,10 +139,21 @@ def materialize_stored_config(payload: dict[str, Any]) -> dict[str, Any]:
                 "aliases": target.get("aliases") or [],
                 "kind": subject.get("kind") or "generic",
             }
-        stored[EXTENSIONS_FIELD] = extensions
         stored.pop("target_company", None)
+
+    stored[EXTENSIONS_FIELD] = extensions
     stored.setdefault("resources", _as_dict(stored.get("resources")))
     return stored
+
+
+def require_workflow_task(stored: dict[str, Any], *, allow_legacy: bool = False) -> None:
+    """Raise when a new engagement payload has no task description."""
+
+    if resolve_workflow_task(stored):
+        return
+    if allow_legacy and resolve_target_company(stored):
+        return
+    raise ValueError("extensions.workflow_task.description is required")
 
 
 def to_agent_company_config(stored: dict[str, Any]) -> dict[str, Any]:
@@ -139,13 +169,3 @@ def to_agent_company_config(stored: dict[str, Any]) -> dict[str, Any]:
     cfg["workflow_task"] = task
     cfg.setdefault("resources", _as_dict(cfg.get("resources")))
     return cfg
-
-
-def coalesce_config_payload(data: dict[str, Any]) -> dict[str, Any]:
-    """Read instance_config or legacy company_config from an API body."""
-
-    if INSTANCE_CONFIG_FIELD in data and isinstance(data[INSTANCE_CONFIG_FIELD], dict):
-        return copy.deepcopy(data[INSTANCE_CONFIG_FIELD])
-    if LEGACY_COMPANY_CONFIG_FIELD in data and isinstance(data[LEGACY_COMPANY_CONFIG_FIELD], dict):
-        return copy.deepcopy(data[LEGACY_COMPANY_CONFIG_FIELD])
-    return copy.deepcopy(data)

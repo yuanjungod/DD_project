@@ -52,17 +52,13 @@ def resolve_repo_path(repo_root: Path, raw: str) -> Path:
 
 
 def default_data_root_relative(repo_root: Path) -> str:
-    harness_data = repo_root / HARNESS_PROJECT_DIR / DEFAULT_DATA_SUBDIR
-    legacy_data = repo_root / LEGACY_DD_PROJECT_DIR / DEFAULT_DATA_SUBDIR
-    if harness_data.parent.exists() or not legacy_data.parent.exists():
-        return f"{HARNESS_PROJECT_DIR}/{DEFAULT_DATA_SUBDIR}"
-    return f"{LEGACY_DD_PROJECT_DIR}/{DEFAULT_DATA_SUBDIR}"
+    return f"{HARNESS_PROJECT_DIR}/{DEFAULT_DATA_SUBDIR}"
 
 
 def runtime_project_home(repo_root: Path) -> Path:
-    """Unified runtime home (.harness_project with legacy .dd_project fallback)."""
+    """Unified runtime home under `.harness_project/`."""
 
-    configured, _ = resolve_env_with_legacy("HARNESS_DATA_ROOT", "DD_DATA_ROOT", "")
+    configured, _ = resolve_env_with_legacy("HARNESS_DATA_ROOT", None, "")
     if configured:
         configured_path = resolve_repo_path(repo_root, configured)
         if configured_path.name == DEFAULT_DATA_SUBDIR:
@@ -70,17 +66,8 @@ def runtime_project_home(repo_root: Path) -> Path:
         return configured_path
 
     harness_home = repo_root / HARNESS_PROJECT_DIR
-    legacy_home = repo_root / LEGACY_DD_PROJECT_DIR
-    if harness_home.exists() or not legacy_home.exists():
-        harness_home.mkdir(parents=True, exist_ok=True)
-        return harness_home
-
-    logger.warning(
-        "Using legacy %s runtime home; migrate to %s",
-        LEGACY_DD_PROJECT_DIR,
-        HARNESS_PROJECT_DIR,
-    )
-    return legacy_home
+    harness_home.mkdir(parents=True, exist_ok=True)
+    return harness_home
 
 
 def platform_db_path(data_root: Path) -> Path:

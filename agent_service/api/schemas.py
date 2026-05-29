@@ -70,9 +70,6 @@ class WorkflowReport(BaseModel):
     sections: list[ReportSection] = Field(default_factory=list)
 
 
-DueDiligenceReport = WorkflowReport
-
-
 class AgentStep(BaseModel):
     id: str
     agent: str
@@ -125,8 +122,6 @@ class RunRequest(BaseModel):
         if isinstance(data, dict):
             if isinstance(data.get("instance_config"), dict):
                 data["company_config"] = to_agent_company_config(data["instance_config"])
-            elif isinstance(data.get("company_config"), dict):
-                data["company_config"] = to_agent_company_config(data["company_config"])
             resolved = coalesce_workflow_session_id(data)
             if resolved:
                 data["workflow_session_id"] = resolved
@@ -152,7 +147,11 @@ class RunResult(BaseModel):
 
 class StepReviewChatRequest(BaseModel):
     engagement_id: str
-    company_config: CompanyConfig
+    company_config: CompanyConfig | None = None
+    instance_config: dict[str, Any] | None = Field(
+        default=None,
+        description="Generic engagement instance config; synthesized into company_config for agents.",
+    )
     workflow_snapshot: dict[str, Any] | None = None
     agent_name: str
     previous_results: list[AgentResult] = Field(default_factory=list)
@@ -162,6 +161,20 @@ class StepReviewChatRequest(BaseModel):
         description="Prior turns [{role: user|assistant, content: str}]",
     )
     user_message: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coalesce_config(cls, data: object) -> object:
+        if isinstance(data, dict):
+            if isinstance(data.get("instance_config"), dict):
+                data["company_config"] = to_agent_company_config(data["instance_config"])
+        return data
+
+    @property
+    def resolved_company_config(self) -> CompanyConfig:
+        if self.company_config is None:
+            raise ValueError("company_config is required")
+        return self.company_config
 
 
 class StepReviewChatResponse(BaseModel):

@@ -152,20 +152,6 @@ def list_workflow_sessions(
     return _workflow_session_reads(sessions)
 
 
-@router.get(
-    "/engagements/{engagement_id}/diligence-sessions",
-    response_model=list[WorkflowSessionRead],
-    deprecated=True,
-    summary="Deprecated alias for /workflow-sessions",
-)
-def list_diligence_sessions(
-    engagement_id: str,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "analyst", "viewer")),
-) -> list[WorkflowSessionRead]:
-    return list_workflow_sessions(engagement_id=engagement_id, db=db, user=user)
-
-
 async def _execute_start_agent_run(
     *,
     engagement_id: str,

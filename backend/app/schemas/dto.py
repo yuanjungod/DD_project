@@ -590,9 +590,6 @@ class WorkflowSessionRead(BaseModel):
         return utc_datetime_to_iso_z(v)
 
 
-DiligenceSessionRead = WorkflowSessionRead
-
-
 class AgentRunRead(BaseModel):
     id: str
     engagement_id: str

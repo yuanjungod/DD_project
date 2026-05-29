@@ -157,9 +157,6 @@ export type WorkflowSessionModel = {
   runs: AgentRunBrief[];
 };
 
-/** @deprecated Use WorkflowSessionModel */
-export type DiligenceSessionModel = WorkflowSessionModel;
-
 export type User = {
   id: string;
   email: string;

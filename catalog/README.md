@@ -64,7 +64,7 @@ Each workflow template directory represents one workflow template:
 Important boundary:
 
 - This folder is template configuration only.
-- Runtime runs/outputs are stored under `.dd_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/`, not here.
+- Runtime runs/outputs are stored under `.harness_project/users/{user_id}/workflows/{workflow_template_id}/{engagement_id}/sessions/{session_id}/runs/`, not here.
 
 ### `resource_configs/`
 
@@ -72,11 +72,11 @@ Built-in platform resource connector definitions.
 
 Examples include public web, file store, database-like connectors, etc.
 
-Runtime/project overlays are stored under `.dd_project/data/platform/resource_configs` (or the configured data root), not in this folder.
+Runtime/project overlays are stored under `.harness_project/data/platform/resource_configs` (or the configured data root), not in this folder.
 
 ## Ownership And Update Rules
 
 - Product/dev baseline changes: edit under `catalog/` and commit to Git.
-- Runtime/project/user state: write under `.dd_project/`.
+- Runtime/project/user state: write under `.harness_project/`.
 - Avoid mixing template files and runtime artifacts in the same path.
 

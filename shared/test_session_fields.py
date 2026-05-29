@@ -23,10 +23,9 @@ class SessionFieldsTests(unittest.TestCase):
         value = coalesce_workflow_session_id({LEGACY_DILIGENCE_SESSION_ID_FIELD: "sess_legacy"})
         self.assertEqual(value, "sess_legacy")
 
-    def test_dual_write_emits_both_fields(self) -> None:
+    def test_dual_write_emits_workflow_session_id_only(self) -> None:
         payload = dual_write_session_id_fields("sess_1")
-        self.assertEqual(payload[WORKFLOW_SESSION_ID_FIELD], "sess_1")
-        self.assertEqual(payload[LEGACY_DILIGENCE_SESSION_ID_FIELD], "sess_1")
+        self.assertEqual(payload, {WORKFLOW_SESSION_ID_FIELD: "sess_1"})
 
 
 if __name__ == "__main__":

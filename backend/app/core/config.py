@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -40,15 +40,15 @@ class Settings(BaseSettings):
     agent_api_key: str = Field(default=_DEV_AGENT_API_KEY, validation_alias="AGENT_API_KEY")
     filesystem_data_root: str = Field(
         default_factory=lambda: default_data_root_relative(_REPO_ROOT),
-        validation_alias=AliasChoices("HARNESS_DATA_ROOT", "DD_DATA_ROOT"),
+        validation_alias="HARNESS_DATA_ROOT",
     )
     seed_default_users: bool = Field(
         default=True,
-        validation_alias=AliasChoices("HARNESS_SEED_DEFAULT_USERS", "DD_SEED_DEFAULT_USERS"),
+        validation_alias="HARNESS_SEED_DEFAULT_USERS",
     )
     default_users_config_path: str = Field(
         default="",
-        validation_alias=AliasChoices("HARNESS_DEFAULT_USERS_CONFIG", "DD_DEFAULT_USERS_CONFIG"),
+        validation_alias="HARNESS_DEFAULT_USERS_CONFIG",
     )
 
     model_config = SettingsConfigDict(env_file=_ENV_FILE, env_file_encoding="utf-8", extra="ignore")

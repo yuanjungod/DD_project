@@ -36,15 +36,15 @@ ToolExecutor = Callable[[str, dict[str, Any]], dict[str, Any]]
 DEFAULT_MAX_REACT_ITERS = 50
 
 DEFAULT_MODEL_CONFIG = {
-    "base_url": os.getenv("HARNESS_MODEL_BASE_URL") or os.getenv("DD_MODEL_BASE_URL", "http://127.0.0.1:8080/v1"),
-    "api_key": os.getenv("HARNESS_MODEL_API_KEY") or os.getenv("DD_MODEL_API_KEY", "yuanjun"),
-    "api": os.getenv("HARNESS_MODEL_API") or os.getenv("DD_MODEL_API", "openai-completions"),
-    "model_id": os.getenv("HARNESS_MODEL_ID") or os.getenv("DD_MODEL_ID", "deepseek-v4-flash"),
-    "model_name": os.getenv("HARNESS_MODEL_NAME") or os.getenv("DD_MODEL_NAME", "deepseek-v4-flash"),
+    "base_url": os.getenv("HARNESS_MODEL_BASE_URL", "http://127.0.0.1:8080/v1"),
+    "api_key": os.getenv("HARNESS_MODEL_API_KEY", "yuanjun"),
+    "api": os.getenv("HARNESS_MODEL_API", "openai-completions"),
+    "model_id": os.getenv("HARNESS_MODEL_ID", "deepseek-v4-flash"),
+    "model_name": os.getenv("HARNESS_MODEL_NAME", "deepseek-v4-flash"),
     "reasoning": False,
-    "context_window": int(os.getenv("HARNESS_MODEL_CONTEXT_WINDOW") or os.getenv("DD_MODEL_CONTEXT_WINDOW", "128000")),
-    "max_tokens": int(os.getenv("HARNESS_MODEL_MAX_TOKENS") or os.getenv("DD_MODEL_MAX_TOKENS", "4096")),
-    "timeout_seconds": float(os.getenv("HARNESS_MODEL_TIMEOUT_SECONDS") or os.getenv("DD_MODEL_TIMEOUT_SECONDS", "120")),
+    "context_window": int(os.getenv("HARNESS_MODEL_CONTEXT_WINDOW", "128000")),
+    "max_tokens": int(os.getenv("HARNESS_MODEL_MAX_TOKENS", "4096")),
+    "timeout_seconds": float(os.getenv("HARNESS_MODEL_TIMEOUT_SECONDS", "120")),
 }
 
 
@@ -207,12 +207,13 @@ class AgentScopeReActRuntime:
                 "",
             ]
         )
-        sections.extend(
-            _markdown_json_section(
-                "run_subject（运行主体）",
-                company_config.target_company.model_dump(mode="json"),
+        if not task_text:
+            sections.extend(
+                _markdown_json_section(
+                    "run_subject（运行主体）",
+                    company_config.target_company.model_dump(mode="json"),
+                )
             )
-        )
         sections.extend(
             _markdown_json_section(
                 "project_resources（项目资源）",

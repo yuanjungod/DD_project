@@ -1,4 +1,4 @@
-"""Agent template files: user drafts under .dd_project/users/* and published under catalog/agents/."""
+"""Agent template files: user drafts under .harness_project/users/* and published under catalog/agents/."""
 
 from __future__ import annotations
 

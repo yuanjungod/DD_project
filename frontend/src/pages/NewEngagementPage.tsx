@@ -18,10 +18,6 @@ import type { Engagement, WorkflowTemplate } from "../types/domain";
 function defaultConfig(workflowTemplateId: string): EngagementSetupForm {
   return {
     workflow_task: "",
-    target_company: {
-      name: "",
-      aliases: [],
-    },
     workflow_template_id: workflowTemplateId,
     workflow_template_version: 1,
     resources: {

@@ -1,0 +1,18 @@
+{
+  "workflow_template_id": "workflow_research_demo",
+  "workflow_template_version": 1,
+  "resources": {
+    "uploaded_files": [],
+    "trusted_sources": [],
+    "blocked_sources": [],
+    "competitors": [],
+    "metrics": [],
+    "external_clues": [],
+    "agent_resource_scopes": []
+  },
+  "extensions": {
+    "workflow_task": {
+      "description": "Analyze growth drivers for Example Robotics and deliver an investment memo."
+    }
+  }
+}

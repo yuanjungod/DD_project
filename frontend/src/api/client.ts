@@ -5,9 +5,7 @@ import type {
   AgentStepOutputFolder,
   AgentTemplate,
   AuthSession,
-  CompanyConfig,
   WorkflowSessionModel,
-  DiligenceSessionModel,
   InstanceConfig,
   Engagement,
   EngagementAgentOverride,
@@ -269,28 +267,17 @@ export function listWorkflowSessions(engagementId: string): Promise<WorkflowSess
   return request<WorkflowSessionModel[]>(`/engagements/${encodeURIComponent(engagementId)}/workflow-sessions`);
 }
 
-/** @deprecated Use listWorkflowSessions */
-export function listDiligenceSessions(engagementId: string): Promise<WorkflowSessionModel[]> {
-  return listWorkflowSessions(engagementId);
-}
-
 export function startRun(
   engagementId: string,
   body: {
     session_mode?: "new" | "continue";
     workflow_session_id?: string | null;
-    /** @deprecated Use workflow_session_id */
-    diligence_session_id?: string | null;
     interaction_mode?: "batch" | "step_gated";
   } = {},
 ): Promise<AgentRun> {
-  const payload = { ...body };
-  if (!payload.workflow_session_id && payload.diligence_session_id) {
-    payload.workflow_session_id = payload.diligence_session_id;
-  }
   return request<AgentRun>(`/engagements/${encodeURIComponent(engagementId)}/runs`, {
     method: "POST",
-    body: JSON.stringify(payload ?? {}),
+    body: JSON.stringify(body ?? {}),
   });
 }
 
