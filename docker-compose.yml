@@ -10,5 +10,58 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  agent:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: agent_service/Dockerfile
+    environment:
+      DD_DATA_ROOT: /data
+      PLATFORM_CALLBACK_BASE_URL: http://backend:8010
+      AGENT_CALLBACK_SECRET: ${AGENT_CALLBACK_SECRET:-local-dd-agent-callback}
+      AGENT_API_KEY: ${AGENT_API_KEY:-local-dd-agent-api-key}
+      ENV: ${ENV:-development}
+    volumes:
+      - dd_runtime:/data
+      - ./agent_service/skills:/app/agent_service/skills
+      - ./catalog:/app/catalog:ro
+    ports:
+      - "8011:8011"
+
+  backend:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DD_DATA_ROOT: /data
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://dd_user:dd_password@postgres:5432/dd_platform}
+      AGENT_SERVICE_URL: http://agent:8011
+      AGENT_CALLBACK_SECRET: ${AGENT_CALLBACK_SECRET:-local-dd-agent-callback}
+      AGENT_API_KEY: ${AGENT_API_KEY:-local-dd-agent-api-key}
+      AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-dev-secret-change-me}
+      ENV: ${ENV:-development}
+      DD_SEED_DEFAULT_USERS: ${DD_SEED_DEFAULT_USERS:-true}
+    volumes:
+      - dd_runtime:/data
+      - ./agent_service/skills:/app/agent_service/skills
+      - ./catalog:/app/catalog:ro
+    ports:
+      - "8010:8010"
+    depends_on:
+      - postgres
+      - agent
+
+  frontend:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:
+  dd_runtime:

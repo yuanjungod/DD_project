@@ -37,7 +37,11 @@ Current templates:
 
 At run time, the backend sends an immutable **workflow snapshot** to the agent service. The snapshot includes the workflow graph, agent templates, Anthropic-style skill packages, executable tools, resource configs, and AgentScope ReAct parameters used by that run.
 
-The agent service writes a **session JSON** for each `POST /runs` (on by default): `.dd_project/users/<user_id>/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<workflow_template_id>/<run_id>.json`. Step outputs live under the same session branch.
+The agent service writes a **session JSON** for each `POST /runs` (on by default):
+
+`.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<workflow_template_id>/<run_id>.json`
+
+Step outputs live under the same session branch in `outputs/{run_id}_outputs/{step}_{agent}/`.
 
 Each agent template can bind:
 
@@ -46,7 +50,7 @@ Each agent template can bind:
 - `resource_ids`: data resources exposed in the AgentScope ReAct system prompt.
 - `react_config`: AgentScope ReAct settings such as `max_iters` and `parallel_tool_calls`.
 
-Skill packages are also synchronized to a fixed engagement-local directory at `agent_service/skills/<directory_name>/`. The database remains the configuration catalog, while the local directory keeps the current `SKILL.md` and editable package files visible on disk.
+Skill packages are file-backed under `agent_service/skills/<directory_name>/`. Tool configs are file-backed under `agent_service/configs/tools.yaml`. On engagement creation/update, referenced skill packages are copied into the engagement-local directory `.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/shared/skills/` for mount-friendly deployments.
 
 The Agent service builds an AgentScope ReAct runtime for every agent from this snapshot. The runtime creates an AgentScope `Toolkit`, registers the selected tool functions, materializes selected `SKILL.md` packages and package files as AgentScope agent skills, injects bound resources into the ReAct system prompt, and calls the configured real model through an Anthropic Messages-compatible provider.
 
@@ -70,23 +74,17 @@ Default model config:
 }
 ```
 
-When the workflow graph comes from the snapshot rather than YAML defaults alone, coordinator, research agents, and reporter identifiers may differ while the **overall stage order** (plan, research, analysis, report) stays the same.
+When the workflow graph comes from the snapshot, agent identifiers follow the resolved **linear node order** (see [ADR-0005](adr/0005-linear-workflow-graph.md)). The diagram below illustrates logical roles in the standard template, not parallel runtime execution.
 
 ```mermaid
-flowchart TD
-  EngagementConfig[Engagement_Config] --> WorkflowTemplate[Workflow_Template]
-  WorkflowTemplate --> Coordinator[CoordinatorAgent]
-  Coordinator --> CompanyProfile[CompanyProfileAgent]
-  Coordinator --> WebResearch[WebResearchAgent]
-  Coordinator --> Financial[FinancialAnalysisAgent]
-  Coordinator --> Legal[LegalRiskAgent]
-  Coordinator --> Industry[IndustryAnalysisAgent]
-  CompanyProfile --> ReportWriter[ReportWriterAgent]
-  WebResearch --> ReportWriter
-  Financial --> ReportWriter
-  Legal --> ReportWriter
-  Industry --> ReportWriter
-  ReportWriter --> Report[Structured_Report]
+flowchart LR
+  Coordinator[CoordinatorAgent] --> CompanyProfile[CompanyProfileAgent]
+  CompanyProfile --> WebResearch[WebResearchAgent]
+  WebResearch --> Financial[FinancialAnalysisAgent]
+  Financial --> Legal[LegalRiskAgent]
+  Legal --> Industry[IndustryAnalysisAgent]
+  Industry --> ReportWriter[ReportWriterAgent]
+  ReportWriter --> Report[Step_Output_Folders]
 ```
 
 ## Run observability across services

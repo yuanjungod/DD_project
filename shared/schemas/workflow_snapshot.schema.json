@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dd-platform.local/schemas/workflow_snapshot.schema.json",
+  "title": "WorkflowSnapshot",
+  "type": "object",
+  "required": ["workflow", "agent_templates", "skill_packages", "tools", "resources"],
+  "properties": {
+    "workflow": {
+      "type": "object",
+      "required": ["id", "name", "graph"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "workflow_template": { "type": "string" },
+        "version": { "type": "integer" },
+        "graph": { "type": "object" }
+      }
+    },
+    "agent_templates": { "type": "array", "items": { "type": "object" } },
+    "skill_packages": { "type": "array", "items": { "type": "object" } },
+    "tools": { "type": "array", "items": { "type": "object" } },
+    "resources": { "type": "array", "items": { "type": "object" } }
+  }
+}

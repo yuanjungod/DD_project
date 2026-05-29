@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dd-platform.local/schemas/run_request.schema.json",
+  "title": "RunRequest",
+  "type": "object",
+  "required": ["engagement_id", "user_id", "company_config"],
+  "properties": {
+    "engagement_id": { "type": "string" },
+    "user_id": { "type": "string" },
+    "company_config": { "$ref": "company_config.schema.json" },
+    "workflow_snapshot": { "$ref": "workflow_snapshot.schema.json" },
+    "run_id": { "type": "string" },
+    "diligence_session_id": { "type": "string" },
+    "attempt_index": { "type": "integer" },
+    "continuation_context": { "type": "object" },
+    "pause_after_each_step": { "type": "boolean" },
+    "resume_from_step_index": { "type": "integer" },
+    "completed_steps": { "type": "array", "items": { "type": "object" } }
+  }
+}

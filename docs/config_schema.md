@@ -16,6 +16,9 @@ This document describes the configuration contract shared by the frontend, backe
 | `DATABASE_URL` | backend | SQLAlchemy URL. If unset, SQLite is stored at `DD_DATA_ROOT/platform/dd_platform.db`. Relative SQLite URLs are resolved from the repository root. |
 | `AGENT_SERVICE_URL` | backend | Base URL for **`POST /runs`** (default `http://127.0.0.1:8011`). |
 | `AGENT_CALLBACK_SECRET` | backend + agent | Shared secret for **`X-Agent-Callback-Secret`** on **`POST /internal/agent-runs/.../progress`**. |
+| `AGENT_API_KEY` | backend + agent | Shared API key for **`X-Agent-Api-Key`** on agent_service endpoints (required when `ENV=production`). |
+| `AUTH_SECRET_KEY` | backend | JWT signing secret (must not use dev default in production). |
+| `ENV` | backend + agent | Set to `production` to enforce non-default secrets. |
 | `PLATFORM_CALLBACK_BASE_URL` | agent | Backend base URL for incremental progress (default `http://127.0.0.1:8010`). Set empty or unreachable to disable callbacks (UI then only updates after finalization). |
 | `DD_SESSION_HISTORY_DIR` | agent | Optional legacy override (deprecated). Session JSON lives under `.dd_project/users/<user>/<workflow_template>/<engagement>/sessions/<session>/runs/<workflow_template>/<run>.json`. |
 | `DD_SEED_DEFAULT_USERS` | backend | Seed development users on startup when the users table is empty (default `true`). |
@@ -44,21 +47,29 @@ catalog/
   default_users.yaml                    # Development seed users
 ```
 
-**Unified runtime home:** runtime config/state is organized under repository root **`.dd_project/`** for clearer separation of config, users, channels, and data.
+**Unified runtime home:** runtime config/state is organized under repository root **`.dd_project/`**. See [ADR-0003](adr/0003-users-workflows-storage-layout.md) for the canonical layout.
 
 ```text
 .dd_project/
-  projects/
-    {engagement_id}/
-      meta/agent_overrides.json
-      shared/resources/manifest.json
-      shared/resource_configs/*.yaml
-      shared/uploads/{file_id}
-      users/{user_id}/sessions/{session_id}/runs/{workflow_template_id}/{run_id}.json
-      users/{user_id}/sessions/{session_id}/runs/{workflow_template_id}/outputs/{run_id}_outputs/{step}_{agent}/
-  data/platform/           # sqlite/db + platform-level overlays/uploads
-  channels/                # chat/channel id mapping store (future expansion)
-  users/                   # user-global state roots (future expansion)
+  engagement_index.json
+  users/
+    {user_id}/
+      workflows/
+        {workflow_template_id}/              # user-owned workflow template drafts
+          workflow_template.yaml
+          agents/
+        {workflow_template_id}/
+          {engagement_id}/
+            meta/agent_overrides.json
+            shared/resources/manifest.json
+            shared/resource_configs/*.yaml
+            shared/uploads/{file_id}
+            shared/skills/{directory_name}/
+            sessions/{session_id}/runs/{workflow_template_id}/
+              {run_id}.json
+              outputs/{run_id}_outputs/{step}_{agent}/
+  data/platform/                             # sqlite/db + platform-level overlays/uploads
+  channels/                                  # reserved
 ```
 
 **Workflow template folders:** each template has its own directory:

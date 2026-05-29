@@ -1,3 +1,4 @@
+import { authHeaders, deleteRequest, networkFetchError, uploadRequest } from "./auth";
 import type {
   AgentRun,
   AgentStepOutputFolder,
@@ -50,25 +51,18 @@ function uploadErrorMessage(detail: string, fallback: string): string {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = localStorage.getItem("dd_access_token");
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       headers: {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...authHeaders(),
         ...(options?.headers ?? {}),
       },
       ...options,
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg === "Failed to fetch" || msg.includes("NetworkError")) {
-      throw new Error(
-        `无法连接 API（当前基址：${API_BASE_URL}）。请确认 Backend 已在 127.0.0.1:8010 运行，并使用 npm run dev 开发服务器（带 /api 代理）。`,
-      );
-    }
-    throw err;
+    throw networkFetchError(err, API_BASE_URL);
   }
 
   if (!response.ok) {
@@ -157,41 +151,15 @@ export function updateEngagementResourceConfig(
 }
 
 export async function deleteEngagementResourceConfig(engagementId: string, resourceId: string): Promise<void> {
-  const token = localStorage.getItem("dd_access_token");
-  const response = await fetch(
-    `${API_BASE_URL}/engagements/${encodeURIComponent(engagementId)}/resource-configs/${encodeURIComponent(resourceId)}`,
-    {
-      method: "DELETE",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    },
+  return deleteRequest(
+    `/engagements/${encodeURIComponent(engagementId)}/resource-configs/${encodeURIComponent(resourceId)}`,
+    API_BASE_URL,
+    "删除失败",
   );
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `删除失败（${response.status}）`);
-  }
 }
 
 export async function deleteEngagement(engagementId: string): Promise<void> {
-  const token = localStorage.getItem("dd_access_token");
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}/engagements/${encodeURIComponent(engagementId)}`, {
-      method: "DELETE",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg === "Failed to fetch" || msg.includes("NetworkError")) {
-      throw new Error(
-        `无法连接 API（当前基址：${API_BASE_URL}）。请确认 Backend 已在 127.0.0.1:8010 运行，并使用 npm run dev 开发服务器（带 /api 代理）。`,
-      );
-    }
-    throw err;
-  }
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `删除失败（${response.status}）`);
-  }
+  return deleteRequest(`/engagements/${encodeURIComponent(engagementId)}`, API_BASE_URL, "删除失败");
 }
 
 export function listResources(engagementId: string): Promise<Resource[]> {
@@ -217,18 +185,11 @@ export function upsertEngagementAgentOverride(
 }
 
 export async function deleteEngagementAgentOverride(engagementId: string, agentId: string): Promise<void> {
-  const token = localStorage.getItem("dd_access_token");
-  const response = await fetch(
-    `${API_BASE_URL}/engagements/${encodeURIComponent(engagementId)}/agent-overrides/${encodeURIComponent(agentId)}`,
-    {
-      method: "DELETE",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    },
+  return deleteRequest(
+    `/engagements/${encodeURIComponent(engagementId)}/agent-overrides/${encodeURIComponent(agentId)}`,
+    API_BASE_URL,
+    "删除失败",
   );
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `删除失败（${response.status}）`);
-  }
 }
 
 export function createResource(
@@ -246,45 +207,26 @@ export function createResource(
 }
 
 export async function deleteResource(engagementId: string, resourceId: string): Promise<void> {
-  const token = localStorage.getItem("dd_access_token");
-  const response = await fetch(
-    `${API_BASE_URL}/engagements/${encodeURIComponent(engagementId)}/resources/${encodeURIComponent(resourceId)}`,
-    {
-      method: "DELETE",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    },
+  return deleteRequest(
+    `/engagements/${encodeURIComponent(engagementId)}/resources/${encodeURIComponent(resourceId)}`,
+    API_BASE_URL,
+    "删除失败",
   );
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `删除失败（${response.status}）`);
-  }
 }
 
 export async function uploadEngagementFile(engagementId: string, file: File): Promise<Resource> {
-  const token = localStorage.getItem("dd_access_token");
   const formData = new FormData();
   formData.append("file", file);
-  let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}/engagements/${encodeURIComponent(engagementId)}/uploads`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
-    });
+    return await uploadRequest<Resource>(
+      `/engagements/${encodeURIComponent(engagementId)}/uploads`,
+      API_BASE_URL,
+      formData,
+    );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg === "Failed to fetch" || msg.includes("NetworkError")) {
-      throw new Error(
-        `无法连接 API（当前基址：${API_BASE_URL}）。请确认 Backend 已在 127.0.0.1:8010 运行，并使用 npm run dev 开发服务器（带 /api 代理）。`,
-      );
-    }
-    throw err;
+    throw new Error(uploadErrorMessage(msg, msg));
   }
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(uploadErrorMessage(detail, `上传失败（${response.status}）`));
-  }
-  return response.json() as Promise<Resource>;
 }
 
 export function listLibraryUploads(): Promise<LibraryFile[]> {
@@ -292,42 +234,18 @@ export function listLibraryUploads(): Promise<LibraryFile[]> {
 }
 
 export async function uploadLibraryFile(file: File): Promise<LibraryFile> {
-  const token = localStorage.getItem("dd_access_token");
   const formData = new FormData();
   formData.append("file", file);
-  let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}/library/uploads`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
-    });
+    return await uploadRequest<LibraryFile>("/library/uploads", API_BASE_URL, formData);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg === "Failed to fetch" || msg.includes("NetworkError")) {
-      throw new Error(
-        `无法连接 API（当前基址：${API_BASE_URL}）。请确认 Backend 已在 127.0.0.1:8010 运行，并使用 npm run dev 开发服务器（带 /api 代理）。`,
-      );
-    }
-    throw err;
+    throw new Error(uploadErrorMessage(msg, msg));
   }
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(uploadErrorMessage(detail, `上传失败（${response.status}）`));
-  }
-  return response.json() as Promise<LibraryFile>;
 }
 
 export async function deleteLibraryUpload(fileId: string): Promise<void> {
-  const token = localStorage.getItem("dd_access_token");
-  const response = await fetch(`${API_BASE_URL}/library/uploads/${encodeURIComponent(fileId)}`, {
-    method: "DELETE",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `删除失败（${response.status}）`);
-  }
+  return deleteRequest(`/library/uploads/${encodeURIComponent(fileId)}`, API_BASE_URL, "删除失败");
 }
 
 export function listDiligenceSessions(engagementId: string): Promise<DiligenceSessionModel[]> {
@@ -398,33 +316,17 @@ export function listSkills(): Promise<SkillPackage[]> {
 }
 
 export async function importSkillZip(file: File, directoryName?: string): Promise<SkillPackage> {
-  const token = localStorage.getItem("dd_access_token");
   const formData = new FormData();
   formData.append("file", file);
   if (directoryName?.trim()) {
     formData.append("directory_name", directoryName.trim());
   }
-  let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}/skills/import-zip`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
-    });
+    return await uploadRequest<SkillPackage>("/skills/import-zip", API_BASE_URL, formData);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg === "Failed to fetch" || msg.includes("NetworkError")) {
-      throw new Error(
-        `无法连接 API（当前基址：${API_BASE_URL}）。请确认 Backend 已在 127.0.0.1:8010 运行，并使用 npm run dev 开发服务器（带 /api 代理）。`,
-      );
-    }
-    throw err;
+    throw new Error(uploadErrorMessage(msg, msg));
   }
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `上传失败（${response.status}）`);
-  }
-  return response.json() as Promise<SkillPackage>;
 }
 
 export function getSkill(skillId: string): Promise<SkillPackage> {
@@ -474,15 +376,7 @@ export function updateResourceConfig(
 }
 
 export async function deleteResourceConfig(resourceId: string): Promise<void> {
-  const token = localStorage.getItem("dd_access_token");
-  const response = await fetch(`${API_BASE_URL}/resources/configs/${encodeURIComponent(resourceId)}`, {
-    method: "DELETE",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `删除失败（${response.status}）`);
-  }
+  return deleteRequest(`/resources/configs/${encodeURIComponent(resourceId)}`, API_BASE_URL, "删除失败");
 }
 
 export function listAgentTemplates(): Promise<AgentTemplate[]> {
@@ -534,24 +428,9 @@ export function cloneWorkflowTemplate(workflowId: string): Promise<WorkflowTempl
 }
 
 export async function deleteWorkflowTemplate(workflowId: string): Promise<void> {
-  const token = localStorage.getItem("dd_access_token");
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}/workflow-templates/${encodeURIComponent(workflowId)}`, {
-      method: "DELETE",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg === "Failed to fetch" || msg.includes("NetworkError")) {
-      throw new Error(
-        `无法连接 API（当前基址：${API_BASE_URL}）。请确认 Backend 已在 127.0.0.1:8010 运行，并使用 npm run dev 开发服务器（带 /api 代理）。`,
-      );
-    }
-    throw err;
-  }
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `删除失败（${response.status}）`);
-  }
+  return deleteRequest(`/workflow-templates/${encodeURIComponent(workflowId)}`, API_BASE_URL, "删除失败");
+}
+
+export function retryRun(runId: string): Promise<AgentRun> {
+  return request<AgentRun>(`/runs/${encodeURIComponent(runId)}/retry`, { method: "POST", body: JSON.stringify({}) });
 }

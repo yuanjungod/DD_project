@@ -5,10 +5,12 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.models.entities import AgentRun, AgentStep, AgentStepChatMessage, Report
+from app.services.report_synthesis import synthesize_report_from_steps
 
 
 def _attach_run_children(db: Session, project_id: str, run: AgentRun, result: dict) -> None:
-    for step in result.get("steps", []):
+    steps = result.get("steps", [])
+    for step in steps:
         db.add(
             AgentStep(
                 id=step["id"],
@@ -21,6 +23,8 @@ def _attach_run_children(db: Session, project_id: str, run: AgentRun, result: di
         )
 
     report = result.get("report")
+    if not report and isinstance(steps, list):
+        report = synthesize_report_from_steps(steps)
     if report:
         db.add(
             Report(

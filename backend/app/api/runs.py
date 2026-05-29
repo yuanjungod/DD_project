@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.auth import accessible_project_ids, ensure_project_access, ensure_project_write_access, require_roles
-from app.core.database import SessionLocal, get_db
+from app.core.database import get_db
 from app.models.entities import AgentRun, AgentStep, AgentStepChatMessage, DiligenceSession, Project, User
 from app.schemas import (
     AgentRunBriefRead,
@@ -27,8 +27,9 @@ from app.schemas import (
 from app.services.agent_client import AgentServiceClient, AgentServiceError
 from app.services.agent_run_resume import completed_slice_for_agent_service, previous_results_before_step
 from app.services.company_config_merge import merged_company_config_with_project_resources
-from app.services.persistence import append_agent_step_chat_message, create_pending_agent_run, finalize_agent_run, mark_agent_run_failed
+from app.services.persistence import append_agent_step_chat_message, create_pending_agent_run
 from app.services.project_resources_store import project_resource_records_for_merge
+from app.services.run_dispatch import dispatch_agent_background
 from app.services.session_context import build_continuation_context, latest_attempt_in_session, next_attempt_index
 from app.services.workflow_snapshots import build_workflow_snapshot
 
@@ -59,80 +60,6 @@ def _read_text_if_exists(path: Path, *, max_chars: int = 20000) -> str:
     if len(text) > max_chars:
         return text[:max_chars] + "\n...(truncated)"
     return text
-
-
-async def _dispatch_agent_background(
-    engagement_id: str,
-    run_id: str,
-    user_id: str,
-    company_config: dict,
-    workflow_snapshot: dict,
-    *,
-    diligence_session_id: str,
-    attempt_index: int,
-    continuation_context: dict | None,
-    pause_after_each_step: bool,
-    resume_from_step_index: int,
-    completed_steps: list[dict],
-) -> None:
-    await asyncio.to_thread(
-        _execute_agent_pipeline_blocking,
-        engagement_id,
-        run_id,
-        user_id,
-        company_config,
-        workflow_snapshot,
-        diligence_session_id=diligence_session_id,
-        attempt_index=attempt_index,
-        continuation_context=continuation_context,
-        pause_after_each_step=pause_after_each_step,
-        resume_from_step_index=resume_from_step_index,
-        completed_steps=completed_steps,
-    )
-
-
-def _execute_agent_pipeline_blocking(
-    engagement_id: str,
-    run_id: str,
-    user_id: str,
-    company_config: dict,
-    workflow_snapshot: dict,
-    *,
-    diligence_session_id: str,
-    attempt_index: int,
-    continuation_context: dict | None,
-    pause_after_each_step: bool,
-    resume_from_step_index: int,
-    completed_steps: list[dict],
-) -> None:
-    db = SessionLocal()
-    client = AgentServiceClient()
-    try:
-        try:
-            result = asyncio.run(
-                client.start_run(
-                    engagement_id,
-                    company_config,
-                    workflow_snapshot=workflow_snapshot,
-                    user_id=user_id,
-                    client_run_id=run_id,
-                    diligence_session_id=diligence_session_id,
-                    attempt_index=attempt_index,
-                    continuation_context=continuation_context,
-                    pause_after_each_step=pause_after_each_step,
-                    resume_from_step_index=resume_from_step_index,
-                    completed_steps=completed_steps,
-                )
-            )
-        except Exception as exc:  # noqa: BLE001
-            mark_agent_run_failed(db, run_id, str(exc))
-            return
-        if result.get("run_id") != run_id:
-            mark_agent_run_failed(db, run_id, "Agent returned mismatched run_id")
-            return
-        finalize_agent_run(db, project_id=engagement_id, run_id=run_id, result=result)
-    finally:
-        db.close()
 
 
 @router.get("/engagements/{engagement_id}/diligence-sessions", response_model=list[DiligenceSessionRead])
@@ -237,7 +164,7 @@ async def _execute_start_agent_run(
 
     pause_gate = body.interaction_mode == "step_gated"
     background_tasks.add_task(
-        _dispatch_agent_background,
+        dispatch_agent_background,
         engagement.id,
         run_id,
         user.id,
@@ -420,7 +347,7 @@ async def continue_step_gated(
     company_merged = merged_company_config_with_project_resources(dict(engagement.company_config), proj_records)
     owner_user_id = row.started_by_user_id or user.id
     background_tasks.add_task(
-        _dispatch_agent_background,
+        dispatch_agent_background,
         row.project_id,
         run_id,
         owner_user_id,

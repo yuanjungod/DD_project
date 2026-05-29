@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dd-platform.local/schemas/run_result.schema.json",
+  "title": "RunResult",
+  "type": "object",
+  "required": ["run_id", "status", "steps"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "status": { "type": "string", "enum": ["pending", "running", "completed", "failed", "paused"] },
+    "steps": {
+      "type": "array",
+      "items": { "$ref": "agent_result.schema.json" }
+    },
+    "report": { "$ref": "report.schema.json" }
+  }
+}

@@ -46,28 +46,41 @@ catalog/
 
 ```text
 .dd_project/
-  projects/
-    {engagement_id}/
-      meta/
-        agent_overrides.json            # Engagement-scoped Agent override manifest
-      shared/
-        resources/manifest.json         # Engagement resource metadata
-        resource_configs/*.yaml         # Engagement resource config overrides
-        uploads/{file_id}               # Engagement-shared uploaded binaries
-      users/{user_id}/sessions/{session_id}/
-        runs/{workflow_template_id}/{run_id}.json
-        runs/{workflow_template_id}/outputs/{run_id}_outputs/{step}_{agent}/
-  data/
-    platform/                           # Platform-level DB/config/upload storage
+  engagement_index.json
+  users/
+    {user_id}/
+      workflows/
+        {workflow_template_id}/         # User-owned workflow template drafts
+          workflow_template.yaml
+          agents/
+        {workflow_template_id}/
+          {engagement_id}/
+            meta/agent_overrides.json
+            shared/
+              resources/manifest.json
+              resource_configs/*.yaml
+              uploads/{file_id}
+              skills/{directory_name}/
+            sessions/{session_id}/runs/{workflow_template_id}/
+              {run_id}.json
+              outputs/{run_id}_outputs/{step}_{agent}/
+  data/platform/                        # SQLite, platform overlays, library uploads
   channels/                             # Reserved for channel mapping expansion
-  users/                                # Reserved for user-global expansion
 ```
+
+See **[.dd_project/README.md](.dd_project/README.md)** for the full runtime storage guide.
 
 ## Documentation
 
+- **[CONTEXT.md](CONTEXT.md)** — domain vocabulary (skill package, workflow snapshot, tool config).
 - **[docs/architecture.md](docs/architecture.md)** — services, async run lifecycle, incremental callbacks, ports, Vite `/api` proxy.
 - **[docs/agent_flow.md](docs/agent_flow.md)** — agents, workflow snapshots, `run_id` handoff, observability.
 - **[docs/config_schema.md](docs/config_schema.md)** — JSON shapes, environment variables, UTC timestamps for runs.
+- **[docs/deployment.md](docs/deployment.md)** — Docker Compose and environment setup.
+- **[docs/adr/README.md](docs/adr/README.md)** — architecture decision records.
+- **[catalog/README.md](catalog/README.md)** — built-in template catalog layout.
+
+Copy **[.env.example](.env.example)** to `.env` at the repository root for local configuration.
 
 ## Local Development
 
@@ -97,15 +110,24 @@ npm run dev
 Writable runtime data defaults to `.dd_project/data/` from the repository root:
 
 - SQLite: `.dd_project/data/platform/dd_platform.db` (set `DATABASE_URL` to use PostgreSQL or another explicit database).
-- Engagement resources: `.dd_project/users/<user_id>/<workflow_template_id>/<engagement_id>/shared/resources` + `.dd_project/users/<user_id>/<workflow_template_id>/<engagement_id>/shared/resource_configs`.
-- Engagement uploads (binary blobs): `.dd_project/users/<user_id>/<workflow_template_id>/<engagement_id>/shared/uploads/<file_id>`.
-- Engagement-local copied skills: `.dd_project/users/<user_id>/<workflow_template_id>/<engagement_id>/shared/skills/<directory_name>`.
+- Engagement resources: `.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/shared/resources` + `.../shared/resource_configs`.
+- Engagement uploads (binary blobs): `.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/shared/uploads/<file_id>`.
+- Engagement-local copied skills: `.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/shared/skills/<directory_name>`.
 - Platform uploads (binary blobs): `.dd_project/data/platform/uploads/<file_id>`.
 - Platform upload manifest: `.dd_project/data/platform/uploads_manifest.json`.
-- Agent run sessions and per-step outputs: `.dd_project/users/<user_id>/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<workflow_template_id>/...`.
-- Engagement runtime config home: `.dd_project/users/<user_id>/<workflow_template_id>/<engagement_id>/meta/agent_overrides.json`.
+- Agent run sessions and per-step outputs: `.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/sessions/<session_id>/runs/<workflow_template_id>/...`.
+- Engagement runtime config home: `.dd_project/users/<user_id>/workflows/<workflow_template_id>/<engagement_id>/meta/agent_overrides.json`.
 
 Set `DD_DATA_ROOT` to move all writable file data together.
+
+## Docker (optional)
+
+```bash
+cp .env.example .env
+docker compose --profile full up --build
+```
+
+See **[docs/deployment.md](docs/deployment.md)** for production checklist and shared-volume layout.
 
 ## MVP Flow
 
@@ -126,3 +148,16 @@ MVP flow:
 7. Review agent steps, per-step output folders, report, workflow snapshot, and run history.
 
 After upgrading from a build that used the removed Evidence model, reset local SQLite under `.dd_project/data/platform/` (delete `dd_platform.db` and restart the backend) so `create_all` rebuilds the schema.
+
+## Tests
+
+```bash
+# Shared workflow graph tests
+python -m unittest shared/test_workflow_graph.py
+
+# Agent tool registry tests
+python -m unittest agent_service/tools/test_registry.py
+
+# Backend tests (from repo root)
+python -m unittest discover -s backend/tests -p 'test_*.py'
+```

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 
 from agent_service.agents.agentscope_adapter import initialize_agentscope
+from agent_service.api.auth import require_agent_api_key
 from agent_service.api.schemas import RunRequest, RunResult, StepReviewChatRequest, StepReviewChatResponse
 from agent_service.session_history import (
     list_all_session_workflow_template_ids,
@@ -21,6 +22,7 @@ from agent_service.workflows.due_diligence import DueDiligenceWorkflow
 
 app = FastAPI(title="Due Diligence Agent Service", version="0.1.0")
 workflow = DueDiligenceWorkflow()
+_require_agent_key = [Depends(require_agent_api_key)]
 
 
 @app.on_event("startup")
@@ -33,7 +35,7 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/config")
+@app.get("/config", dependencies=_require_agent_key)
 def config() -> dict[str, object]:
     tool_config = load_tool_config()
     workflows, default_workflow_id = load_workflow_template_catalog()
@@ -45,7 +47,7 @@ def config() -> dict[str, object]:
     }
 
 
-@app.post("/runs", response_model=RunResult)
+@app.post("/runs", response_model=RunResult, dependencies=_require_agent_key)
 def run_due_diligence(request: RunRequest) -> RunResult:
     try:
         return workflow.run(
@@ -65,7 +67,7 @@ def run_due_diligence(request: RunRequest) -> RunResult:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.post("/assist/step-review-chat", response_model=StepReviewChatResponse)
+@app.post("/assist/step-review-chat", response_model=StepReviewChatResponse, dependencies=_require_agent_key)
 def assist_step_review_chat(request: StepReviewChatRequest) -> StepReviewChatResponse:
     try:
         return workflow.step_review_chat(request)
@@ -73,7 +75,7 @@ def assist_step_review_chat(request: StepReviewChatRequest) -> StepReviewChatRes
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.get("/sessions/{workflow_template_id}/{user_id}/{engagement_id}/{run_id}")
+@app.get("/sessions/{workflow_template_id}/{user_id}/{engagement_id}/{run_id}", dependencies=_require_agent_key)
 def get_session_json(workflow_template_id: str, user_id: str, engagement_id: str, run_id: str) -> dict[str, object]:
     try:
         payload = read_session_document(workflow_template_id, user_id, engagement_id, run_id)
@@ -84,7 +86,7 @@ def get_session_json(workflow_template_id: str, user_id: str, engagement_id: str
     return payload
 
 
-@app.get("/sessions/{workflow_template_id}/{user_id}/{engagement_id}")
+@app.get("/sessions/{workflow_template_id}/{user_id}/{engagement_id}", dependencies=_require_agent_key)
 def list_session_entries(workflow_template_id: str, user_id: str, engagement_id: str) -> dict[str, object]:
     try:
         ids = list_session_files(workflow_template_id, user_id, engagement_id)
@@ -98,7 +100,7 @@ def list_session_entries(workflow_template_id: str, user_id: str, engagement_id:
     }
 
 
-@app.get("/sessions/{workflow_template_id}/{user_id}")
+@app.get("/sessions/{workflow_template_id}/{user_id}", dependencies=_require_agent_key)
 def list_session_engagements(workflow_template_id: str, user_id: str) -> dict[str, object]:
     try:
         ids = list_session_engagement_ids(workflow_template_id, user_id)
@@ -107,7 +109,7 @@ def list_session_engagements(workflow_template_id: str, user_id: str) -> dict[st
     return {"workflow_template_id": workflow_template_id, "user_id": user_id, "engagement_ids": ids}
 
 
-@app.get("/sessions/{workflow_template_id}")
+@app.get("/sessions/{workflow_template_id}", dependencies=_require_agent_key)
 def list_session_users(workflow_template_id: str) -> dict[str, object]:
     try:
         ids = list_session_user_ids(workflow_template_id)
@@ -116,6 +118,6 @@ def list_session_users(workflow_template_id: str) -> dict[str, object]:
     return {"workflow_template_id": workflow_template_id, "user_ids": ids}
 
 
-@app.get("/sessions")
+@app.get("/sessions", dependencies=_require_agent_key)
 def list_session_workflow_templates() -> dict[str, object]:
     return {"workflow_template_ids": list_all_session_workflow_template_ids()}

@@ -3,13 +3,15 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DEFAULT_DATA_ROOT = ".dd_project/data"
 _ENV_FILE = _REPO_ROOT / ".env"
+_DEV_AGENT_API_KEY = "local-dd-agent-api-key"
+_DEV_CALLBACK_SECRET = "local-dd-agent-callback"
 
 
 def _resolve_repo_path(raw: str) -> Path:
@@ -24,13 +26,19 @@ class AgentSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=_ENV_FILE, env_file_encoding="utf-8", extra="ignore")
 
+    env: str = Field(default="development", validation_alias="ENV")
+    agent_api_key: str = Field(
+        default=_DEV_AGENT_API_KEY,
+        validation_alias="AGENT_API_KEY",
+        description="Required on all endpoints except /health when set.",
+    )
     platform_callback_base_url: str = Field(
         default="http://127.0.0.1:8010",
         validation_alias="PLATFORM_CALLBACK_BASE_URL",
         description="Backend base URL for incremental progress. Override in Docker (e.g. http://backend:8010) or set empty to disable.",
     )
     agent_callback_secret: str = Field(
-        default="local-dd-agent-callback",
+        default=_DEV_CALLBACK_SECRET,
         validation_alias="AGENT_CALLBACK_SECRET",
         description="Must match backend AGENT_CALLBACK_SECRET for /internal/agent-runs callbacks.",
     )
@@ -49,6 +57,20 @@ class AgentSettings(BaseSettings):
         validation_alias=AliasChoices("DD_DATA_ROOT", "FILESYSTEM_DATA_ROOT"),
         description="Shared writable data root used when DD_SESSION_HISTORY_DIR is not set.",
     )
+
+    @property
+    def is_production(self) -> bool:
+        return self.env.strip().lower() == "production"
+
+    @model_validator(mode="after")
+    def _validate_production_secrets(self) -> AgentSettings:
+        if not self.is_production:
+            return self
+        if self.agent_api_key == _DEV_AGENT_API_KEY:
+            raise ValueError("AGENT_API_KEY must be set to a non-default value when ENV=production")
+        if self.agent_callback_secret == _DEV_CALLBACK_SECRET:
+            raise ValueError("AGENT_CALLBACK_SECRET must be set to a non-default value when ENV=production")
+        return self
 
     @property
     def repo_root(self) -> Path:

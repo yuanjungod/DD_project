@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -20,16 +19,15 @@ from app.services.catalog_layout import (
     list_user_agent_template_paths,
     user_agent_template_path,
 )
+from app.services.catalog_yaml_utils import load_yaml, utc_from_mtime
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as file:
-        loaded = yaml.safe_load(file)
-    return loaded if isinstance(loaded, dict) else {}
+    return load_yaml(path)
 
 
-def _utc_from_mtime(path: Path) -> datetime:
-    return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+def _utc_from_mtime(path: Path):
+    return utc_from_mtime(path)
 
 
 def _write_agent_file(path: Path, payload: dict[str, Any]) -> None:

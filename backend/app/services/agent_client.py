@@ -13,6 +13,10 @@ class AgentServiceClient:
     def __init__(self, base_url: str | None = None) -> None:
         self.base_url = (base_url or settings.agent_service_url).rstrip("/")
 
+    def _agent_headers(self) -> dict[str, str]:
+        key = settings.agent_api_key.strip()
+        return {"X-Agent-Api-Key": key} if key else {}
+
     async def start_run(
         self,
         engagement_id: str,
@@ -49,7 +53,11 @@ class AgentServiceClient:
 
         async with httpx.AsyncClient(timeout=3600) as client:
             try:
-                response = await client.post(f"{self.base_url}/runs", json=payload)
+                response = await client.post(
+                    f"{self.base_url}/runs",
+                    json=payload,
+                    headers=self._agent_headers(),
+                )
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
                 detail = ""
@@ -68,7 +76,11 @@ class AgentServiceClient:
     async def assist_step_review_chat(self, payload: dict) -> dict:
         async with httpx.AsyncClient(timeout=900) as client:
             try:
-                response = await client.post(f"{self.base_url}/assist/step-review-chat", json=payload)
+                response = await client.post(
+                    f"{self.base_url}/assist/step-review-chat",
+                    json=payload,
+                    headers=self._agent_headers(),
+                )
                 response.raise_for_status()
             except httpx.HTTPError as exc:
                 raise AgentServiceError(f"Agent assist chat failed: {exc}") from exc
@@ -77,7 +89,7 @@ class AgentServiceClient:
     async def get_config(self) -> dict:
         async with httpx.AsyncClient(timeout=30) as client:
             try:
-                response = await client.get(f"{self.base_url}/config")
+                response = await client.get(f"{self.base_url}/config", headers=self._agent_headers())
                 response.raise_for_status()
             except httpx.HTTPError as exc:
                 raise AgentServiceError(f"Agent service config request failed: {exc}") from exc

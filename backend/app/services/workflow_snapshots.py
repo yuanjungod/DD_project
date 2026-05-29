@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
+from app.services.agent_record_utils import normalize_tool_ids
 from app.services.platform_resource_catalog import load_resource_configs_by_ids
 from app.services.project_resource_catalog import load_project_resource_configs_by_ids
 from app.services.workflow_graph import resolve_graph_agent_order
@@ -34,7 +35,7 @@ def build_workflow_snapshot(company_config: dict, *, project_id: str | None = No
         agents = _apply_project_agent_overrides(agents, project_agent_override_records(project_id))
 
     skill_package_ids = sorted({skill_id for agent in agents for skill_id in (agent.get("skill_package_ids") or [])})
-    tool_ids = sorted({tool_id for agent in agents for tool_id in (agent.get("tool_ids") or agent.get("skill_ids") or [])})
+    tool_ids = sorted({tool_id for agent in agents for tool_id in normalize_tool_ids(agent)})
     resource_ids = sorted({resource_id for agent in agents for resource_id in (agent.get("resource_ids") or [])})
     skill_packages = load_skill_packages_by_ids(skill_package_ids)
     tools = load_tool_configs_by_ids(tool_ids)
@@ -57,8 +58,8 @@ def build_workflow_snapshot(company_config: dict, *, project_id: str | None = No
                 "prompt": agent["prompt"],
                 "sub_agent_ids": agent.get("sub_agent_ids") or [],
                 "skill_package_ids": agent.get("skill_package_ids") or [],
-                "tool_ids": agent.get("tool_ids") or agent.get("skill_ids") or [],
-                "skill_ids": agent.get("tool_ids") or agent.get("skill_ids") or [],
+                "tool_ids": normalize_tool_ids(agent),
+                "skill_ids": normalize_tool_ids(agent),
                 "resource_ids": agent.get("resource_ids") or [],
                 "platform_upload_file_ids": agent.get("platform_upload_file_ids") or [],
                 "react_config": agent.get("react_config")
@@ -153,7 +154,7 @@ def _apply_project_agent_overrides(agents: list[dict], overrides: list[dict]) ->
             list(override.get("skill_package_ids_remove") or []),
         )
         row["tool_ids"] = _apply_id_delta(
-            list(row.get("tool_ids") or row.get("skill_ids") or []),
+            normalize_tool_ids(row),
             list(override.get("tool_ids_add") or []),
             list(override.get("tool_ids_remove") or []),
         )

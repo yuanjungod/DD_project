@@ -8,8 +8,9 @@ type LoginPageProps = {
   onLogin: (session: AuthSession) => void;
 };
 
-const defaultLoginEmail = import.meta.env.VITE_DEFAULT_LOGIN_EMAIL || "admin@example.com";
-const defaultLoginPassword = import.meta.env.VITE_DEFAULT_LOGIN_PASSWORD || "admin123";
+const defaultLoginEmail = import.meta.env.VITE_DEFAULT_LOGIN_EMAIL || "";
+const defaultLoginPassword = import.meta.env.VITE_DEFAULT_LOGIN_PASSWORD || "";
+const showDevLoginHints = import.meta.env.VITE_SHOW_DEV_LOGIN_HINTS === "true";
 
 export function LoginPage({ onLogin }: LoginPageProps) {
   const navigate = useNavigate();
@@ -39,7 +40,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         <p className="eyebrow">Permissioned Due Diligence</p>
         <h1>登录尽调平台</h1>
         <p className="muted">
-          默认账号：{defaultLoginEmail} / {defaultLoginPassword}。管理员可查看全部 Engagement，分析师可创建并运行 Engagement，只读用户只能查看。
+          {showDevLoginHints && defaultLoginEmail && defaultLoginPassword
+            ? `开发默认账号：${defaultLoginEmail} / ${defaultLoginPassword}。管理员可查看全部 Engagement，分析师可创建并运行 Engagement，只读用户只能查看。`
+            : "使用分配的账号登录。管理员可查看全部 Engagement，分析师可创建并运行 Engagement，只读用户只能查看。"}
         </p>
         {error ? <div className="error">{error}</div> : null}
         <form className="form" onSubmit={handleSubmit}>

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 import shutil
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +29,7 @@ from app.services.catalog_layout import (
     workflow_template_config_write_root,
     workflow_template_yaml_path,
 )
+from app.services.catalog_yaml_utils import load_yaml, utc_from_mtime
 from app.services.workflow_graph import resolve_graph_agent_order
 
 
@@ -41,13 +41,11 @@ def workflow_templates_dir() -> Path:
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as file:
-        loaded = yaml.safe_load(file)
-    return loaded if isinstance(loaded, dict) else {}
+    return load_yaml(path)
 
 
-def _utc_from_mtime(path: Path) -> datetime:
-    return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+def _utc_from_mtime(path: Path):
+    return utc_from_mtime(path)
 
 
 def ensure_workflow_templates_dir() -> None:

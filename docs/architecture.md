@@ -36,7 +36,7 @@ The browser usually talks to the backend through the Vite dev **`/api` proxy** (
 
 ### Generic Agent Configuration
 
-Generic workflow configuration lives under `agent_service/configs`, `agent_service/prompts`, and `shared/schemas`.
+Generic workflow configuration lives under **`catalog/`** (published templates), **`.dd_project/users/{user_id}/workflows/`** (drafts), **`agent_service/configs/tools.yaml`**, **`agent_service/skills/`**, and **`shared/schemas/`**.
 
 It defines:
 
@@ -78,16 +78,15 @@ For local development the backend defaults to SQLite at **`DD_DATA_ROOT/platform
 
 ### Agent Service
 
-The agent service exposes HTTP endpoints for runs and executes a configurable workflow. Published templates resolve to an ordered agent graph at run time via the backend-built **workflow snapshot** (nodes may differ from the diagram below).
+The agent service exposes HTTP endpoints for runs and executes a configurable workflow. Published templates resolve to an **ordered linear agent sequence** at run time via the backend-built **workflow snapshot** (see [ADR-0005](adr/0005-linear-workflow-graph.md)). Within each graph node, a master agent may run followed by optional sub-agents.
 
 ```mermaid
 flowchart TD
-  Start[POST_/runs] --> LoadConfig[Load_Snapshot_or_Default_Workflow]
-  LoadConfig --> Coordinator[Coordinator]
-  Coordinator --> Research[Research_Agents]
-  Research --> Analyze[Analysis_Agents]
-  Analyze --> Report[Reporter]
-  Report --> Respond[HTTP_RunResult]
+  Start[POST_/runs] --> LoadSnapshot[Load_Workflow_Snapshot]
+  LoadSnapshot --> Step1[Agent_Step_1]
+  Step1 --> Step2[Agent_Step_2]
+  Step2 --> StepN[Agent_Step_N]
+  StepN --> Respond[HTTP_RunResult]
 ```
 
 ReAct agents use AgentScope built-in file and code execution tools; optional platform catalog tools extend the same `ToolRegistry` interface when listed in `tools.yaml`.
@@ -100,7 +99,7 @@ The frontend provides a workbench for:
 - Configuring resources and workflow template.
 - Starting and monitoring runs (polling plus incremental UI when callbacks are configured).
 - Reviewing agent steps and per-step output folders with correct **local timestamps** (**API emits UTC timestamps with `Z`** for runs).
-- Reading the generated report.
+- Reading the generated report (when synthesized from the final agent step; see [ADR-0004](adr/0004-report-from-step-outputs.md)).
 
 ## Development Layout
 
