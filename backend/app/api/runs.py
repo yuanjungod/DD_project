@@ -39,6 +39,7 @@ from app.services.run_agent_context import build_agent_dispatch_context
 from app.services.run_dispatch import dispatch_agent_background
 from app.services.run_status import resolve_effective_run_status
 from app.services.session_context import build_continuation_context, latest_attempt_in_session, next_attempt_index
+from shared.instance_config import resolve_workflow_template_id
 
 
 router = APIRouter(tags=["runs"])
@@ -138,6 +139,27 @@ def _workflow_session_reads(sessions: list[WorkflowSession]) -> list[WorkflowSes
             )
         )
     return out
+
+
+def _delete_runs_and_orphan_sessions(db: Session, runs: list[AgentRun]) -> tuple[int, int]:
+    if not runs:
+        return 0, 0
+    session_ids = {run.session_id for run in runs if run.session_id}
+    deleted_runs = 0
+    for run in runs:
+        db.delete(run)
+        deleted_runs += 1
+    db.flush()
+    deleted_sessions = 0
+    if session_ids:
+        sessions = db.query(WorkflowSession).filter(WorkflowSession.id.in_(session_ids)).all()
+        for session in sessions:
+            remaining = db.query(AgentRun.id).filter(AgentRun.session_id == session.id).first()
+            if remaining is None:
+                db.delete(session)
+                deleted_sessions += 1
+        db.flush()
+    return deleted_runs, deleted_sessions
 
 
 @router.get("/engagements/{engagement_id}/workflow-sessions", response_model=list[WorkflowSessionRead])
@@ -294,6 +316,53 @@ def list_engagement_runs(
         .all()
     )
     return _reconcile_run_reads(db, runs)
+
+
+@router.delete("/engagements/{engagement_id}/runs")
+def delete_engagement_runs(
+    engagement_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("admin", "analyst")),
+) -> dict[str, int]:
+    ensure_engagement_write_access(db, user, engagement_id)
+    runs = db.query(AgentRun).filter(AgentRun.engagement_id == engagement_id).all()
+    deleted_runs, deleted_sessions = _delete_runs_and_orphan_sessions(db, runs)
+    db.commit()
+    return {
+        "deleted_runs": deleted_runs,
+        "deleted_sessions": deleted_sessions,
+        "matched_engagements": 1,
+    }
+
+
+@router.delete("/runs/by-workflow/{workflow_template_id}")
+def delete_runs_by_workflow_template(
+    workflow_template_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("admin", "analyst")),
+) -> dict[str, int]:
+    target = str(workflow_template_id or "").strip()
+    if not target:
+        raise HTTPException(status_code=400, detail="workflow_template_id is required")
+    engagement_query = db.query(Engagement)
+    engagement_ids = accessible_engagement_ids(db, user)
+    if engagement_ids is not None:
+        engagement_query = engagement_query.filter(Engagement.id.in_(engagement_ids))
+    matched_engagement_ids = [
+        item.id
+        for item in engagement_query.all()
+        if resolve_workflow_template_id(item.instance_config if isinstance(item.instance_config, dict) else {}) == target
+    ]
+    if not matched_engagement_ids:
+        return {"deleted_runs": 0, "deleted_sessions": 0, "matched_engagements": 0}
+    runs = db.query(AgentRun).filter(AgentRun.engagement_id.in_(matched_engagement_ids)).all()
+    deleted_runs, deleted_sessions = _delete_runs_and_orphan_sessions(db, runs)
+    db.commit()
+    return {
+        "deleted_runs": deleted_runs,
+        "deleted_sessions": deleted_sessions,
+        "matched_engagements": len(matched_engagement_ids),
+    }
 
 
 @router.get("/runs/{run_id}", response_model=AgentRunRead)

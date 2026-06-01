@@ -521,15 +521,13 @@ export function WorkflowsHubPage() {
                           <button type="button" className="secondary-button" onClick={() => handleClone(workflow.id)}>
                             克隆
                           </button>
-                          {!workflow.is_builtin ? (
-                            <button
-                              type="button"
-                              className="danger-button"
-                              onClick={() => void handleDelete(workflow)}
-                            >
-                              删除
-                            </button>
-                          ) : null}
+                          <button
+                            type="button"
+                            className="danger-button"
+                            onClick={() => void handleDelete(workflow)}
+                          >
+                            删除
+                          </button>
                         </div>
                       </article>
                     ))}

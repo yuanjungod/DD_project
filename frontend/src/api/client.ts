@@ -380,6 +380,20 @@ export function listEngagementRuns(engagementId: string): Promise<AgentRun[]> {
   return request<AgentRun[]>(`/engagements/${engagementId}/runs`);
 }
 
+export type BulkRunDeleteResult = {
+  deleted_runs: number;
+  deleted_sessions: number;
+  matched_engagements: number;
+};
+
+export function deleteEngagementRuns(engagementId: string): Promise<BulkRunDeleteResult> {
+  return request<BulkRunDeleteResult>(`/engagements/${encodeURIComponent(engagementId)}/runs`, { method: "DELETE" });
+}
+
+export function deleteWorkflowRuns(workflowTemplateId: string): Promise<BulkRunDeleteResult> {
+  return request<BulkRunDeleteResult>(`/runs/by-workflow/${encodeURIComponent(workflowTemplateId)}`, { method: "DELETE" });
+}
+
 export function listSkills(): Promise<SkillPackage[]> {
   return request<SkillPackage[]>("/skills");
 }
